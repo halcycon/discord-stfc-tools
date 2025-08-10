@@ -66,33 +66,28 @@ async function handleDiscordInteraction(request: Request, env: Env): Promise<Res
 		if (data.name === 'tablehelp') {
 			const helpText = `**📊 Table Command Help**
 
-**Usage Options:**
-1️⃣ **Inline CSV with line breaks**: \`/table csv_data:"Name,Age\\nJohn,25\\nJane,30"\`
-2️⃣ **File upload**: Use the csv_file option to upload a .csv file
-3️⃣ **Simple CSV**: \`/table csv_data:"Product,Price\\nLaptop,999\\nPhone,599"\`
+**Simple Examples (no outer quotes needed):**
+• \`/table csv_data:Name,Age\\nJohn,25\\nJane,30\`
+• \`/table csv_data:Item,Price\\nLaptop,999\\nMouse,29\`
 
-**Important for Multi-line:**
-• Use \\\\n for line breaks in the csv_data field
-• Discord doesn't support actual multi-line input in slash commands
+**With Spaces (outer quotes needed):**
+• \`/table csv_data:"Name,Description\\nJohn Doe,Software Developer\\nJane Smith,Designer"\`
 
-**CSV Format Examples:**
-\`\`\`
-Name,Age,City\\nJohn,25,NYC\\nJane,30,LA\\nBob,22,SF
-\`\`\`
+**Multi-line Cell Content (use | for line breaks):**
+• \`/table csv_data:"Name,Skills\\nAlice,Python|JavaScript|SQL\\nBob,Design|Photoshop"\`
 
-**Working Examples:**
-• \`/table csv_data:"Name,Age\\nAlice,28\\nBob,32"\`
-• \`/table csv_data:"Item,Cost\\nLaptop,$999\\nMouse,$29"\`
-
-**File Upload:**
-• Use the csv_file field to upload .csv files
-• Max file size: 1MB
-• Must be .csv format
+**File Upload Alternative:**
+• Use csv_file parameter to upload .csv files (max 1MB)
 
 **Tips:**
-• First row = column headers
-• Use commas to separate values  
-• Max display: ~1900 characters`;
+• Use \\\\n for row breaks
+• Use | for multi-line content within cells  
+• Only add outer quotes if values have spaces
+• First row = headers, rest = data
+• Max display: ~1900 characters
+
+**Working Examples:**
+\`/table csv_data:Product,Features\\niPhone,Camera|WiFi|Bluetooth\\nLaptop,16GB|SSD|i7\``;
 
 			return Response.json({
 				type: 4,
@@ -194,6 +189,10 @@ Name,Age,City\\nJohn,25,NYC\\nJane,30,LA\\nBob,22,SF
 				} else if (csvInput) {
 					// Use inline CSV data
 					csvData = csvInput;
+					console.log('Debug - Raw csvInput:', JSON.stringify(csvInput));
+					console.log('Debug - csvInput length:', csvInput.length);
+					console.log('Debug - csvInput split by \\n:', csvInput.split('\\n'));
+					console.log('Debug - csvInput split by actual newlines:', csvInput.split('\n'));
 				} else {
 					// This shouldn't happen due to earlier validation, but just in case
 					return Response.json({

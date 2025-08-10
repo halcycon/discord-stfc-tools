@@ -84,9 +84,15 @@ export function generateAsciiTable(data: TableData[], columns: TableColumn[]): s
 }
 
 export function parseCSV(csvText: string): TableData[] {
-	const lines = csvText.trim().split('\n');
+	// First, convert literal \n to actual newlines if needed
+	let processedText = csvText.replace(/\\n/g, '\n');
+	
+	const lines = processedText.trim().split('\n');
+	console.log('Debug - parseCSV lines:', lines);
+	console.log('Debug - parseCSV lines count:', lines.length);
+	
 	if (lines.length < 2) {
-		throw new Error('CSV must have at least a header row and one data row');
+		throw new Error(`CSV must have at least a header row and one data row. Found ${lines.length} lines: ${JSON.stringify(lines)}`);
 	}
 
 	// Enhanced CSV parser that handles quoted fields and multi-line content
@@ -137,13 +143,13 @@ export function parseCSV(csvText: string): TableData[] {
 		
 		const row: TableData = {};
 		headers.forEach((header, index) => {
-			// Process multi-line content: replace \n with space for display
+			// Process multi-line content: handle both \n and | as separators
 			let value = values[index];
 			if (value.startsWith('"') && value.endsWith('"')) {
 				value = value.slice(1, -1); // Remove surrounding quotes
 			}
-			// Convert \n to space for table display (can't show actual line breaks in ASCII table)
-			row[header] = value.replace(/\\n/g, ' | ');
+			// Convert \n to | for display, and also support | as input separator
+			row[header] = value.replace(/\\n/g, ' | ').replace(/\|/g, ' | ');
 		});
 		data.push(row);
 	}
