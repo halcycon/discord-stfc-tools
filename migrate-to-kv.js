@@ -48,10 +48,10 @@ async function migrateToKV() {
 
     console.log(`✅ Created KV bulk upload file: ${bulkUploadPath}`);
     console.log('📝 Next steps:');
-    console.log('1. Create KV namespace: wrangler kv:namespace create "SYSTEM_DATA"');
-    console.log('2. Create preview namespace: wrangler kv:namespace create "SYSTEM_DATA" --preview');
+    console.log('1. Create KV namespace: wrangler kv namespace create "SYSTEM_DATA"');
+    console.log('2. Create preview namespace: wrangler kv namespace create "SYSTEM_DATA" --preview');
     console.log('3. Update wrangler.jsonc with the namespace IDs');
-    console.log('4. Upload data: wrangler kv:bulk put --binding SYSTEM_DATA kv-bulk-upload.json');
+    console.log('4. Upload data: wrangler kv bulk put --binding SYSTEM_DATA kv-bulk-upload.json');
     console.log(`5. Total entries to upload: ${kvData.length}`);
 
   } catch (error) {

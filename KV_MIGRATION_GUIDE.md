@@ -14,12 +14,12 @@ This guide walks you through migrating from the hard-coded CSV data to Cloudflar
 
 Create the production namespace:
 ```bash
-wrangler kv:namespace create "SYSTEM_DATA"
+wrangler kv namespace create "SYSTEM_DATA"
 ```
 
 Create the preview namespace for local development:
 ```bash
-wrangler kv:namespace create "SYSTEM_DATA" --preview
+wrangler kv namespace create "SYSTEM_DATA" --preview
 ```
 
 Save the namespace IDs returned by these commands.
@@ -56,7 +56,7 @@ npm run kv:upload
 
 For preview/local development:
 ```bash
-wrangler kv:bulk put --binding SYSTEM_DATA --preview kv-bulk-upload.json
+wrangler kv bulk put --binding SYSTEM_DATA --preview kv-bulk-upload.json
 ```
 
 ### 5. Update Commands

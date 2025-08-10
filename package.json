@@ -14,9 +14,9 @@
 		"docker:run": "docker-compose up",
 		"migrate-kv": "node migrate-to-kv.js",
 		"register-commands": "node register-command.js",
-		"kv:create": "wrangler kv:namespace create SYSTEM_DATA",
-		"kv:create-preview": "wrangler kv:namespace create SYSTEM_DATA --preview",
-		"kv:upload": "wrangler kv:bulk put --binding SYSTEM_DATA kv-bulk-upload.json"
+		"kv:create": "wrangler kv namespace create SYSTEM_DATA",
+		"kv:create-preview": "wrangler kv namespace create SYSTEM_DATA --preview",
+		"kv:upload": "wrangler kv bulk put --binding SYSTEM_DATA kv-bulk-upload.json"
 	},
 	"dependencies": {
 		"discord-interactions": "^3.4.0"

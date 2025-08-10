@@ -1,0 +1,3 @@
+name = "discord-stfc-tools"
+main = "src/worker.ts"
+compatibility_date = "2025-08-10"
