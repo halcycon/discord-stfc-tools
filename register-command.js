@@ -32,10 +32,20 @@ const commands = [
       {
         type: 3, // STRING type
         name: 'csv_data',
-        description: 'CSV data with headers (e.g., "Name,Age\nJohn,25\nJane,30")',
-        required: true
+        description: 'CSV data or paste multi-line CSV. Use /tablehelp for examples and file upload info.',
+        required: false
+      },
+      {
+        type: 11, // ATTACHMENT type
+        name: 'csv_file',
+        description: 'Upload a .csv file to generate a table',
+        required: false
       }
     ]
+  },
+  {
+    name: 'tablehelp',
+    description: 'Show help and examples for the /table command'
   }
 ];
 

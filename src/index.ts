@@ -63,21 +63,160 @@ async function handleDiscordInteraction(request: Request, env: Env): Promise<Res
 			});
 		}
 
+		if (data.name === 'tablehelp') {
+			const helpText = `**📊 Table Command Help**
+
+**Usage Options:**
+1️⃣ **Inline CSV with line breaks**: \`/table csv_data:"Name,Age\\nJohn,25\\nJane,30"\`
+2️⃣ **File upload**: Use the csv_file option to upload a .csv file
+3️⃣ **Simple CSV**: \`/table csv_data:"Product,Price\\nLaptop,999\\nPhone,599"\`
+
+**Important for Multi-line:**
+• Use \\\\n for line breaks in the csv_data field
+• Discord doesn't support actual multi-line input in slash commands
+
+**CSV Format Examples:**
+\`\`\`
+Name,Age,City\\nJohn,25,NYC\\nJane,30,LA\\nBob,22,SF
+\`\`\`
+
+**Working Examples:**
+• \`/table csv_data:"Name,Age\\nAlice,28\\nBob,32"\`
+• \`/table csv_data:"Item,Cost\\nLaptop,$999\\nMouse,$29"\`
+
+**File Upload:**
+• Use the csv_file field to upload .csv files
+• Max file size: 1MB
+• Must be .csv format
+
+**Tips:**
+• First row = column headers
+• Use commas to separate values  
+• Max display: ~1900 characters`;
+
+			return Response.json({
+				type: 4,
+				data: {
+					content: helpText,
+					flags: 64 // Ephemeral
+				}
+			});
+		}
+
 		if (data.name === 'table') {
-			const csvInput = data.options?.[0]?.value;
+			const csvInput = data.options?.find((opt: any) => opt.name === 'csv_data')?.value;
+			const csvFileOption = data.options?.find((opt: any) => opt.name === 'csv_file');
 			
-			if (!csvInput) {
+			// Debug: Log the entire interaction to understand Discord's structure
+			console.log('Debug - Full interaction data:', JSON.stringify(interaction.data, null, 2));
+			console.log('Debug - csvInput:', csvInput);
+			console.log('Debug - csvFileOption:', JSON.stringify(csvFileOption, null, 2));
+			console.log('Debug - resolved:', JSON.stringify(interaction.data.resolved, null, 2));
+			
+			// For file attachments, Discord uses a different structure
+			let csvFile = null;
+			if (csvFileOption && csvFileOption.value) {
+				// The value contains the attachment ID
+				const attachmentId = csvFileOption.value;
+				csvFile = interaction.data.resolved?.attachments?.[attachmentId];
+			}
+			
+			console.log('Debug - csvFile after resolution:', JSON.stringify(csvFile, null, 2));
+			
+			// Check if we have either CSV data or a file attachment
+			if (!csvInput && !csvFile) {
 				return Response.json({
 					type: 4,
 					data: {
-						content: 'Please provide CSV data to generate a table.',
+						content: `No CSV data provided. Debug: csvInput=${!!csvInput}, csvFile=${!!csvFile}, options=${JSON.stringify(data.options)}, resolved=${!!interaction.data.resolved}`,
 						flags: 64 // Ephemeral
 					}
 				});
 			}
 
 			try {
-				const tableData = parseCSV(csvInput);
+				let csvData = '';
+				
+				// Handle file attachment
+				if (csvFile) {
+					console.log('Debug - Processing file attachment:', JSON.stringify(csvFile, null, 2));
+					
+					// Check file type
+					if (!csvFile.filename?.toLowerCase().endsWith('.csv')) {
+						return Response.json({
+							type: 4,
+							data: {
+								content: 'Error: Please upload a .csv file only.',
+								flags: 64
+							}
+						});
+					}
+					
+					// Check file size (Discord limit is usually 8MB, but we want smaller for CSV)
+					if (csvFile.size && csvFile.size > 1048576) { // 1MB limit
+						return Response.json({
+							type: 4,
+							data: {
+								content: 'Error: File too large. Please keep CSV files under 1MB.',
+								flags: 64
+							}
+						});
+					}
+					
+					// Fetch file content
+					try {
+						const fileResponse = await fetch(csvFile.url);
+						if (!fileResponse.ok) {
+							throw new Error(`HTTP ${fileResponse.status}`);
+						}
+						
+						csvData = await fileResponse.text();
+						
+						// Validate that we got some content
+						if (!csvData || csvData.trim().length === 0) {
+							return Response.json({
+								type: 4,
+								data: {
+									content: 'Error: The uploaded file appears to be empty.',
+									flags: 64
+								}
+							});
+						}
+					} catch (fetchError) {
+						return Response.json({
+							type: 4,
+							data: {
+								content: `Error downloading file: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`,
+								flags: 64
+							}
+						});
+					}
+				} else if (csvInput) {
+					// Use inline CSV data
+					csvData = csvInput;
+				} else {
+					// This shouldn't happen due to earlier validation, but just in case
+					return Response.json({
+						type: 4,
+						data: {
+							content: 'No CSV data provided. Please use csv_data parameter or upload a csv_file.',
+							flags: 64
+						}
+					});
+				}
+
+				// Validate csvData before parsing
+				if (!csvData || typeof csvData !== 'string' || csvData.trim().length === 0) {
+					return Response.json({
+						type: 4,
+						data: {
+							content: 'Error: No valid CSV data found. Please check your input.',
+							flags: 64
+						}
+					});
+				}
+
+				const tableData = parseCSV(csvData);
 				const columns = autoGenerateColumns(tableData);
 				const asciiTable = generateAsciiTable(tableData, columns);
 				
@@ -102,7 +241,7 @@ async function handleDiscordInteraction(request: Request, env: Env): Promise<Res
 				return Response.json({
 					type: 4,
 					data: {
-						content: `Error parsing CSV: ${error instanceof Error ? error.message : 'Unknown error'}`,
+						content: `Error parsing CSV: ${error instanceof Error ? error.message : 'Unknown error'}. Use \`/tablehelp\` for format examples.`,
 						flags: 64
 					}
 				});
@@ -199,7 +338,7 @@ export default {
 		// KV management endpoint for loading all systems (for debugging)
 		if (url.pathname === '/systems' && request.method === 'GET') {
 			try {
-				const systems = await loadSystemData(env);
+				const systems = loadSystemData();
 				return Response.json({ 
 					count: systems.length,
 					systems: systems.slice(0, 10) // Show first 10 as sample
