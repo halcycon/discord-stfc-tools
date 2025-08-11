@@ -6,7 +6,7 @@ const path = require('path');
 function generateWranglerConfig() {
   const configTemplate = {
     "$schema": "node_modules/wrangler/config-schema.json",
-    "name": "stfc-lookup",
+    "name": "stfc-tools",
     "main": "src/index.ts",
     "compatibility_date": "2025-07-26",
     "compatibility_flags": [

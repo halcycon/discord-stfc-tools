@@ -233,7 +233,7 @@ async function handleDiscordInteraction(request: Request, env: Env): Promise<Res
 				return Response.json({
 					type: 4,
 					data: {
-						content: '🔍 **TABLE DEBUG** 🔍\nChars: ' + asciiTable.length + ' | Lines: ' + asciiTable.split('\n').length + '\n```\n' + asciiTable + '\n```'
+						content: '```\n' + asciiTable + '\n```'
 					}
 				});
 			} catch (error) {
