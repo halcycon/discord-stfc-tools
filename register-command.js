@@ -26,6 +26,26 @@ const commands = [
     ]
   },
   {
+    name: 'officer',
+    description: 'Look up STFC officer information',
+    options: [
+      {
+        type: 3, // STRING type
+        name: 'name',
+        description: 'Officer name to search for (e.g., "Kirk", "Spock", "Data")',
+        required: true
+      },
+      {
+        type: 4, // INTEGER type
+        name: 'rank',
+        description: 'Officer rank to display stats for (1-5, default: 1)',
+        required: false,
+        min_value: 1,
+        max_value: 5
+      }
+    ]
+  },
+  {
     name: 'table',
     description: 'Generate an ASCII table from CSV data',
     options: [

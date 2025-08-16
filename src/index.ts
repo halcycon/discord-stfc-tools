@@ -1,6 +1,7 @@
 import { verifyKey } from 'discord-interactions';
 import { generateAsciiTable, parseCSV, autoGenerateColumns, type TableColumn, type TableData } from './tableUtils';
 import { handleCoordinateLookup, parseCoordinateLink, parseMultipleCoordinates, getFactionName, loadSystemData, type SystemData, type CoordinateMatch } from './systemUtils';
+import { handleOfficerLookup } from './officerUtils';
 
 async function handleDiscordInteraction(request: Request, env: Env): Promise<Response> {
 	const signature = request.headers.get('X-Signature-Ed25519');
@@ -94,6 +95,30 @@ async function handleDiscordInteraction(request: Request, env: Env): Promise<Res
 				data: {
 					content: helpText,
 					flags: 64 // Ephemeral
+				}
+			});
+		}
+
+		if (data.name === 'officer') {
+			const officerName = data.options?.[0]?.value;
+			const rank = data.options?.find((opt: any) => opt.name === 'rank')?.value || 1;
+			
+			if (!officerName) {
+				return Response.json({
+					type: 4,
+					data: {
+						content: 'Please provide an officer name to search for.',
+						flags: 64 // Ephemeral
+					}
+				});
+			}
+
+			const result = handleOfficerLookup(officerName, rank);
+			
+			return Response.json({
+				type: 4,
+				data: {
+					content: result
 				}
 			});
 		}

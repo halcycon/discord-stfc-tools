@@ -15,6 +15,7 @@
 		"generate-config": "node generate-config.js",
 		"migrate-kv": "node migrate-to-kv.js",
 		"register-commands": "node register-command.js",
+		"fetch-officers": "node fetch-officers.js",
 		"kv:create": "wrangler kv namespace create SYSTEM_DATA",
 		"kv:create-preview": "wrangler kv namespace create SYSTEM_DATA --preview",
 		"kv:upload": "wrangler kv bulk put --binding SYSTEM_DATA --preview false kv-bulk-upload.json",
