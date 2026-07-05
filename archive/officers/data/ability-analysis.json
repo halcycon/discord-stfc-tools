@@ -1,0 +1,4081 @@
+{
+  "totalAbilities": 582,
+  "abilityIds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99,
+    100,
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110,
+    111,
+    112,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    123,
+    124,
+    127,
+    128,
+    129,
+    130,
+    131,
+    132,
+    135,
+    136,
+    137,
+    138,
+    139,
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    165,
+    166,
+    167,
+    168,
+    169,
+    170,
+    171,
+    172,
+    173,
+    174,
+    175,
+    176,
+    177,
+    178,
+    180,
+    181,
+    182,
+    183,
+    184,
+    185,
+    186,
+    187,
+    190,
+    191,
+    198,
+    199,
+    200,
+    201,
+    202,
+    203,
+    204,
+    205,
+    206,
+    207,
+    208,
+    209,
+    210,
+    211,
+    212,
+    213,
+    214,
+    215,
+    216,
+    217,
+    218,
+    219,
+    220,
+    221,
+    222,
+    223,
+    224,
+    225,
+    226,
+    227,
+    228,
+    229,
+    230,
+    231,
+    232,
+    233,
+    234,
+    235,
+    236,
+    237,
+    238,
+    239,
+    240,
+    241,
+    242,
+    243,
+    244,
+    245,
+    246,
+    247,
+    248,
+    249,
+    250,
+    251,
+    252,
+    253,
+    254,
+    255,
+    256,
+    257,
+    258,
+    259,
+    260,
+    261,
+    262,
+    263,
+    264,
+    265,
+    266,
+    267,
+    268,
+    269,
+    270,
+    271,
+    272,
+    273,
+    274,
+    275,
+    276,
+    277,
+    278,
+    279,
+    280,
+    281,
+    282,
+    283,
+    284,
+    285,
+    286,
+    287,
+    288,
+    289,
+    290,
+    291,
+    292,
+    293,
+    294,
+    295,
+    296,
+    297,
+    32001,
+    32002,
+    33001,
+    33002,
+    33003,
+    33004,
+    34001,
+    34002,
+    34003,
+    34004,
+    34005,
+    34006,
+    34007,
+    34008,
+    35001,
+    35002,
+    36001,
+    36002,
+    36003,
+    36004,
+    37001,
+    37002,
+    37003,
+    37004,
+    38001,
+    38002,
+    38003,
+    38004,
+    38005,
+    38006,
+    38007,
+    38008,
+    39001,
+    39002,
+    39003,
+    39004,
+    39005,
+    39006,
+    40001,
+    40002,
+    40003,
+    40004,
+    41001,
+    41002,
+    41003,
+    41004,
+    41005,
+    41006,
+    41007,
+    42001,
+    42002,
+    42003,
+    42004,
+    43001,
+    43002,
+    43003,
+    43004,
+    43006,
+    43007,
+    43008,
+    43009,
+    44001,
+    44002,
+    44003,
+    44004,
+    44005,
+    44006,
+    45001,
+    45002,
+    45003,
+    45004,
+    45005,
+    45006,
+    45007,
+    45008,
+    45009,
+    45010,
+    46001,
+    46002,
+    46003,
+    46004,
+    46006,
+    46007,
+    47001,
+    47002,
+    47003,
+    47004,
+    47005,
+    47006,
+    48001,
+    48002,
+    48003,
+    48004,
+    48005,
+    48006,
+    49001,
+    49002,
+    49004,
+    49005,
+    49006,
+    49007,
+    49009,
+    49010,
+    50001,
+    50002,
+    50003,
+    50004,
+    50005,
+    51002,
+    51003,
+    51005,
+    51006,
+    51008,
+    51009,
+    52001,
+    52002,
+    52003,
+    52004,
+    52005,
+    53001,
+    53002,
+    53003,
+    53004,
+    53005,
+    53006,
+    53007,
+    54001,
+    54002,
+    54003,
+    54004,
+    55001,
+    55002,
+    55003,
+    55004,
+    55005,
+    55006,
+    56001,
+    56002,
+    56003,
+    56004,
+    56005,
+    57001,
+    57002,
+    57003,
+    57004,
+    58001,
+    58002,
+    58003,
+    58004,
+    58005,
+    58006,
+    58007,
+    58008,
+    59001,
+    59002,
+    59003,
+    59004,
+    59005,
+    59006,
+    59007,
+    59008,
+    59009,
+    60001,
+    60002,
+    60003,
+    60004,
+    61001,
+    61002,
+    61003,
+    61004,
+    62001,
+    62002,
+    62003,
+    62004,
+    62005,
+    62006,
+    63001,
+    63002,
+    63003,
+    63004,
+    63005,
+    63006,
+    63007,
+    63008,
+    64001,
+    64002,
+    64003,
+    64004,
+    64005,
+    64006,
+    65001,
+    65002,
+    65003,
+    65004,
+    65005,
+    65006,
+    66001,
+    66002,
+    66003,
+    66004,
+    67001,
+    67002,
+    67003,
+    67004,
+    68001,
+    68002,
+    68003,
+    68004,
+    68005,
+    68006,
+    68007,
+    68008,
+    69004,
+    69005,
+    69006,
+    69007,
+    69008,
+    69009,
+    69010,
+    69011,
+    69012,
+    69013,
+    69700,
+    69701,
+    69702,
+    70900,
+    70901,
+    70902,
+    70903,
+    71900,
+    71901,
+    71902,
+    71903,
+    71904,
+    71905,
+    71906,
+    71907,
+    72010,
+    72011,
+    72020,
+    72021,
+    72022,
+    72030,
+    72031,
+    72032,
+    73010,
+    73011,
+    73020,
+    73021,
+    73022,
+    73030,
+    73031,
+    73032,
+    74010,
+    74011,
+    74020,
+    74021,
+    74022,
+    74030,
+    74031,
+    74032,
+    75010,
+    75011,
+    75020,
+    75021,
+    75022,
+    75030,
+    75031,
+    75032,
+    76010,
+    76011,
+    76012,
+    76020,
+    76021,
+    76022,
+    76030,
+    76031,
+    76032,
+    77010,
+    77011,
+    77012,
+    77020,
+    77021,
+    77022,
+    78010,
+    78011,
+    78012,
+    78020,
+    78021,
+    78022,
+    78030,
+    78031,
+    78032,
+    79010,
+    79011,
+    79012,
+    79020,
+    79021,
+    79022,
+    80010,
+    80011,
+    80012,
+    80020,
+    80021,
+    80022,
+    80030,
+    80031,
+    80032,
+    81010,
+    81011,
+    81012,
+    81020,
+    81021,
+    81022
+  ],
+  "usageStats": {
+    "1": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "2": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "3": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "4": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "5": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "6": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "7": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "8": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "9": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "10": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "11": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "12": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "13": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "14": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "15": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "16": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "17": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "18": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "19": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "20": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "21": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "22": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "23": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "24": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "25": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "26": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "27": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "28": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "29": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "30": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "31": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "32": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "33": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "34": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "35": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "36": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "37": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "38": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "39": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "40": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "41": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "42": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "43": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "44": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "45": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "46": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "47": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "48": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "49": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "50": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "51": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "52": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "53": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "54": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "55": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "56": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "57": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "58": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "59": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "60": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "61": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "62": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "63": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "64": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "65": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "66": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "67": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "68": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "69": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "70": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "71": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "72": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "75": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "76": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "77": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "78": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "79": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "80": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "81": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "82": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "83": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "84": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "85": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "86": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "87": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "88": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "89": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "90": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "91": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "92": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "93": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "94": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "95": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "96": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "97": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "98": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "99": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "100": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "101": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "102": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "103": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "104": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "105": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "106": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "107": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "108": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "109": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "110": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "111": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "112": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "115": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "116": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "117": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "118": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "119": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "120": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "123": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "124": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "127": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "128": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "129": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "130": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "131": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "132": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "135": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "136": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "137": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "138": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "139": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "140": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "141": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "142": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "143": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "144": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "145": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "146": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "147": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "148": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "157": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "158": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "159": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "160": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "161": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "162": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "165": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "166": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "167": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "168": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "169": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "170": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "171": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "172": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "173": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "174": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "175": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "176": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "177": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "178": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "180": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "181": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "182": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "183": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "184": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "185": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "186": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "187": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "190": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "191": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "198": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "199": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "200": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "201": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "202": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "203": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "204": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "205": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "206": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "207": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "208": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "209": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "210": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "211": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "212": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "213": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "214": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "215": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "216": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "217": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "218": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "219": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "220": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "221": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "222": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "223": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "224": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "225": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "226": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "227": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "228": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "229": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "230": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "231": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "232": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "233": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "234": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "235": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "236": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "237": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "238": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "239": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "240": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "241": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "242": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "243": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "244": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "245": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "246": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "247": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "248": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "249": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "250": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "251": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "252": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "253": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "254": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "255": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "256": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "257": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "258": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "259": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "260": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "261": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "262": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "263": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "264": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "265": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "266": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "267": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "268": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "269": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "270": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "271": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "272": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "273": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "274": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "275": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "276": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "277": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "278": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "279": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "280": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "281": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "282": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "283": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "284": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "285": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "286": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "287": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "288": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "289": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "290": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "291": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "292": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "293": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "294": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "295": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "296": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "297": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "32001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "32002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "33001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "33002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "33003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "33004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "34001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "34002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "34003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "34004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "34005": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "34006": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "34007": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "34008": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "35001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "35002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "36001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "36002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "36003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "36004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "37001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "37002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "37003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "37004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "38001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "38002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "38003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "38004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "38005": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "38006": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "38007": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "38008": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "39001": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "39002": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "39003": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "39004": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "39005": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "39006": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "40001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "40002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "40003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "40004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "41001": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "41002": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "41003": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "41004": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "41005": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "41006": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "41007": {
+      "count": 17,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "42001": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "42002": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "42003": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "42004": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "43001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "43002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "43003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "43004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "43006": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "43007": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "43008": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "43009": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "44001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "44002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "44003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "44004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "44005": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "44006": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "45001": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "45002": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "45003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "45004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "45005": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "45006": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "45007": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "45008": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "45009": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "45010": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "46001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "46002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "46003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "46004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "46006": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "46007": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "47001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "47002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "47003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "47004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "47005": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "47006": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "48001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "48002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "48003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "48004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "48005": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "48006": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "49001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "49002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "49004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "49005": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "49006": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "49007": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "49009": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "49010": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "50001": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "50002": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "50003": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "50004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "50005": {
+      "count": 4,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "51002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "51003": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "51005": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "51006": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "51008": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "51009": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "52001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "52002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "52003": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "52004": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "52005": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "53001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "53002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "53003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "53004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "53005": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "53006": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "53007": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "54001": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "54002": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "54003": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "54004": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "55001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "55002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "55003": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "55004": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "55005": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "55006": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "56001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "56002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "56003": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "56004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "56005": {
+      "count": 12,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "57001": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "57002": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "57003": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "57004": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "58001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "58002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "58003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "58004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "58005": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "58006": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "58007": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "58008": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "59001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "59002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "59003": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "59004": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "59005": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "59006": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "59007": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "59008": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "59009": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "60001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "60002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "60003": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "60004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "61001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "61002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "61003": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "61004": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "62001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "62002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "62003": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "62004": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "62005": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "62006": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "63001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "63002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "63003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "63004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "63005": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "63006": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "63007": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "63008": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "64001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "64002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "64003": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "64004": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "64005": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "64006": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "65001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "65002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "65003": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "65004": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "65005": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "65006": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "66001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "66002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "66003": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "66004": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "67001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "67002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "67003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "67004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "68001": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "68002": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "68003": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "68004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "68005": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "68006": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "68007": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "68008": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "69004": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "69005": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "69006": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "69007": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "69008": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "69009": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "69010": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "69011": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "69012": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "69013": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "69700": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "69701": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "69702": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "70900": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "70901": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "70902": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "70903": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "71900": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "71901": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "71902": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "71903": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "71904": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "71905": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "71906": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "71907": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "72010": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "72011": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "72020": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "72021": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "72022": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "72030": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "72031": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "72032": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "73010": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "73011": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "73020": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "73021": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "73022": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "73030": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "73031": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "73032": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "74010": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "74011": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "74020": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "74021": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "74022": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "74030": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "74031": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "74032": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "75010": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "75011": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "75020": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "75021": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "75022": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "75030": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "75031": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "75032": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "76010": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "76011": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "76012": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "76020": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "76021": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "76022": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "76030": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "76031": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "76032": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "77010": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "77011": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "77012": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "77020": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "77021": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "77022": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "78010": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "78011": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "78012": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "78020": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "78021": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "78022": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "78030": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "78031": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "78032": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "79010": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "79011": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "79012": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "79020": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "79021": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "79022": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "80010": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "80011": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "80012": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "80020": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "80021": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "80022": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "80030": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "80031": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "80032": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "81010": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "81011": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "81012": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    },
+    "81020": {
+      "count": 1,
+      "types": [
+        "captain_ability"
+      ]
+    },
+    "81021": {
+      "count": 1,
+      "types": [
+        "ability"
+      ]
+    },
+    "81022": {
+      "count": 1,
+      "types": [
+        "below_decks_ability"
+      ]
+    }
+  }
+}

@@ -1,7 +1,7 @@
 {
 	"name": "stfc-tools",
 	"version": "1.0.0",
-	"description": "STFC Tools running on Cloudflare workers - provides system lookup and table drawing functions.",
+	"description": "STFC Discord bot — verification, alliance management, coordinate lookup, and tables.",
 	"private": true,
 	"scripts": {
 		"deploy": "npm run generate-config && wrangler deploy",
@@ -15,19 +15,22 @@
 		"generate-config": "node generate-config.js",
 		"migrate-kv": "node migrate-to-kv.js",
 		"register-commands": "node register-command.js",
-		"fetch-officers": "node fetch-officers.js",
+		"db:migrate": "node scripts/db-migrate.js",
+		"db:migrate-local": "node scripts/db-migrate.js --local",
 		"kv:create": "wrangler kv namespace create SYSTEM_DATA",
 		"kv:create-preview": "wrangler kv namespace create SYSTEM_DATA --preview",
 		"kv:upload": "wrangler kv bulk put --binding SYSTEM_DATA --preview false kv-bulk-upload.json",
 		"kv:upload-preview": "wrangler kv bulk put --binding SYSTEM_DATA --preview kv-bulk-upload.json"
 	},
 	"dependencies": {
-		"discord-interactions": "^3.4.0"
+		"discord-interactions": "^3.4.0",
+		"pako": "^3.0.0"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.8.19",
 		"@cloudflare/workers-types": "^4.20241106.0",
 		"@types/node": "^22.10.2",
+		"@types/pako": "^2.0.4",
 		"dotenv": "^17.2.1",
 		"typescript": "^5.5.2",
 		"vitest": "~3.2.0",

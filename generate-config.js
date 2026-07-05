@@ -21,10 +21,42 @@ function generateWranglerConfig() {
     "vars": {
       "ENVIRONMENT": "development"
     },
-    "kv_namespaces": []
+    "triggers": {
+      "crons": [
+        "*/5 * * * *",
+        "0 */6 * * *",
+        "0 6 * * *"
+      ]
+    },
+    "kv_namespaces": [],
+    "d1_databases": [
+      {
+        "binding": "STFC_DB",
+        "database_name": process.env.D1_DATABASE_NAME || "stfc-officers",
+        "database_id": process.env.D1_DATABASE_ID || "4db56efc-e108-466e-9c82-22e892ee2baa"
+      }
+    ],
+    "r2_buckets": [],
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "DISCORD_GATEWAY",
+          "class_name": "DiscordGateway"
+        }
+      ]
+    },
+    "migrations": [
+      {
+        "tag": "v1",
+        "new_classes": ["DiscordGateway"]
+      }
+    ]
   };
 
-  // Add KV namespace if environment variables are set
+  if (process.env.WORKER_URL) {
+    configTemplate.vars.WORKER_URL = process.env.WORKER_URL;
+  }
+
   if (process.env.KV_NAMESPACE_ID) {
     const kvNamespace = {
       "binding": "SYSTEM_DATA",
@@ -38,12 +70,19 @@ function generateWranglerConfig() {
     configTemplate.kv_namespaces.push(kvNamespace);
   }
 
+  if (process.env.R2_BUCKET_NAME) {
+    configTemplate.r2_buckets.push({
+      "binding": "VERIFICATION_ASSETS",
+      "bucket_name": process.env.R2_BUCKET_NAME
+    });
+  }
+
   const outputPath = path.join(__dirname, 'wrangler.json');
   fs.writeFileSync(outputPath, JSON.stringify(configTemplate, null, 2));
-  
+
   console.log('✅ Generated wrangler.json with environment-specific configuration');
   console.log(`📝 KV Namespace ID: ${process.env.KV_NAMESPACE_ID || 'Not set'}`);
-  console.log(`📝 Preview ID: ${process.env.KV_NAMESPACE_PREVIEW_ID || 'Not set'}`);
+  console.log(`📝 R2 Bucket: ${process.env.R2_BUCKET_NAME || 'Not set'}`);
 }
 
 if (require.main === module) {

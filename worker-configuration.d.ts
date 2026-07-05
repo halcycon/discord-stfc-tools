@@ -4,8 +4,14 @@
 declare namespace Cloudflare {
 	interface Env {
 		DISCORD_PUBLIC_KEY?: string;
+		DISCORD_BOT_TOKEN?: string;
+		DISCORD_APPLICATION_ID?: string;
+		WORKER_URL?: string;
 		ENVIRONMENT?: string;
-		SYSTEM_DATA: KVNamespace;
+		SYSTEM_DATA?: KVNamespace;
+		STFC_DB: D1Database;
+		VERIFICATION_ASSETS?: R2Bucket;
+		DISCORD_GATEWAY?: DurableObjectNamespace<import('./src/discord-gateway/DiscordGateway').DiscordGateway>;
 	}
 }
 interface Env extends Cloudflare.Env {}

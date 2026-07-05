@@ -30,7 +30,7 @@ describe('STFC Coordinate Lookup Bot', () => {
 			
 			expect(response.status).toBe(200);
 			const text = await response.text();
-			expect(text).toContain('STFC Coordinate Lookup Bot');
+			expect(text).toContain('STFC Tools Bot');
 		});
 
 		it('handles coordinate lookup via GET', async () => {
@@ -145,13 +145,13 @@ describe('STFC Coordinate Lookup Bot', () => {
 			expect(response.status).toBe(200);
 			const text = await response.text();
 			// Check that it contains a valid table structure with Unicode characters
-			expect(text).toContain('│ Name');
-			expect(text).toContain('│ Age');
-			expect(text).toContain('│ John');
-			expect(text).toContain('25 │');
-			expect(text).toContain('│ Jane');
-			expect(text).toContain('30 │');
-			expect(text).toMatch(/[┌└├┬┴┼]/); // Unicode box characters
+			expect(text).toContain('║ Name');
+			expect(text).toContain('Age');
+			expect(text).toContain('║ John');
+			expect(text).toContain('25');
+			expect(text).toContain('║ Jane');
+			expect(text).toContain('30');
+			expect(text).toMatch(/[╔╚╠╟]/);
 		});
 	});
 });
