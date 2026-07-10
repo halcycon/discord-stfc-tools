@@ -308,9 +308,10 @@ export async function findPlayerByIdOrName(
 
 export function formatPlayerSummary(player: PlayerData): string {
 	const power = player.power ? player.power.toLocaleString() : player.rss;
+	const rank = player.rank?.trim() ? player.rank.trim() : '—';
 	return [
 		`**${player.name}** (ID: ${player.playerId})`,
-		`Alliance: **${player.allianceTag || '—'}**`,
+		`Alliance: **${player.allianceTag || '—'}** • Rank: **${rank}**`,
 		`Ops: **${player.level}** • Power: **${power}**`,
 		`Server: ${player.server} (${player.region})`,
 	].join('\n');

@@ -1,11 +1,9 @@
 import {
 	addGuildMemberRole,
-	createGuildTextChannel,
+	DiscordApiError,
 	removeGuildMemberRole,
 	sendDirectMessage,
-	setChannelPermission,
 	setGuildMemberNickname,
-	type DiscordApiError,
 } from './discord-api';
 import { opsLevelToGrade } from './grade-utils';
 import {
@@ -15,13 +13,11 @@ import {
 	recordScreenshot,
 	upsertVerifiedPlayer,
 } from './guild-db';
+import { buildMemberNickname, normalizeAllianceRank } from './nickname-utils';
 import { parseStfcProUrl, resolveSearchTerm } from './stfc-url';
 import { findPlayerByIdOrName, formatPlayerSummary } from './stfc-utils';
+import { ensurePersonalChannel } from './personal-channels';
 import type { GuildConfig, PlayerData } from './types';
-
-const VIEW_CHANNEL = '1024';
-const SEND_MESSAGES = '2048';
-const READ_HISTORY = '65536';
 
 export const VERIFICATION_INVITE_MESSAGE = `Welcome! Please verify your STFC account to access member channels.
 
@@ -67,42 +63,6 @@ export async function lookupPlayerFromUrl(
 	}
 
 	return { player };
-}
-
-function categoryForPlayerName(config: GuildConfig, playerName: string): string | undefined {
-	const letter = playerName.trim().charAt(0).toUpperCase();
-	if (!letter) return undefined;
-
-	for (const [range, categoryId] of Object.entries(config.channel_category_map)) {
-		const parts = range.toUpperCase().split('-');
-		if (parts.length === 2) {
-			const [start, end] = parts;
-			if (letter >= start && letter <= end) return categoryId;
-		} else if (range.toUpperCase() === letter) {
-			return categoryId;
-		}
-	}
-	return undefined;
-}
-
-type AllianceRankKey = 'Operative' | 'Agent' | 'Premier' | 'Commodore' | 'Admiral';
-function normalizeAllianceRank(rank: string | undefined): AllianceRankKey | null {
-	if (!rank) return null;
-	const r = rank.trim().toLowerCase();
-	switch (r) {
-		case 'operative':
-			return 'Operative';
-		case 'agent':
-			return 'Agent';
-		case 'premier':
-			return 'Premier';
-		case 'commodore':
-			return 'Commodore';
-		case 'admiral':
-			return 'Admiral';
-		default:
-			return null;
-	}
 }
 
 function getAllMemberRoleIds(config: GuildConfig): string[] {
@@ -185,31 +145,59 @@ async function applyGuestRole(
 	for (const roleId of memberRoleIds) await removeGuildMemberRole(token, guildId, userId, roleId);
 }
 
-async function createPersonalChannel(
+async function applyPersonalChannelForMember(
 	token: string,
 	config: GuildConfig,
 	guildId: string,
-	userId: string,
+	discordUserId: string,
 	playerName: string,
+	existingChannelId?: string | null,
 ): Promise<string | null> {
-	const categoryId = categoryForPlayerName(config, playerName);
-	const channelName = playerName
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-|-$/g, '')
-		.slice(0, 90) || `member-${userId}`;
-
-	try {
-		const channel = await createGuildTextChannel(token, guildId, channelName, categoryId);
-		await setChannelPermission(token, channel.id, userId, VIEW_CHANNEL | SEND_MESSAGES | READ_HISTORY, '0', 1);
-		for (const roleId of config.personal_channel_extra_roles) {
-			await setChannelPermission(token, channel.id, roleId, VIEW_CHANNEL | SEND_MESSAGES | READ_HISTORY, '0', 0);
-		}
-		return channel.id;
-	} catch (error) {
-		console.error('Failed to create personal channel:', error);
+	const result = await ensurePersonalChannel(
+		token,
+		config,
+		guildId,
+		discordUserId,
+		playerName,
+		existingChannelId,
+	);
+	if (!result.ok) {
+		console.error('Personal channel setup failed:', result.error);
 		return null;
 	}
+	return result.channelId;
+}
+
+function nicknameForPlayer(config: GuildConfig, player: PlayerData): string {
+	return buildMemberNickname(config.nickname_template, config.mode, {
+		name: player.name,
+		allianceTag: player.allianceTag,
+		rank: player.rank,
+	});
+}
+
+function formatDiscordApiFailure(err: unknown): string {
+	if (err instanceof DiscordApiError) {
+		const bodySnippet =
+			typeof err.body === 'string' && err.body.trim()
+				? `\n${err.body.trim().slice(0, 250)}${err.body.trim().length > 250 ? '…' : ''}`
+				: '';
+		return `${err.message} (HTTP ${err.status})${bodySnippet}`;
+	}
+	return err instanceof Error ? err.message : 'unknown error';
+}
+
+function nicknamePermissionHint(err: unknown): string {
+	const body = err instanceof DiscordApiError ? err.body ?? '' : '';
+	const isMissingPerms =
+		(err instanceof DiscordApiError && err.status === 403) ||
+		body.includes('50013') ||
+		body.includes('Missing Permissions');
+	if (!isMissingPerms) return '';
+	return (
+		'\n  ↳ Usually: bot needs **Manage Nicknames**, its role must be **above** the member ' +
+		'(and above roles it assigns), and it cannot rename the **server owner**.'
+	);
 }
 
 export async function processVerification(
@@ -281,24 +269,46 @@ export async function processVerification(
 	}
 
 	const token = env.DISCORD_BOT_TOKEN;
+	const notes: string[] = [];
 
 	try {
 		if (tagMatches) {
 			await applyMemberRoles(token, config, guildId, discordUserId, player.rank);
-			await setGuildMemberNickname(token, guildId, discordUserId, player.name);
+			notes.push('• Roles: updated');
 
-			if (config.mode === 'single_alliance' && Object.keys(config.channel_category_map).length > 0) {
-				const channelId = await createPersonalChannel(token, config, guildId, discordUserId, player.name);
-				if (channelId) {
-					await upsertVerifiedPlayer(env.STFC_DB, {
-						guild_id: guildId,
-						discord_user_id: discordUserId,
-						verification_status: 'active',
-					});
-				}
+			const nick = nicknameForPlayer(config, player);
+			try {
+				await setGuildMemberNickname(token, guildId, discordUserId, nick);
+				notes.push(`• Nickname: \`${nick}\``);
+			} catch (nickErr) {
+				console.error('Nickname update failed:', nickErr);
+				notes.push(
+					`• Nickname: failed — ${formatDiscordApiFailure(nickErr)}${nicknamePermissionHint(nickErr)}`,
+				);
 			}
 
-			return `✅ Verified and activated **${player.name}** (${player.allianceTag}, Ops ${player.level}).\n\n${formatPlayerSummary(player)}`;
+			const channelId = await applyPersonalChannelForMember(
+				token,
+				config,
+				guildId,
+				discordUserId,
+				player.name,
+				verified?.personal_channel_id,
+			);
+			if (channelId) {
+				await upsertVerifiedPlayer(env.STFC_DB, {
+					guild_id: guildId,
+					discord_user_id: discordUserId,
+					personal_channel_id: channelId,
+					verification_status: 'active',
+				});
+				notes.push(`• Personal channel: <#${channelId}>`);
+			}
+
+			return (
+				`✅ Verified and activated **${player.name}** (${player.allianceTag}, Ops ${player.level}).\n` +
+				`${notes.join('\n')}\n\n${formatPlayerSummary(player)}`
+			);
 		}
 
 		await applyGuestRole(token, config, guildId, discordUserId);
@@ -306,11 +316,10 @@ export async function processVerification(
 		return `⏳ Verified **${player.name}** but alliance **${player.allianceTag}** does not match **${expected}** — guest role assigned. We'll re-check every ${config.poll_interval_hours}h.\n\n${formatPlayerSummary(player)}`;
 	} catch (err) {
 		console.error('Discord role update failed:', err);
-		const apiErr = err as unknown as { message?: string; status?: number; body?: string };
-		const statusPart = typeof apiErr.status === 'number' ? ` (HTTP ${apiErr.status})` : '';
-		const bodySnippet = typeof apiErr.body === 'string' && apiErr.body.trim() ? `\n\n${apiErr.body.trim().slice(0, 250)}${apiErr.body.trim().length > 250 ? '…' : ''}` : '';
-		const msg = apiErr.message ?? (err instanceof Error ? err.message : 'unknown error');
-		return `✅ Verified on stfc.pro but failed to update Discord roles: ${msg}${statusPart}${bodySnippet}\n\n${formatPlayerSummary(player)}`;
+		return (
+			`✅ Verified on stfc.pro but failed to update Discord roles: ${formatDiscordApiFailure(err)}` +
+			`${nicknamePermissionHint(err)}\n\n${formatPlayerSummary(player)}`
+		);
 	}
 }
 
@@ -382,7 +391,28 @@ export async function syncVerifiedPlayer(
 
 	if (tagMatches) {
 		await applyMemberRoles(token, config, guildId, discordUserId, player.rank);
-		await setGuildMemberNickname(token, guildId, discordUserId, player.name);
+		try {
+			await setGuildMemberNickname(token, guildId, discordUserId, nicknameForPlayer(config, player));
+		} catch (nickErr) {
+			console.error('Nickname sync failed:', nickErr);
+		}
+
+		const existing = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
+		const channelId = await applyPersonalChannelForMember(
+			token,
+			config,
+			guildId,
+			discordUserId,
+			player.name,
+			existing?.personal_channel_id,
+		);
+		if (channelId) {
+			await upsertVerifiedPlayer(env.STFC_DB, {
+				guild_id: guildId,
+				discord_user_id: discordUserId,
+				personal_channel_id: channelId,
+			});
+		}
 	} else {
 		await applyGuestRole(token, config, guildId, discordUserId);
 	}

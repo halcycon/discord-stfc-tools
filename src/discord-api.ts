@@ -50,6 +50,13 @@ export interface DiscordRole {
 	// Not all fields are typed; we keep it minimal for formatting.
 }
 
+export interface DiscordChannel {
+	id: string;
+	name: string;
+	type: number;
+	parent_id?: string | null;
+}
+
 export async function listGuildMembers(
 	token: string,
 	guildId: string,
@@ -91,6 +98,32 @@ export async function listGuildRoles(
 		method: 'GET',
 	});
 	return (await response.json()) as DiscordRole[];
+}
+
+export async function listGuildChannels(token: string, guildId: string): Promise<DiscordChannel[]> {
+	const response = await discordFetch(token, `/guilds/${guildId}/channels`, { method: 'GET' });
+	return (await response.json()) as DiscordChannel[];
+}
+
+export async function getGuildChannel(token: string, channelId: string): Promise<DiscordChannel | null> {
+	try {
+		const response = await discordFetch(token, `/channels/${channelId}`, { method: 'GET' });
+		return (await response.json()) as DiscordChannel;
+	} catch {
+		return null;
+	}
+}
+
+export async function patchGuildChannel(
+	token: string,
+	channelId: string,
+	updates: { name?: string; parent_id?: string | null },
+): Promise<DiscordChannel> {
+	const response = await discordFetch(token, `/channels/${channelId}`, {
+		method: 'PATCH',
+		body: JSON.stringify(updates),
+	});
+	return (await response.json()) as DiscordChannel;
 }
 
 export async function createGuildRole(

@@ -51,6 +51,8 @@ export interface GuildConfig {
 	// for a configurable set of in-game ranks.
 	overlay_buckets: Record<string, OverlayBucket>;
 	alliance_role_prefix: string | null;
+	/** Discord nick pattern; null = mode default. See nickname-utils.ts placeholders. */
+	nickname_template: string | null;
 	channel_category_map: Record<string, string>;
 	personal_channel_extra_roles: string[];
 	poll_interval_hours: number;

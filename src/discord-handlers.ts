@@ -4,6 +4,7 @@ import {
 	editInteractionResponse,
 	interactionResponse,
 	listGuildRoles,
+	listGuildChannels,
 	createGuildRole,
 } from './discord-api';
 import {
@@ -12,6 +13,7 @@ import {
 	recordGuildMember,
 	markMemberInvited,
 	resetVerification,
+	upsertVerifiedPlayer,
 } from './guild-db';
 import { findPlayerByIdOrName, formatPlayerSummary } from './stfc-utils';
 import { inviteNewMember, processVerification } from './verification';
@@ -24,6 +26,9 @@ import {
 	parseMultipleCoordinates,
 } from './systemUtils';
 import type { GuildMode, StfcRegion, GuildConfig } from './types';
+import { parseCategoryMapInput, formatCategoryMap, personalChannelsEnabled } from './channel-utils';
+import { linkExistingPersonalChannel } from './personal-channels';
+import { defaultNicknameTemplate } from './nickname-utils';
 
 function getOptionValue(options: Array<{ name: string; value?: unknown }> | undefined, name: string): unknown {
 	return options?.find((opt) => opt.name === name)?.value;
@@ -324,6 +329,8 @@ async function handleServerSetupCommand(
 	const allianceTag = getOptionValue(data.options, 'alliance_tag') as string | undefined;
 	const createMissingRolesRaw = getOptionValue(data.options, 'create_missing_roles');
 	const createMissingRoles = createMissingRolesRaw === true || createMissingRolesRaw === 'true';
+	const nicknameTemplateRaw = getOptionValue(data.options, 'nickname_template');
+	const nicknameTemplateProvided = nicknameTemplateRaw !== undefined && nicknameTemplateRaw !== null;
 
 	const guestRoleToken = parseRoleToken(getOptionValue(data.options, 'guest_role'));
 	const memberRoleTokens = parseRoleTokensCsv(getOptionValue(data.options, 'member_roles'));
@@ -420,18 +427,28 @@ async function handleServerSetupCommand(
 			commodore_role_ids: commodoreRoleIds,
 			admiral_role_ids: admiralRoleIds,
 			verification_enabled: true,
+			...(nicknameTemplateProvided
+				? { nickname_template: String(nicknameTemplateRaw).trim() || null }
+				: {}),
 		});
+
+		const effectiveNick =
+			nicknameTemplateProvided
+				? String(nicknameTemplateRaw).trim() || defaultNicknameTemplate(mode)
+				: (existingConfig?.nickname_template?.trim() || defaultNicknameTemplate(mode));
 
 		return interactionResponse(
 			`✅ Server configured!\n` +
 				`• Mode: **${mode}**\n` +
 				`• STFC: server **${server}** (${region})\n` +
 				(mode === 'single_alliance' ? `• Alliance tag: **${allianceTag}**\n` : '') +
+				`• Nickname template: \`${effectiveNick}\`\n` +
 				`• Member roles: ${memberRoleIds.length ? memberRoleIds.join(', ') : 'none yet'}\n` +
 				`• Guest role: ${guestRoleId ?? 'not set'}\n` +
 				`• Operative/Agent/Premier/Commodore/Admiral roles set: ` +
 				`${operativeRoleIds.length}/${agentRoleIds.length}/${premierRoleIds.length}/${commodoreRoleIds.length}/${admiralRoleIds.length}\n\n` +
-				`New members will receive a verification DM. They can also run \`/verify\`.`,
+				`New members will receive a verification DM. They can also run \`/verify\`.\n` +
+				`Nickname placeholders: \`{player_name}\` \`{alliance_tag}\` \`{rank}\` \`{rank_prefix}\` \`{rank_paren}\``,
 			true,
 		);
 	} catch (error) {
@@ -457,10 +474,15 @@ async function handleServerStatusCommand(env: Env, guildId: string | undefined):
 			`• Mode: ${config.mode}\n` +
 			`• STFC server: ${config.stfc_server} (${config.stfc_region})\n` +
 			`• Alliance tag: ${config.alliance_tag ?? '—'}\n` +
+			`• Nickname template: \`${config.nickname_template?.trim() || defaultNicknameTemplate(config.mode)}\`` +
+			`${config.nickname_template?.trim() ? '' : ' (default)'}\n` +
 			`• Verification: ${config.verification_enabled ? 'enabled' : 'disabled'}\n` +
 			`• Poll interval: ${config.poll_interval_hours}h\n` +
 			`• Member roles: ${config.member_role_ids.join(', ') || 'none'}\n` +
-			`• Guest role: ${config.guest_role_id ?? 'none'}`,
+			`• Guest role: ${config.guest_role_id ?? 'none'}\n` +
+			`• Personal channels: ${personalChannelsEnabled(config) ? 'enabled' : 'disabled'}\n` +
+			`• Category map: ${formatCategoryMap(config.channel_category_map)}\n` +
+			`• Channel extra roles: ${config.personal_channel_extra_roles.join(', ') || 'none'}`,
 		true,
 	);
 }
@@ -655,6 +677,181 @@ async function handleServerTestResetCommand(
 	return interactionResponse(`✅ Verification state reset for user <@${userId}>.`, true);
 }
 
+async function handleServerCategoriesCommand(
+	env: Env,
+	interaction: { guild_id?: string; member?: { permissions?: string } },
+	sub: { options?: Array<{ name: string; value?: unknown }> },
+): Promise<Response> {
+	const adminError = requireGuildAdmin(interaction);
+	if (adminError) return adminError;
+
+	const guildId = interaction.guild_id!;
+	if (!env.DISCORD_BOT_TOKEN) return interactionResponse('❌ DISCORD_BOT_TOKEN not configured.', true);
+
+	const limitRaw = getOptionValue(sub.options, 'limit');
+	const limit = typeof limitRaw === 'number' ? limitRaw : limitRaw ? parseInt(String(limitRaw), 10) : 30;
+	const safeLimit = Number.isFinite(limit) ? Math.max(5, Math.min(50, limit)) : 30;
+
+	const channels = await listGuildChannels(env.DISCORD_BOT_TOKEN, guildId);
+	const categories = channels.filter((c) => c.type === 4).slice(0, safeLimit);
+	const lines = categories.map((c) => `• ${c.name} (${c.id})`);
+	const more =
+		channels.filter((c) => c.type === 4).length > categories.length
+			? `\n… and ${channels.filter((c) => c.type === 4).length - categories.length} more`
+			: '';
+
+	return interactionResponse(
+		`📁 Categories (${channels.filter((c) => c.type === 4).length})\n` +
+			(lines.length ? lines.join('\n') : 'No categories found.') +
+			more +
+			`\n\nUse with \`/server channels map category_map:A-F=<id>\`.`,
+		true,
+	);
+}
+
+async function handleServerChannelsCommand(
+	env: Env,
+	interaction: { guild_id?: string; member?: { permissions?: string; user?: { id: string } } },
+	channelsGroup: { options?: Array<{ name: string; value?: unknown; type?: number; options?: Array<{ name: string; value?: unknown; type?: number }> }> },
+): Promise<Response> {
+	const adminError = requireGuildAdmin(interaction);
+	if (adminError) return adminError;
+
+	const guildId = interaction.guild_id!;
+	const sub = channelsGroup.options?.[0];
+	if (!sub) return interactionResponse('❌ Missing channels subcommand.', true);
+
+	const config = await getGuildConfig(env.STFC_DB, guildId);
+	if (!config) return interactionResponse('❌ Server not configured. Run `/server setup` first.', true);
+
+	if (sub.name === 'status') {
+		const players = await env.STFC_DB.prepare(
+			`SELECT COUNT(*) as count FROM verified_players
+			 WHERE guild_id = ? AND personal_channel_id IS NOT NULL`,
+		)
+			.bind(guildId)
+			.first<{ count: number }>();
+
+		return interactionResponse(
+			`📂 **Personal channel configuration**\n` +
+				`• Enabled: ${personalChannelsEnabled(config) ? 'yes' : 'no (set category map)'}\n` +
+				`• Category map: ${formatCategoryMap(config.channel_category_map)}\n` +
+				`• Extra roles: ${config.personal_channel_extra_roles.join(', ') || 'none'}\n` +
+				`• Linked member channels: ${players?.count ?? 0}\n\n` +
+				`Buckets use the member's first letter (e.g. A-F, G-M). Run \`/server categories\` for IDs.`,
+			true,
+		);
+	}
+
+	if (sub.name === 'map') {
+		const clearRaw = getOptionValue(sub.options, 'clear');
+		const clear = clearRaw === true || clearRaw === 'true';
+		const categoryMapRaw = getOptionValue(sub.options, 'category_map') as string | undefined;
+		const rangeRaw = getOptionValue(sub.options, 'range') as string | undefined;
+		const categoryIdRaw = getOptionValue(sub.options, 'category_id') as string | undefined;
+
+		if (clear) {
+			await upsertGuildConfig(env.STFC_DB, { guild_id: guildId, channel_category_map: {} });
+			return interactionResponse('✅ Category map cleared. Personal channels are now disabled.', true);
+		}
+
+		const nextMap = { ...config.channel_category_map };
+
+		if (categoryMapRaw) {
+			const parsed = parseCategoryMapInput(categoryMapRaw);
+			if (Object.keys(parsed).length === 0) {
+				return interactionResponse(
+					'❌ Invalid category_map. Example: `A-F=123456789012345678,G-M=987654321098765432`',
+					true,
+				);
+			}
+			Object.assign(nextMap, parsed);
+		} else if (rangeRaw && categoryIdRaw) {
+			if (!/^\d{15,20}$/.test(categoryIdRaw)) {
+				return interactionResponse('❌ category_id must be a valid category snowflake.', true);
+			}
+			nextMap[rangeRaw.trim().toUpperCase()] = categoryIdRaw;
+		} else {
+			return interactionResponse(
+				'❌ Provide `category_map` (bulk) or `range` + `category_id` (single), or `clear:true`.',
+				true,
+			);
+		}
+
+		await upsertGuildConfig(env.STFC_DB, { guild_id: guildId, channel_category_map: nextMap });
+		return interactionResponse(
+			`✅ Category map updated.\n• ${formatCategoryMap(nextMap)}\n\nPersonal channels will be created on verify for matching members.`,
+			true,
+		);
+	}
+
+	if (sub.name === 'extra-roles') {
+		const rolesRaw = getOptionValue(sub.options, 'roles') as string | undefined;
+		const createIfMissingRaw = getOptionValue(sub.options, 'create_if_missing');
+		const createIfMissing = createIfMissingRaw === true || createIfMissingRaw === 'true';
+
+		if (!rolesRaw?.trim()) {
+			await upsertGuildConfig(env.STFC_DB, { guild_id: guildId, personal_channel_extra_roles: [] });
+			return interactionResponse('✅ Channel extra roles cleared.', true);
+		}
+
+		try {
+			const resolved = await resolveRoleTokensToIds(
+				env,
+				guildId,
+				parseRoleTokensCsv(rolesRaw),
+				createIfMissing,
+				config.personal_channel_extra_roles.map((id) => ({ id })),
+			);
+			await upsertGuildConfig(env.STFC_DB, { guild_id: guildId, personal_channel_extra_roles: resolved.ids });
+			return interactionResponse(
+				`✅ Channel extra roles updated (${resolved.ids.length}): ${resolved.ids.join(', ')}`,
+				true,
+			);
+		} catch (error) {
+			return interactionResponse(
+				`❌ Failed to resolve roles: ${error instanceof Error ? error.message : 'unknown error'}`,
+				true,
+			);
+		}
+	}
+
+	if (sub.name === 'link') {
+		if (!env.DISCORD_BOT_TOKEN) return interactionResponse('❌ DISCORD_BOT_TOKEN not configured.', true);
+
+		const userId = resolveTargetUserId(interaction as any, sub.options);
+		const channelId = getOptionValue(sub.options, 'channel') as string | undefined;
+		if (!userId) return interactionResponse('❌ Could not resolve user.', true);
+		if (!channelId || !/^\d{15,20}$/.test(channelId)) {
+			return interactionResponse('❌ Provide a valid text channel.', true);
+		}
+
+		const result = await linkExistingPersonalChannel(
+			env.DISCORD_BOT_TOKEN,
+			config,
+			guildId,
+			userId,
+			channelId,
+		);
+		if (!result.ok) {
+			return interactionResponse(`❌ Failed to link channel: ${result.error}`, true);
+		}
+
+		await upsertVerifiedPlayer(env.STFC_DB, {
+			guild_id: guildId,
+			discord_user_id: userId,
+			personal_channel_id: channelId,
+		});
+
+		return interactionResponse(
+			`✅ Linked <#${channelId}> to <@${userId}> and applied channel permissions.`,
+			true,
+		);
+	}
+
+	return interactionResponse(`❌ Unknown channels subcommand: ${sub.name}`, true);
+}
+
 async function handleServerGatewayCommand(
 	env: Env,
 	interaction: { guild_id?: string; member?: { permissions?: string } },
@@ -752,6 +949,12 @@ export async function handleDiscordInteraction(
 			}
 			if (sub?.name === 'rank-roles') {
 				return handleServerRankRolesCommand(env, interaction as any, sub);
+			}
+			if (sub?.name === 'categories') {
+				return handleServerCategoriesCommand(env, interaction as any, sub);
+			}
+			if (sub?.name === 'channels') {
+				return handleServerChannelsCommand(env, interaction as any, sub);
 			}
 		}
 

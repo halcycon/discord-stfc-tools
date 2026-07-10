@@ -66,6 +66,7 @@ function mapGuildConfig(row: any): GuildConfig {
 		admiral_role_ids: parseJsonArray(row.admiral_role_ids),
 		overlay_buckets: parseOverlayBuckets(row.overlay_buckets),
 		alliance_role_prefix: row.alliance_role_prefix ?? null,
+		nickname_template: row.nickname_template ?? null,
 		channel_category_map: parseJsonObject(row.channel_category_map),
 		personal_channel_extra_roles: parseJsonArray(row.personal_channel_extra_roles),
 		poll_interval_hours: row.poll_interval_hours ?? 6,
@@ -115,14 +116,19 @@ export async function upsertGuildConfig(
 	const existing = await getGuildConfig(db, config.guild_id);
 	const now = new Date().toISOString();
 
+	const nicknameTemplateProvided = Object.prototype.hasOwnProperty.call(config, 'nickname_template');
+	const nicknameTemplateValue = nicknameTemplateProvided
+		? (config.nickname_template?.trim() || null)
+		: null;
+
 	if (!existing) {
 		await db
 			.prepare(
 				`INSERT INTO guild_configs
 				(guild_id, mode, stfc_server, stfc_region, alliance_tag, guest_role_id,
 				 member_role_ids, operative_role_ids, agent_role_ids, premier_role_ids, commodore_role_ids, admiral_role_ids,
-				 overlay_buckets, verification_enabled, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				 overlay_buckets, nickname_template, channel_category_map, personal_channel_extra_roles, verification_enabled, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.bind(
 				config.guild_id,
@@ -138,6 +144,9 @@ export async function upsertGuildConfig(
 				JSON.stringify(config.commodore_role_ids ?? []),
 				JSON.stringify(config.admiral_role_ids ?? []),
 				JSON.stringify(config.overlay_buckets ?? {}),
+				nicknameTemplateProvided ? nicknameTemplateValue : null,
+				JSON.stringify(config.channel_category_map ?? {}),
+				JSON.stringify(config.personal_channel_extra_roles ?? []),
 				config.verification_enabled !== false ? 1 : 0,
 				now,
 			)
@@ -160,6 +169,9 @@ export async function upsertGuildConfig(
 			 commodore_role_ids = COALESCE(?, commodore_role_ids),
 			 admiral_role_ids = COALESCE(?, admiral_role_ids),
 			 overlay_buckets = COALESCE(?, overlay_buckets),
+			 nickname_template = CASE WHEN ? = 1 THEN ? ELSE nickname_template END,
+			 channel_category_map = COALESCE(?, channel_category_map),
+			 personal_channel_extra_roles = COALESCE(?, personal_channel_extra_roles),
 			 verification_enabled = COALESCE(?, verification_enabled),
 			 updated_at = ?
 			 WHERE guild_id = ?`,
@@ -177,6 +189,10 @@ export async function upsertGuildConfig(
 			config.commodore_role_ids ? JSON.stringify(config.commodore_role_ids) : null,
 			config.admiral_role_ids ? JSON.stringify(config.admiral_role_ids) : null,
 			config.overlay_buckets ? JSON.stringify(config.overlay_buckets) : null,
+			nicknameTemplateProvided ? 1 : 0,
+			nicknameTemplateValue,
+			config.channel_category_map ? JSON.stringify(config.channel_category_map) : null,
+			config.personal_channel_extra_roles ? JSON.stringify(config.personal_channel_extra_roles) : null,
 			config.verification_enabled !== undefined ? (config.verification_enabled ? 1 : 0) : null,
 			now,
 			config.guild_id,
@@ -246,6 +262,7 @@ export async function upsertVerifiedPlayer(
 		grade?: number | null;
 		stfc_pro_url?: string | null;
 		verification_status?: VerificationStatus;
+		personal_channel_id?: string | null;
 		verified_at?: string | null;
 		last_synced_at?: string | null;
 	},
@@ -258,8 +275,8 @@ export async function upsertVerifiedPlayer(
 			.prepare(
 				`INSERT INTO verified_players
 				(guild_id, discord_user_id, player_id, player_name, alliance_tag,
-				 ops_level, power, grade, stfc_pro_url, verification_status, verified_at, last_synced_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				 ops_level, power, grade, stfc_pro_url, verification_status, personal_channel_id, verified_at, last_synced_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.bind(
 				data.guild_id,
@@ -272,6 +289,7 @@ export async function upsertVerifiedPlayer(
 				data.grade ?? null,
 				data.stfc_pro_url ?? null,
 				data.verification_status ?? 'pending_invite',
+				data.personal_channel_id ?? null,
 				data.verified_at ?? null,
 				data.last_synced_at ?? null,
 				now,
@@ -291,6 +309,7 @@ export async function upsertVerifiedPlayer(
 			 grade = COALESCE(?, grade),
 			 stfc_pro_url = COALESCE(?, stfc_pro_url),
 			 verification_status = COALESCE(?, verification_status),
+			 personal_channel_id = COALESCE(?, personal_channel_id),
 			 verified_at = COALESCE(?, verified_at),
 			 last_synced_at = COALESCE(?, last_synced_at),
 			 updated_at = ?
@@ -305,6 +324,7 @@ export async function upsertVerifiedPlayer(
 			data.grade ?? null,
 			data.stfc_pro_url ?? null,
 			data.verification_status ?? null,
+			data.personal_channel_id ?? null,
 			data.verified_at ?? null,
 			data.last_synced_at ?? null,
 			now,

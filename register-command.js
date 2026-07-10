@@ -163,6 +163,13 @@ const commands = [
 						description: 'Comma-separated Discord role IDs for alliance rank Admiral',
 						required: false,
 					},
+					{
+						type: 3,
+						name: 'nickname_template',
+						description:
+							'Nick pattern ({player_name} {alliance_tag} {rank} {rank_prefix} {rank_paren}); empty=default',
+						required: false,
+					},
 				],
 			},
 			{
@@ -255,6 +262,100 @@ const commands = [
 						name: 'rank',
 						description: 'Operative, Agent, Premier, Commodore, Admiral',
 						required: true,
+					},
+				],
+			},
+			{
+				type: 1,
+				name: 'categories',
+				description: 'Admin: list channel categories and IDs',
+				options: [
+					{
+						type: 4,
+						name: 'limit',
+						description: 'Max categories to show (5-50)',
+						required: false,
+					},
+				],
+			},
+			{
+				type: 2,
+				name: 'channels',
+				description: 'Admin: configure personal member channels',
+				options: [
+					{
+						type: 1,
+						name: 'map',
+						description: 'Set letter-range to category mappings',
+						options: [
+							{
+								type: 3,
+								name: 'category_map',
+								description: 'Bulk map e.g. A-F=123,G-M=456',
+								required: false,
+							},
+							{
+								type: 3,
+								name: 'range',
+								description: 'Single letter range e.g. A-F or M',
+								required: false,
+							},
+							{
+								type: 3,
+								name: 'category_id',
+								description: 'Category snowflake for single range',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'clear',
+								description: 'Clear all category mappings',
+								required: false,
+							},
+						],
+					},
+					{
+						type: 1,
+						name: 'extra-roles',
+						description: 'Roles that can access all personal channels',
+						options: [
+							{
+								type: 3,
+								name: 'roles',
+								description: 'Comma-separated role IDs, mentions, or names',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'create_if_missing',
+								description: 'Create roles by name if they do not exist',
+								required: false,
+							},
+						],
+					},
+					{
+						type: 1,
+						name: 'link',
+						description: 'Link an existing channel to a verified member',
+						options: [
+							{
+								type: 6,
+								name: 'user',
+								description: 'Member to link',
+								required: true,
+							},
+							{
+								type: 7,
+								name: 'channel',
+								description: 'Existing text channel',
+								required: true,
+							},
+						],
+					},
+					{
+						type: 1,
+						name: 'status',
+						description: 'Show personal channel configuration',
 					},
 				],
 			},
