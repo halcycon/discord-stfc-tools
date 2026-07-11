@@ -371,6 +371,87 @@ const commands = [
 					},
 					{
 						type: 1,
+						name: 'diplomacy',
+						description: 'Configure multi-alliance diplomacy channels (per alliance tag)',
+						options: [
+							{
+								type: 5,
+								name: 'enable',
+								description: 'Enable diplomacy channels and save config options',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'disable',
+								description: 'Disable auto-create (keeps existing links)',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'everyone_can_view',
+								description: 'If true, @everyone can see channels (default true)',
+								required: false,
+							},
+							{
+								type: 7,
+								name: 'category',
+								description: 'Category for newly created diplomacy channels',
+								required: false,
+								channel_types: [4],
+							},
+							{
+								type: 3,
+								name: 'view_roles',
+								description: 'Roles that can view when everyone_can_view is false',
+								required: false,
+							},
+							{
+								type: 3,
+								name: 'write_roles',
+								description: 'Roles that can write (e.g. Diplomat)',
+								required: false,
+							},
+							{
+								type: 3,
+								name: 'write_ranks',
+								description: 'Ranks that can write via their Discord roles (e.g. Commodore,Admiral)',
+								required: false,
+							},
+							{
+								type: 3,
+								name: 'name_template',
+								description: 'Channel name pattern; use {tag} (default diplomacy-{tag})',
+								required: false,
+							},
+							{
+								type: 3,
+								name: 'create_tag',
+								description: 'Create/update diplomacy channel for this alliance tag',
+								required: false,
+							},
+							{
+								type: 3,
+								name: 'link_tag',
+								description: 'Adopt existing channel for this alliance tag',
+								required: false,
+							},
+							{
+								type: 7,
+								name: 'channel',
+								description: 'Existing text channel (with link_tag)',
+								required: false,
+								channel_types: [0],
+							},
+							{
+								type: 5,
+								name: 'apply_permissions',
+								description: 'When linking, rewrite perms from config (default true)',
+								required: false,
+							},
+						],
+					},
+					{
+						type: 1,
 						name: 'log',
 						description: 'Set or create the admin verification log channel',
 						options: [

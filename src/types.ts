@@ -57,6 +57,21 @@ export interface GuildConfig {
 	verification_log_channel_id: string | null;
 	channel_category_map: Record<string, string>;
 	personal_channel_extra_roles: string[];
+	/** Multi-alliance: create/link one diplomacy channel per alliance tag. */
+	diplomacy_enabled: boolean;
+	diplomacy_category_id: string | null;
+	/** allianceTag (upper) → Discord channel ID */
+	diplomacy_channel_map: Record<string, string>;
+	/** If true, @everyone can view diplomacy channels (send still restricted). */
+	diplomacy_everyone_can_view: boolean;
+	/** Extra roles that can view (used when everyone_can_view is false, or as additive). */
+	diplomacy_view_role_ids: string[];
+	/** Roles that can write (e.g. Diplomat). */
+	diplomacy_write_role_ids: string[];
+	/** In-game ranks whose Discord rank roles may write (e.g. Commodore, Admiral). */
+	diplomacy_write_ranks: string[];
+	/** Channel name pattern; `{tag}` → alliance tag. Default diplomacy-{tag}. */
+	diplomacy_name_template: string | null;
 	poll_interval_hours: number;
 	verification_enabled: boolean;
 	created_at: string;

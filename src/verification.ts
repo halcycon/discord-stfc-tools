@@ -11,12 +11,14 @@ import {
 	getVerifiedPlayer,
 	recordPlayerStats,
 	recordScreenshot,
+	upsertGuildConfig,
 	upsertVerifiedPlayer,
 } from './guild-db';
 import { buildMemberNickname, normalizeAllianceRank } from './nickname-utils';
 import { parseStfcProUrl, resolveSearchTerm } from './stfc-url';
 import { findPlayerByIdOrName, formatPlayerSummary } from './stfc-utils';
 import { ensurePersonalChannel } from './personal-channels';
+import { ensureDiplomacyChannel, diplomacyChannelsEnabled } from './diplomacy-channels';
 import { postVerificationLog } from './verification-log';
 import type { GuildConfig, PlayerData } from './types';
 
@@ -165,6 +167,32 @@ async function applyPersonalChannelForMember(
 	if (!result.ok) {
 		console.error('Personal channel setup failed:', result.error);
 		return null;
+	}
+	return result.channelId;
+}
+
+async function applyDiplomacyForAlliance(
+	env: Env,
+	token: string,
+	config: GuildConfig,
+	guildId: string,
+	allianceTag: string,
+): Promise<string | null> {
+	if (config.mode !== 'multi_alliance' || !diplomacyChannelsEnabled(config) || !allianceTag) {
+		return null;
+	}
+	const result = await ensureDiplomacyChannel(token, config, guildId, allianceTag);
+	if (!result.ok) {
+		console.error('Diplomacy channel setup failed:', result.error);
+		return null;
+	}
+	if (result.created || !config.diplomacy_channel_map[result.tag]) {
+		const nextMap = { ...config.diplomacy_channel_map, [result.tag]: result.channelId };
+		await upsertGuildConfig(env.STFC_DB, {
+			guild_id: guildId,
+			diplomacy_channel_map: nextMap,
+		});
+		config.diplomacy_channel_map = nextMap;
 	}
 	return result.channelId;
 }
@@ -319,6 +347,15 @@ export async function processVerification(
 				notes.push(`Channel <#${channelId}>`);
 			}
 
+			const diplomacyId = await applyDiplomacyForAlliance(
+				env,
+				token,
+				config,
+				guildId,
+				player.allianceTag,
+			);
+			if (diplomacyId) notes.push(`Diplomacy <#${diplomacyId}>`);
+
 			await postLog('active', notes);
 
 			return (
@@ -433,6 +470,8 @@ export async function syncVerifiedPlayer(
 				personal_channel_id: channelId,
 			});
 		}
+
+		await applyDiplomacyForAlliance(env, token, config, guildId, player.allianceTag);
 	} else {
 		await applyGuestRole(token, config, guildId, discordUserId);
 	}

@@ -231,6 +231,60 @@ Status:
 
 ---
 
+## 5b. Diplomacy channels (multi-alliance)
+
+One shared text channel **per alliance tag** (not per player). Typical use: everyone can **see** the channel; only leadership ranks and/or a Diplomat role can **write**.
+
+Discord cannot gate on in-game rank directly — write access uses the Discord roles assigned for those ranks (`commodore_roles` / `admiral_roles` from `/server setup`) plus any `write_roles` you configure.
+
+### Configure
+
+```
+/server channels diplomacy
+  enable:true
+  everyone_can_view:true
+  write_roles:Diplomat
+  write_ranks:Commodore,Admiral
+  category:#Diplomacy
+  name_template:diplomacy-{tag}
+```
+
+| Option | Meaning |
+|--------|---------|
+| `enable` | Turn feature on and save options |
+| `disable` | Stop auto-create (keeps linked channels) |
+| `everyone_can_view` | `@everyone` can view; send still denied (default true) |
+| `view_roles` | Extra viewer roles (especially if everyone cannot view) |
+| `write_roles` | Roles that can send (e.g. Diplomat) — created by name if missing |
+| `write_ranks` | In-game ranks whose Discord rank roles may write |
+| `category` | Parent category for newly created channels |
+| `name_template` | Channel name; `{tag}` → alliance tag (default `diplomacy-{tag}`) |
+
+### Create for a tag
+
+```
+/server channels diplomacy create_tag:KWSN
+```
+
+Also happens automatically on verify/sync in **multi_alliance** mode when diplomacy is enabled and the player has an alliance tag.
+
+### Adopt an existing channel
+
+```
+/server channels diplomacy link_tag:KWSN channel:#kwsn-diplo
+/server channels diplomacy link_tag:KWSN channel:#kwsn-diplo apply_permissions:false
+```
+
+### Status
+
+```
+/server channels diplomacy
+```
+
+(with no action options) prints the current diplomacy config and tag→channel map.
+
+---
+
 ## 6. Member verification flow
 
 ### What members do
@@ -291,6 +345,7 @@ Wrong alliance → guest role. Cron re-checks periodically; when the tag matches
 | “Server not configured” | Run `/server setup` |
 | Log channel silent | `/server channels log` set; bot can attach files; redeploy after feature add |
 | Personal channel not created | Single-alliance + category map set; check `/server channels status` |
+| Diplomacy channel not created | Multi-alliance + `/server channels diplomacy enable:true`; rank write roles must exist from setup |
 | Link finds no player | Member must verify first, or use `user:@Member` |
 | stfc.pro lookup fails | Bot falls back to HTML scrape for numeric player IDs; confirm URL/server/region |
 
@@ -304,5 +359,6 @@ Wrong alliance → guest role. Cron re-checks periodically; when the tag matches
 4. [ ] `/server channels map` (single-alliance personal channels) **or** plan to `/server channels link` existing ones  
 5. [ ] `/server channels log create:true`  
 6. [ ] Optional: `nickname_template`, rank roles, `/server bucket`  
-7. [ ] `/server test-invite` → verify yourself → check roles, log channel, personal channel  
-8. [ ] `/server status` looks correct  
+7. [ ] Multi-alliance: `/server channels diplomacy enable:true write_roles:Diplomat write_ranks:Commodore,Admiral`  
+8. [ ] `/server test-invite` → verify yourself → check roles, log, personal/diplomacy channels  
+9. [ ] `/server status` looks correct  

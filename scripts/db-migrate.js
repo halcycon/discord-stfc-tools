@@ -113,6 +113,7 @@ function syncAppliedFromSchema(migrationIds, applied) {
 		'004_nickname_template.sql': () => columnExists('guild_configs', 'nickname_template'),
 		'005_verification_log_channel.sql': () =>
 			columnExists('guild_configs', 'verification_log_channel_id'),
+		'006_diplomacy_channels.sql': () => columnExists('guild_configs', 'diplomacy_enabled'),
 	};
 
 	for (const id of migrationIds) {

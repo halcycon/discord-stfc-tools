@@ -70,6 +70,19 @@ function mapGuildConfig(row: any): GuildConfig {
 		verification_log_channel_id: row.verification_log_channel_id ?? null,
 		channel_category_map: parseJsonObject(row.channel_category_map),
 		personal_channel_extra_roles: parseJsonArray(row.personal_channel_extra_roles),
+		diplomacy_enabled: Boolean(row.diplomacy_enabled ?? 0),
+		diplomacy_category_id: row.diplomacy_category_id ?? null,
+		diplomacy_channel_map: parseJsonObject(row.diplomacy_channel_map),
+		diplomacy_everyone_can_view: row.diplomacy_everyone_can_view === undefined || row.diplomacy_everyone_can_view === null
+			? true
+			: Boolean(row.diplomacy_everyone_can_view),
+		diplomacy_view_role_ids: parseJsonArray(row.diplomacy_view_role_ids),
+		diplomacy_write_role_ids: parseJsonArray(row.diplomacy_write_role_ids),
+		diplomacy_write_ranks: (() => {
+			const ranks = parseJsonArray(row.diplomacy_write_ranks);
+			return ranks.length > 0 ? ranks : ['Commodore', 'Admiral'];
+		})(),
+		diplomacy_name_template: row.diplomacy_name_template ?? null,
 		poll_interval_hours: row.poll_interval_hours ?? 6,
 		verification_enabled: Boolean(row.verification_enabled ?? 1),
 		created_at: row.created_at,
@@ -158,6 +171,7 @@ export async function upsertGuildConfig(
 				now,
 			)
 			.run();
+		await upsertDiplomacyConfigFields(db, config);
 		return;
 	}
 
@@ -205,6 +219,58 @@ export async function upsertGuildConfig(
 			config.personal_channel_extra_roles ? JSON.stringify(config.personal_channel_extra_roles) : null,
 			config.verification_enabled !== undefined ? (config.verification_enabled ? 1 : 0) : null,
 			now,
+			config.guild_id,
+		)
+		.run();
+
+	await upsertDiplomacyConfigFields(db, config);
+}
+
+async function upsertDiplomacyConfigFields(
+	db: D1Database,
+	config: Partial<GuildConfig> & { guild_id: string },
+): Promise<void> {
+	const has =
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_enabled') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_category_id') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_channel_map') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_everyone_can_view') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_view_role_ids') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_write_role_ids') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_write_ranks') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_name_template');
+	if (!has) return;
+
+	const categoryProvided = Object.prototype.hasOwnProperty.call(config, 'diplomacy_category_id');
+	const nameProvided = Object.prototype.hasOwnProperty.call(config, 'diplomacy_name_template');
+
+	await db
+		.prepare(
+			`UPDATE guild_configs SET
+			 diplomacy_enabled = COALESCE(?, diplomacy_enabled),
+			 diplomacy_category_id = CASE WHEN ? = 1 THEN ? ELSE diplomacy_category_id END,
+			 diplomacy_channel_map = COALESCE(?, diplomacy_channel_map),
+			 diplomacy_everyone_can_view = COALESCE(?, diplomacy_everyone_can_view),
+			 diplomacy_view_role_ids = COALESCE(?, diplomacy_view_role_ids),
+			 diplomacy_write_role_ids = COALESCE(?, diplomacy_write_role_ids),
+			 diplomacy_write_ranks = COALESCE(?, diplomacy_write_ranks),
+			 diplomacy_name_template = CASE WHEN ? = 1 THEN ? ELSE diplomacy_name_template END,
+			 updated_at = datetime('now')
+			 WHERE guild_id = ?`,
+		)
+		.bind(
+			config.diplomacy_enabled !== undefined ? (config.diplomacy_enabled ? 1 : 0) : null,
+			categoryProvided ? 1 : 0,
+			categoryProvided ? (config.diplomacy_category_id?.trim() || null) : null,
+			config.diplomacy_channel_map ? JSON.stringify(config.diplomacy_channel_map) : null,
+			config.diplomacy_everyone_can_view !== undefined
+				? (config.diplomacy_everyone_can_view ? 1 : 0)
+				: null,
+			config.diplomacy_view_role_ids ? JSON.stringify(config.diplomacy_view_role_ids) : null,
+			config.diplomacy_write_role_ids ? JSON.stringify(config.diplomacy_write_role_ids) : null,
+			config.diplomacy_write_ranks ? JSON.stringify(config.diplomacy_write_ranks) : null,
+			nameProvided ? 1 : 0,
+			nameProvided ? (config.diplomacy_name_template?.trim() || null) : null,
 			config.guild_id,
 		)
 		.run();
