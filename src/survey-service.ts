@@ -122,6 +122,13 @@ export function surveyPreviewEmbed(survey: SurveyRecord, targetCount: number): D
 			{ name: 'Target', value: describeSurveyTarget(survey), inline: false },
 			{ name: 'Matched players', value: String(targetCount), inline: true },
 			{ name: 'Delivery', value: survey.delivery, inline: true },
+			{
+				name: 'Log category',
+				value: survey.log_category_id
+					? `<#${survey.log_category_id}> (this survey)`
+					: 'server default',
+				inline: true,
+			},
 		],
 		footer: { text: 'Test to yourself first, then Approve & send' },
 	};
@@ -144,6 +151,7 @@ export async function createSurveyDraft(
 		targetOpsMin?: number | null;
 		targetOpsMax?: number | null;
 		targetUserIds?: string[];
+		logCategoryId?: string | null;
 	},
 ): Promise<{ survey: SurveyRecord; targetCount: number }> {
 	const options = parseSurveyOptions(opts.optionsRaw);
@@ -166,6 +174,7 @@ export async function createSurveyDraft(
 		target_ops_max: opts.targetOpsMax,
 		target_user_ids: opts.targetUserIds,
 		viewer_role_ids: config.survey_results_role_ids,
+		log_category_id: opts.logCategoryId ?? null,
 	});
 
 	const targets = await resolveSurveyTargets(env, survey);
@@ -298,8 +307,9 @@ async function ensureSurveyLogChannel(
 	}
 
 	const channelName = resolveSurveyLogChannelName(config.survey_log_name_template, survey.id);
+	const parentId = survey.log_category_id || config.survey_log_category_id || undefined;
 	const channel = await createGuildTextChannel(token, guildId, channelName, {
-		parentId: config.survey_log_category_id ?? undefined,
+		parentId,
 		topic: `Survey #${survey.id}: ${survey.question.slice(0, 100)}`,
 		permissionOverwrites: overwrites,
 	});

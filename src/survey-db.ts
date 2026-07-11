@@ -37,6 +37,7 @@ function mapSurvey(row: any): SurveyRecord {
 		target_user_ids: parseJsonArray(row.target_user_ids),
 		viewer_role_ids: parseJsonArray(row.viewer_role_ids),
 		log_channel_id: row.log_channel_id ?? null,
+		log_category_id: row.log_category_id ?? null,
 		target_count: row.target_count ?? 0,
 		sent_at: row.sent_at ?? null,
 		closed_at: row.closed_at ?? null,
@@ -72,6 +73,7 @@ export async function createSurvey(
 		target_ops_max?: number | null;
 		target_user_ids?: string[];
 		viewer_role_ids?: string[];
+		log_category_id?: string | null;
 	},
 ): Promise<SurveyRecord> {
 	const result = await db
@@ -79,8 +81,8 @@ export async function createSurvey(
 			`INSERT INTO surveys
 			 (guild_id, created_by, question, button_type, options, status, delivery, target_type,
 			  target_grades, target_alliance_tags, target_role_ids, target_ranks,
-			  target_ops_min, target_ops_max, target_user_ids, viewer_role_ids)
-			 VALUES (?, ?, ?, 'multi_choice', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			  target_ops_min, target_ops_max, target_user_ids, viewer_role_ids, log_category_id)
+			 VALUES (?, ?, ?, 'multi_choice', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 RETURNING *`,
 		)
 		.bind(
@@ -98,6 +100,7 @@ export async function createSurvey(
 			data.target_ops_max ?? null,
 			JSON.stringify(data.target_user_ids ?? []),
 			JSON.stringify(data.viewer_role_ids ?? []),
+			data.log_category_id ?? null,
 		)
 		.first();
 	if (!result) throw new Error('Failed to create survey');

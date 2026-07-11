@@ -337,7 +337,7 @@ Use role IDs or `<@&id>` mentions, comma-separated. Empty `roles` clears back to
 
 **Log channels are private:** `@everyone` cannot see them. Access is granted to the bot, the member who created the survey, configured **creator** roles, and **results_roles**. Discord Administrators can still see them via admin override.
 
-**Category:** New survey logs are created under the configured category (if set). `create_category:true` makes a private category (default name `Surveys`) and saves it. Or pick an existing one with `category:`. Does not move already-created channels.
+**Category:** New survey logs go under the configured **server default** category (if set). Override per survey with `/survey create … log_category:#Events`. `create_category:true` makes a private default category (name `Surveys` unless `category_name` is set). Does not move already-created channels.
 
 `log_name` uses `{id}` (or `{n}`) for the survey number — e.g. `event-feedback-{id}` → `#event-feedback-12`. Applies to **new** surveys only (rename `#survey-1` manually in Discord if you want).
 
@@ -357,6 +357,7 @@ Empty `log_name` resets to `survey-{id}`.
 | `delivery` | `dm` (default) or `personal_channel` (falls back to DM) |
 | `grades` / `ranks` / `roles` / `users` / `ops_min` / `ops_max` | Filters for the chosen `target` |
 | `alliance_tags` | Optional extra filter (comma-separated tags) |
+| `log_category` | Optional category for **this** survey’s log channel (else server default from `/survey creators`) |
 
 After create you get an ephemeral draft with buttons:
 

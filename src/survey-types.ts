@@ -21,6 +21,8 @@ export interface SurveyRecord {
 	target_user_ids: string[];
 	viewer_role_ids: string[];
 	log_channel_id: string | null;
+	/** Per-survey category override; null → guild survey_log_category_id. */
+	log_category_id: string | null;
 	target_count: number;
 	sent_at: string | null;
 	closed_at: string | null;

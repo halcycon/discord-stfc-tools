@@ -70,6 +70,7 @@ function sampleSurvey(overrides: Partial<SurveyRecord> = {}): SurveyRecord {
 		target_user_ids: [],
 		viewer_role_ids: [],
 		log_channel_id: null,
+		log_category_id: null,
 		target_count: 3,
 		sent_at: null,
 		closed_at: null,

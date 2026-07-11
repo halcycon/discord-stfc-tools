@@ -247,9 +247,19 @@ export async function handleSurveyCommand(
 		const opsMin = getOptionValue(sub.options, 'ops_min') as number | undefined;
 		const opsMax = getOptionValue(sub.options, 'ops_max') as number | undefined;
 		const allianceTagsRaw = getOptionValue(sub.options, 'alliance_tags') as string | undefined;
+		const logCategoryOpt = getOptionValue(sub.options, 'log_category');
 
 		if (!question?.trim() || !optionsRaw?.trim()) {
 			return interactionResponse('❌ `question` and `options` (A|B|C) are required.', true);
+		}
+
+		let logCategoryId: string | null = null;
+		if (logCategoryOpt !== undefined && logCategoryOpt !== null) {
+			const cat = String(logCategoryOpt);
+			if (!/^\d{15,20}$/.test(cat)) {
+				return interactionResponse('❌ Invalid log_category.', true);
+			}
+			logCategoryId = cat;
 		}
 
 		const createdBy = actorUserId(interaction);
@@ -286,6 +296,7 @@ export async function handleSurveyCommand(
 				targetAllianceTags: allianceTagsRaw
 					? allianceTagsRaw.split(',').map((t) => t.trim()).filter(Boolean)
 					: undefined,
+				logCategoryId,
 			});
 
 			return interactionResponseWithComponents(

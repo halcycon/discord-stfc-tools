@@ -576,6 +576,13 @@ const commands = [
 						description: 'Optional filter — tags comma-separated',
 						required: false,
 					},
+					{
+						type: 7,
+						name: 'log_category',
+						description: 'Category for this survey’s log channel (else server default)',
+						required: false,
+						channel_types: [4],
+					},
 				],
 			},
 			{
