@@ -557,6 +557,7 @@ const commands = [
 								name: 'channel',
 								description: 'Existing text channel to link',
 								required: true,
+								channel_types: [0, 5],
 							},
 							{
 								type: 3,
@@ -733,7 +734,7 @@ const commands = [
 								name: 'channel',
 								description: 'Existing text channel (with link_tag)',
 								required: false,
-								channel_types: [0],
+								channel_types: [0, 5],
 							},
 							{
 								type: 5,

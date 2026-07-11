@@ -422,6 +422,8 @@ If the server already has member or diplomacy channels, **do not recreate them**
 /server channels link channel:#halcynicon player:Halcynicon
 ```
 
+Pick a **text** (or announcement) channel — not a category. If linking fails because the bot can’t see the channel, give the bot **View Channel** there (private member channels often deny `@everyone`), then retry.
+
 ```
 /server channels link channel:#kwsn-diplomacy player:301268920
 ```
@@ -693,6 +695,7 @@ After create you get an ephemeral draft with buttons:
 | “Server not configured” | Run `/server setup` |
 | Log channel silent | `/server channels log` set; bot can attach files; redeploy after feature add |
 | Personal channel not created | Single-alliance + category map set; check `/server channels status` |
+| `/server channels link` fails / “not a text channel” | Pick a **text** channel (not a category). If the bot can’t see the channel, grant it **View Channel** there (member channels often deny @everyone). Redeploy for clearer errors; re-register commands so the picker only lists text/announcement |
 | Diplomacy channel not created | Multi-alliance + `/server channels diplomacy enable:true`; rank write roles must exist from setup |
 | Link finds no player | Member must verify first, or use `user:@Member` |
 | stfc.pro lookup fails | Bot falls back to HTML scrape for numeric player IDs; confirm URL/server/region |

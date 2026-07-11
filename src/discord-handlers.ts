@@ -1077,6 +1077,10 @@ async function handleDiplomacyChannelsCommand(
 	config: GuildConfig,
 	options: Array<{ name: string; value?: unknown }> | undefined,
 	actorId?: string,
+	resolvedChannels?: Record<
+		string,
+		{ id: string; name?: string; type?: number; parent_id?: string | null; guild_id?: string | null }
+	>,
 ): Promise<Response> {
 	const disableRaw = getOptionValue(options, 'disable');
 	const disable = disableRaw === true || disableRaw === 'true';
@@ -1239,7 +1243,20 @@ async function handleDiplomacyChannelsCommand(
 			guildId,
 			linkTagRaw,
 			channelId,
-			{ applyPermissions },
+			{
+				applyPermissions,
+				knownChannel: (() => {
+					const ch = resolvedChannels?.[channelId];
+					if (!ch) return null;
+					return {
+						id: ch.id,
+						name: ch.name ?? '',
+						type: ch.type ?? -1,
+						parent_id: ch.parent_id ?? null,
+						guild_id: ch.guild_id ?? guildId,
+					};
+				})(),
+			},
 		);
 		if (!result.ok) {
 			return interactionResponse(`❌ Failed to link diplomacy channel: ${result.error}`, true);
@@ -1294,6 +1311,14 @@ async function handleServerChannelsCommand(
 		member?: { permissions?: string; user?: { id: string } };
 		token: string;
 		application_id?: string;
+		data?: {
+			resolved?: {
+				channels?: Record<
+					string,
+					{ id: string; name?: string; type?: number; parent_id?: string | null; guild_id?: string | null }
+				>;
+			};
+		};
 	},
 	channelsGroup: { options?: Array<{ name: string; value?: unknown; type?: number; options?: Array<{ name: string; value?: unknown; type?: number }> }> },
 ): Promise<Response> {
@@ -1510,7 +1535,14 @@ async function handleServerChannelsCommand(
 	}
 
 	if (sub.name === 'diplomacy') {
-		return handleDiplomacyChannelsCommand(env, guildId, config, sub.options, interaction.member?.user?.id);
+		return handleDiplomacyChannelsCommand(
+			env,
+			guildId,
+			config,
+			sub.options,
+			interaction.member?.user?.id,
+			interaction.data?.resolved?.channels,
+		);
 	}
 
 	if (sub.name === 'log') {
@@ -1914,7 +1946,20 @@ async function handleServerChannelsCommand(
 			guildId,
 			discordUserId,
 			channelId,
-			{ applyPermissions },
+			{
+				applyPermissions,
+				knownChannel: (() => {
+					const ch = interaction.data?.resolved?.channels?.[channelId];
+					if (!ch) return null;
+					return {
+						id: ch.id,
+						name: ch.name ?? '',
+						type: ch.type ?? -1,
+						parent_id: ch.parent_id ?? null,
+						guild_id: ch.guild_id ?? guildId,
+					};
+				})(),
+			},
 		);
 		if (!result.ok) {
 			return interactionResponse(`❌ Failed to link channel: ${result.error}`, true);

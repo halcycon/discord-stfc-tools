@@ -66,6 +66,30 @@ export interface DiscordChannel {
 	name: string;
 	type: number;
 	parent_id?: string | null;
+	guild_id?: string | null;
+}
+
+/** Guild text (0) and announcement (5) — usable as personal/diplomacy channels. */
+export function isLinkableGuildTextChannel(type: number): boolean {
+	return type === 0 || type === 5;
+}
+
+export function describeChannelType(type: number): string {
+	const names: Record<number, string> = {
+		0: 'text',
+		1: 'DM',
+		2: 'voice',
+		3: 'group DM',
+		4: 'category',
+		5: 'announcement',
+		10: 'announcement thread',
+		11: 'public thread',
+		12: 'private thread',
+		13: 'stage',
+		15: 'forum',
+		16: 'media',
+	};
+	return names[type] ?? `type ${type}`;
 }
 
 export async function listGuildMembers(
@@ -141,11 +165,33 @@ export async function listGuildChannels(token: string, guildId: string): Promise
 }
 
 export async function getGuildChannel(token: string, channelId: string): Promise<DiscordChannel | null> {
+	const result = await fetchGuildChannel(token, channelId);
+	return result.ok ? result.channel : null;
+}
+
+/** Fetch a channel with a clear error (Missing Access, wrong id, etc.). */
+export async function fetchGuildChannel(
+	token: string,
+	channelId: string,
+): Promise<{ ok: true; channel: DiscordChannel } | { ok: false; error: string; status?: number }> {
 	try {
 		const response = await discordFetch(token, `/channels/${channelId}`, { method: 'GET' });
-		return (await response.json()) as DiscordChannel;
-	} catch {
-		return null;
+		const channel = (await response.json()) as DiscordChannel;
+		return { ok: true, channel };
+	} catch (err) {
+		if (err instanceof DiscordApiError) {
+			const hint =
+				err.status === 403 || err.status === 404
+					? ' Bot may lack **View Channel** on that channel (common when @everyone is denied). Grant the bot access, or pick the channel again after fixing permissions.'
+					: '';
+			const body = err.body ? ` ${err.body.slice(0, 120)}` : '';
+			return {
+				ok: false,
+				error: `Could not fetch channel (HTTP ${err.status}).${hint}${body}`,
+				status: err.status,
+			};
+		}
+		return { ok: false, error: err instanceof Error ? err.message : 'Unknown error fetching channel' };
 	}
 }
 

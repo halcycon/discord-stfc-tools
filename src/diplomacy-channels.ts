@@ -1,9 +1,13 @@
 import {
 	createGuildTextChannel,
+	fetchGuildChannel,
 	getBotUserId,
 	getGuildChannel,
+	isLinkableGuildTextChannel,
+	describeChannelType,
 	setChannelPermission,
 	type ChannelPermissionOverwrite,
+	type DiscordChannel,
 } from './discord-api';
 import { normalizeAllianceRank, type AllianceRankKey } from './nickname-utils';
 import type { GuildConfig } from './types';
@@ -157,7 +161,7 @@ export async function ensureDiplomacyChannel(
 	try {
 		if (existingId) {
 			const existing = await getGuildChannel(token, existingId);
-			if (existing && existing.type === 0) {
+			if (existing && isLinkableGuildTextChannel(existing.type)) {
 				await applyDiplomacyChannelPermissions(token, guildId, existingId, config);
 				return { ok: true, channelId: existingId, created: false, tag };
 			}
@@ -183,14 +187,33 @@ export async function linkDiplomacyChannel(
 	guildId: string,
 	allianceTag: string,
 	channelId: string,
-	opts?: { applyPermissions?: boolean },
+	opts?: {
+		applyPermissions?: boolean;
+		knownChannel?: Pick<DiscordChannel, 'id' | 'name' | 'type' | 'parent_id' | 'guild_id'> | null;
+	},
 ): Promise<DiplomacyChannelResult> {
 	const tag = normalizeAllianceTag(allianceTag);
 	if (!tag) return { ok: false, error: 'Missing alliance tag.' };
 
-	const channel = await getGuildChannel(token, channelId);
-	if (!channel || channel.type !== 0) {
-		return { ok: false, error: 'Channel not found or is not a text channel.' };
+	let channel: DiscordChannel | Pick<DiscordChannel, 'id' | 'name' | 'type' | 'parent_id' | 'guild_id'>;
+	if (opts?.knownChannel && opts.knownChannel.id === channelId) {
+		channel = opts.knownChannel;
+	} else {
+		const fetched = await fetchGuildChannel(token, channelId);
+		if (!fetched.ok) return { ok: false, error: fetched.error };
+		channel = fetched.channel;
+	}
+
+	if (channel.guild_id && channel.guild_id !== guildId) {
+		return { ok: false, error: 'That channel belongs to a different server.' };
+	}
+	if (!isLinkableGuildTextChannel(channel.type)) {
+		return {
+			ok: false,
+			error:
+				`#${channel.name || channelId} is a **${describeChannelType(channel.type)}** channel — ` +
+				`link a **text** or **announcement** channel.`,
+		};
 	}
 
 	try {

@@ -3,7 +3,10 @@ import {
 	listGuildChannels,
 	patchGuildChannel,
 	createGuildTextChannel,
+	fetchGuildChannel,
 	getGuildChannel,
+	isLinkableGuildTextChannel,
+	describeChannelType,
 	setChannelPermission,
 	type DiscordChannel,
 } from './discord-api';
@@ -67,7 +70,7 @@ export async function ensurePersonalChannel(
 	try {
 		if (existingChannelId) {
 			const existing = await getGuildChannel(token, existingChannelId);
-			if (existing && existing.type === 0) {
+			if (existing && isLinkableGuildTextChannel(existing.type)) {
 				let moved = false;
 				let renamed = false;
 
@@ -94,18 +97,42 @@ export async function ensurePersonalChannel(
 	}
 }
 
-/** Link an existing guild text channel to a member (optional permission rewrite). */
+/** Link an existing guild text/announcement channel to a member (optional permission rewrite). */
 export async function linkExistingPersonalChannel(
 	token: string,
 	config: GuildConfig,
 	guildId: string,
 	userId: string,
 	channelId: string,
-	opts?: { applyPermissions?: boolean },
+	opts?: {
+		applyPermissions?: boolean;
+		/** From interaction resolved.channels — avoids a GET the bot may not be allowed to make. */
+		knownChannel?: Pick<DiscordChannel, 'id' | 'name' | 'type' | 'parent_id' | 'guild_id'> | null;
+	},
 ): Promise<PersonalChannelResult> {
-	const channel = await getGuildChannel(token, channelId);
-	if (!channel || channel.type !== 0) {
-		return { ok: false, error: 'Channel not found or is not a text channel.' };
+	let channel: DiscordChannel | Pick<DiscordChannel, 'id' | 'name' | 'type' | 'parent_id' | 'guild_id'>;
+
+	if (opts?.knownChannel && opts.knownChannel.id === channelId) {
+		channel = opts.knownChannel;
+	} else {
+		const fetched = await fetchGuildChannel(token, channelId);
+		if (!fetched.ok) {
+			return { ok: false, error: fetched.error };
+		}
+		channel = fetched.channel;
+	}
+
+	if (channel.guild_id && channel.guild_id !== guildId) {
+		return { ok: false, error: 'That channel belongs to a different server.' };
+	}
+
+	if (!isLinkableGuildTextChannel(channel.type)) {
+		return {
+			ok: false,
+			error:
+				`#${channel.name || channelId} is a **${describeChannelType(channel.type)}** channel — ` +
+				`link a **text** or **announcement** channel (not a category, voice, forum, or thread).`,
+		};
 	}
 
 	try {
@@ -146,7 +173,7 @@ export function findUnlinkedMemberChannels(
 	archiveCategoryId?: string | null,
 ): DiscordChannel[] {
 	return channels.filter((ch) => {
-		if (ch.type !== 0 || !ch.parent_id) return false;
+		if (!isLinkableGuildTextChannel(ch.type) || !ch.parent_id) return false;
 		if (!memberCategoryIdSet.has(ch.parent_id)) return false;
 		if (archiveCategoryId && ch.parent_id === archiveCategoryId) return false;
 		if (linkedIds.has(ch.id)) return false;
@@ -245,7 +272,7 @@ export async function planPersonalChannels(
 		const channels = await listGuildChannels(token, guildId);
 		const childCount = new Map<string, number>();
 		for (const ch of channels) {
-			if (ch.type !== 0 || !ch.parent_id) continue;
+			if (!isLinkableGuildTextChannel(ch.type) || !ch.parent_id) continue;
 			childCount.set(ch.parent_id, (childCount.get(ch.parent_id) ?? 0) + 1);
 		}
 		for (const entry of sortedCategoryMapEntries(config.channel_category_map)) {
@@ -474,7 +501,7 @@ export async function rebalancePersonalChannels(
 		}
 		try {
 			const existingCh = await getGuildChannel(token, player.personal_channel_id);
-			if (!existingCh || existingCh.type !== 0) {
+			if (!existingCh || !isLinkableGuildTextChannel(existingCh.type)) {
 				channelsFailed++;
 				errors.push(`Channel missing for ${player.player_name}`);
 				continue;
