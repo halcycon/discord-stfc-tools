@@ -358,7 +358,7 @@ When the bot creates a channel, updates one on verify, or links with `apply_perm
 
 | Target | Access |
 |--------|--------|
-| **Bot** (first) | **User + guild role** overwrites: View, Send, Embed, Attach, Read History, Manage Channels, Manage Permissions, **Administrator** — so the bot can move/rename channels and edit overwrites later |
+| **Bot** (first) | **Member** overwrite for the bot user: View, Send, Embed, Attach, Read History, Manage Channels, Manage Permissions, **Administrator**. (The managed bot role uses the same ID — Discord only allows one overwrite per snowflake, so we do not also add a role overwrite.) |
 | `@everyone` | Deny View Channel |
 | The member | View, Send, Embed Links, Attach Files, Read History |
 | Extra-roles | Same as the member |

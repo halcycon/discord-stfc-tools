@@ -70,7 +70,7 @@ export interface GuildConfig {
 	personal_channel_extra_roles: string[];
 	/**
 	 * Locked-in overwrite pattern for new/linked personal channels.
-	 * Null = built-in default (bot user+role [admin/manage/view/send/…] + deny @everyone + member + extra-roles).
+	 * Null = built-in default (bot member overwrite [admin/manage/view/send/…] + deny @everyone + member + extra-roles).
 	 */
 	personal_channel_perm_template: PersonalChannelPermTemplate | null;
 	/** Category for member channels no longer linked to a verified player. */

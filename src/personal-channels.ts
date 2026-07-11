@@ -78,10 +78,6 @@ export async function applyPersonalChannelPermissions(
 ): Promise<{ warnings: string[] }> {
 	const warnings: string[] = [];
 	const overwrites = await buildPersonalChannelOverwrites(token, guildId, userId, config);
-	const botId =
-		overwrites.find((o) => o.type === 1 && o.id !== userId)?.id ??
-		overwrites.find((o) => o.type === 0 && o.id !== guildId)?.id ??
-		null;
 
 	for (const ow of overwrites) {
 		try {
@@ -90,8 +86,7 @@ export async function applyPersonalChannelPermissions(
 			let label: string;
 			if (ow.id === guildId) label = '@everyone';
 			else if (ow.id === userId && ow.type === 1) label = 'member';
-			else if (botId && ow.id === botId) label = ow.type === 1 ? 'bot user' : 'bot role';
-			else if (ow.type === 1) label = 'user';
+			else if (ow.type === 1) label = 'bot';
 			else label = `role ${ow.id}`;
 			warnings.push(formatPermError(label, err));
 		}

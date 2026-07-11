@@ -9,8 +9,9 @@ export const DEFAULT_PERSONAL_CHANNEL_MEMBER_ALLOW = String(
 );
 /**
  * Member messaging bits plus Manage Channels, Manage Permissions (Manage Roles),
- * and Administrator — applied to both the bot **user** and the bot’s **guild role**
- * (same snowflake). Needed so the bot can move channels and edit overwrites later.
+ * and Administrator on the bot **user** overwrite.
+ * (The managed bot role shares the same snowflake — Discord only allows one overwrite
+ * per id, so we do not also set a type=0 role overwrite for the bot.)
  */
 export const DEFAULT_PERSONAL_CHANNEL_BOT_ALLOW = String(
 	Number(DEFAULT_PERSONAL_CHANNEL_MEMBER_ALLOW) | 0x8 | 0x10 | 0x10000000,
@@ -162,7 +163,7 @@ export function formatPersonalChannelPermTemplate(
 		!isDefault && t.captured_at ? `• Captured: ${t.captured_at}` : null,
 		!isDefault && t.captured_by ? `• By: <@${t.captured_by}>` : null,
 		`• @everyone: ${bitsLabel(t.everyone)}`,
-		`• Bot user + bot role (slots): ${bitsLabel(t.bot)}`,
+		`• Bot (member overwrite): ${bitsLabel(t.bot)}`,
 		`• Member (slot): ${bitsLabel(t.member)}`,
 		t.roles.length
 			? `• Roles (${t.roles.length}):\n` +
@@ -246,17 +247,12 @@ export async function buildOverwritesFromTemplate(
 	const template = effectivePersonalChannelPermTemplate(config);
 
 	const overwrites: ChannelPermissionOverwrite[] = [
-		// Bot user + bot role first — never lock ourselves out when denying @everyone.
-		// Discord managed bot role uses the same snowflake as the bot user.
+		// Bot member overwrite first — never lock ourselves out when denying @everyone.
+		// Do not also set a role overwrite for the bot: managed bot role id === bot user id,
+		// and Discord only allows one overwrite per snowflake (role PUT → HTTP 404).
 		{
 			id: botUserId,
 			type: 1,
-			allow: template.bot.allow,
-			deny: template.bot.deny,
-		},
-		{
-			id: botUserId,
-			type: 0,
 			allow: template.bot.allow,
 			deny: template.bot.deny,
 		},
