@@ -29,6 +29,7 @@ import {
 	applyMemberRoles,
 	applyPersonalChannelForMember,
 	formatDiscordApiFailure,
+	formatRoleChangeNote,
 	nicknameForPlayer,
 } from './verification-access';
 import type { GuildConfig, PlayerData } from './types';
@@ -233,8 +234,10 @@ export async function processVerification(
 		if (tagMatches) {
 			const verifiedForAgree = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
 			if (needsAgreementBeforeFullAccess(config, verifiedForAgree)) {
-				await applyGuestRole(token, config, guildId, discordUserId);
+				const roleChanges = await applyGuestRole(token, config, guildId, discordUserId);
+				auditNotes.push(formatRoleChangeNote(roleChanges));
 				auditNotes.push('Guest/lounge until agreement accepted');
+				notes.push(formatRoleChangeNote(roleChanges));
 				notes.push(t(locale, 'verify.note.agreement_pending'));
 				try {
 					await sendAgreementDm(token, discordUserId, config, locale);
@@ -262,9 +265,10 @@ export async function processVerification(
 				});
 			}
 
-			await applyMemberRoles(token, config, guildId, discordUserId, player.rank);
-			notes.push(t(locale, 'verify.note.roles_updated'));
-			auditNotes.push('Roles updated');
+			const roleChanges = await applyMemberRoles(token, config, guildId, discordUserId, player.rank);
+			const roleNote = formatRoleChangeNote(roleChanges);
+			notes.push(roleNote);
+			auditNotes.push(roleNote);
 
 			const nick = nicknameForPlayer(config, player);
 			try {
@@ -332,8 +336,10 @@ export async function processVerification(
 			});
 		}
 
-		await applyGuestRole(token, config, guildId, discordUserId);
-		auditNotes.push('Guest role assigned');
+		const guestRoleChanges = await applyGuestRole(token, config, guildId, discordUserId);
+		const guestRoleNote = formatRoleChangeNote(guestRoleChanges);
+		auditNotes.push(guestRoleNote);
+		notes.push(guestRoleNote);
 		const guestRecord = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
 		if (config.agreement_enabled && !playerHasAcceptedAgreement(config, guestRecord)) {
 			try {
@@ -484,12 +490,17 @@ export async function syncVerifiedPlayer(
 	if (tagMatches) {
 		const current = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
 		if (needsAgreementBeforeFullAccess(config, current)) {
-			await applyGuestRole(token, config, guildId, discordUserId);
+			const roleChanges = await applyGuestRole(token, config, guildId, discordUserId);
+			changes.push(formatRoleChangeNote(roleChanges));
 			if (changes.length > 0) {
 				changes.push('held at guest until agreement');
 			}
 		} else {
-			await applyMemberRoles(token, config, guildId, discordUserId, player.rank);
+			const roleChanges = await applyMemberRoles(token, config, guildId, discordUserId, player.rank);
+			const roleNote = formatRoleChangeNote(roleChanges);
+			if (roleChanges.added.length > 0 || roleChanges.removed.length > 0) {
+				changes.push(roleNote);
+			}
 			try {
 				await setGuildMemberNickname(token, guildId, discordUserId, nicknameForPlayer(config, player));
 			} catch (nickErr) {
@@ -519,7 +530,10 @@ export async function syncVerifiedPlayer(
 			await applyDiplomacyForAlliance(env, token, config, guildId, player.allianceTag);
 		}
 	} else {
-		await applyGuestRole(token, config, guildId, discordUserId);
+		const roleChanges = await applyGuestRole(token, config, guildId, discordUserId);
+		if (roleChanges.added.length > 0 || roleChanges.removed.length > 0) {
+			changes.push(formatRoleChangeNote(roleChanges));
+		}
 	}
 
 	if (changes.length > 0) {

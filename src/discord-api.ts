@@ -359,9 +359,15 @@ export async function removeGuildMemberRole(
 	userId: string,
 	roleId: string,
 ): Promise<void> {
-	await discordFetch(token, `/guilds/${guildId}/members/${userId}/roles/${roleId}`, {
-		method: 'DELETE',
-	});
+	try {
+		await discordFetch(token, `/guilds/${guildId}/members/${userId}/roles/${roleId}`, {
+			method: 'DELETE',
+		});
+	} catch (err) {
+		// Already absent — not an error for our sync logic.
+		if (err instanceof DiscordApiError && err.status === 404) return;
+		throw err;
+	}
 }
 
 export async function setGuildMemberNickname(

@@ -5,6 +5,7 @@
 import {
 	addGuildMemberRole,
 	DiscordApiError,
+	getGuildMember,
 	removeGuildMemberRole,
 	setGuildMemberNickname,
 } from './discord-api';
@@ -15,6 +16,30 @@ import { buildMemberNickname, normalizeAllianceRank } from './nickname-utils';
 import { resolveLocale, t } from './i18n';
 import type { GuildConfig, PlayerData, VerifiedPlayer } from './types';
 import { findPlayerByIdOrName } from './stfc-utils';
+
+export interface RoleChangeResult {
+	/** Role IDs newly granted. */
+	added: string[];
+	/** Role IDs removed. */
+	removed: string[];
+	/** Desired roles the member already had (skipped). */
+	unchanged: string[];
+}
+
+/** Human-readable note for verification / audit logs (Discord role mentions). */
+export function formatRoleChangeNote(result: RoleChangeResult): string {
+	if (result.added.length === 0 && result.removed.length === 0) {
+		return 'Roles: no changes';
+	}
+	const parts: string[] = [];
+	if (result.added.length > 0) {
+		parts.push(`+${result.added.map((id) => `<@&${id}>`).join(' ')}`);
+	}
+	if (result.removed.length > 0) {
+		parts.push(`−${result.removed.map((id) => `<@&${id}>`).join(' ')}`);
+	}
+	return `Roles: ${parts.join('; ')}`;
+}
 
 function getOverlayRoleIdsForRank(config: GuildConfig, playerRank: string | undefined): string[] {
 	const rankKey = normalizeAllianceRank(playerRank);
@@ -72,14 +97,31 @@ export async function applyMemberRoles(
 	guildId: string,
 	userId: string,
 	playerRank: string | undefined,
-): Promise<void> {
-	const roleIds = getMemberRoleIdsForRank(config, playerRank).filter((id) => /^\d{15,20}$/.test(id));
-	for (const roleId of roleIds) {
+): Promise<RoleChangeResult> {
+	const desired = getMemberRoleIdsForRank(config, playerRank).filter((id) => /^\d{15,20}$/.test(id));
+	const member = await getGuildMember(token, guildId, userId);
+	const current = new Set(member?.roles ?? []);
+
+	const added: string[] = [];
+	const unchanged: string[] = [];
+	const removed: string[] = [];
+
+	for (const roleId of desired) {
+		if (current.has(roleId)) {
+			unchanged.push(roleId);
+			continue;
+		}
 		await addGuildMemberRole(token, guildId, userId, roleId);
+		added.push(roleId);
+		current.add(roleId);
 	}
-	if (config.guest_role_id) {
+
+	if (config.guest_role_id && /^\d{15,20}$/.test(config.guest_role_id) && current.has(config.guest_role_id)) {
 		await removeGuildMemberRole(token, guildId, userId, config.guest_role_id);
+		removed.push(config.guest_role_id);
 	}
+
+	return { added, removed, unchanged };
 }
 
 export async function applyGuestRole(
@@ -87,11 +129,31 @@ export async function applyGuestRole(
 	config: GuildConfig,
 	guildId: string,
 	userId: string,
-): Promise<void> {
-	if (!config.guest_role_id) return;
-	await addGuildMemberRole(token, guildId, userId, config.guest_role_id);
+): Promise<RoleChangeResult> {
+	const member = await getGuildMember(token, guildId, userId);
+	const current = new Set(member?.roles ?? []);
+	const added: string[] = [];
+	const unchanged: string[] = [];
+	const removed: string[] = [];
+
+	if (config.guest_role_id && /^\d{15,20}$/.test(config.guest_role_id)) {
+		if (current.has(config.guest_role_id)) {
+			unchanged.push(config.guest_role_id);
+		} else {
+			await addGuildMemberRole(token, guildId, userId, config.guest_role_id);
+			added.push(config.guest_role_id);
+			current.add(config.guest_role_id);
+		}
+	}
+
 	const memberRoleIds = getAllMemberRoleIds(config).filter((id) => /^\d{15,20}$/.test(id));
-	for (const roleId of memberRoleIds) await removeGuildMemberRole(token, guildId, userId, roleId);
+	for (const roleId of memberRoleIds) {
+		if (!current.has(roleId)) continue;
+		await removeGuildMemberRole(token, guildId, userId, roleId);
+		removed.push(roleId);
+	}
+
+	return { added, removed, unchanged };
 }
 
 export async function applyPersonalChannelForMember(
@@ -171,8 +233,8 @@ export async function grantFullAccessForVerifiedPlayer(
 	const auditNotes: string[] = ['Agreement accepted'];
 
 	if (record.verification_status === 'guest') {
-		await applyGuestRole(token, config, guildId, discordUserId);
-		auditNotes.push('Guest role (alliance mismatch)');
+		const roleChanges = await applyGuestRole(token, config, guildId, discordUserId);
+		auditNotes.push(formatRoleChangeNote(roleChanges));
 		return { message: t(locale, 'agree.result.guest_ok'), auditNotes };
 	}
 
@@ -188,8 +250,8 @@ export async function grantFullAccessForVerifiedPlayer(
 	const name = player?.name ?? record.player_name ?? 'Unknown';
 	const allianceTag = player?.allianceTag ?? record.alliance_tag ?? '';
 
-	await applyMemberRoles(token, config, guildId, discordUserId, rank);
-	auditNotes.push('Roles updated');
+	const roleChanges = await applyMemberRoles(token, config, guildId, discordUserId, rank);
+	auditNotes.push(formatRoleChangeNote(roleChanges));
 
 	if (player) {
 		try {
