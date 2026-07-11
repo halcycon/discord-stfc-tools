@@ -1,4 +1,4 @@
-import { getBotUserId, type ChannelPermissionOverwrite } from './discord-api';
+import { getBotUserId, resolveBotManagedRoleId, type ChannelPermissionOverwrite } from './discord-api';
 import { decodePermissionBits } from './channel-permission-audit';
 import type { GuildConfig } from './types';
 
@@ -9,9 +9,8 @@ export const DEFAULT_PERSONAL_CHANNEL_MEMBER_ALLOW = String(
 );
 /**
  * Member messaging bits plus Manage Channels, Manage Permissions (Manage Roles),
- * and Administrator on the bot **user** overwrite.
- * (The managed bot role shares the same snowflake — Discord only allows one overwrite
- * per id, so we do not also set a type=0 role overwrite for the bot.)
+ * and Administrator — applied as a **role** overwrite on the bot’s managed guild role
+ * (same pattern as other bots like Carl-bot in channel settings → Roles).
  */
 export const DEFAULT_PERSONAL_CHANNEL_BOT_ALLOW = String(
 	Number(DEFAULT_PERSONAL_CHANNEL_MEMBER_ALLOW) | 0x8 | 0x10 | 0x10000000,
@@ -163,7 +162,7 @@ export function formatPersonalChannelPermTemplate(
 		!isDefault && t.captured_at ? `• Captured: ${t.captured_at}` : null,
 		!isDefault && t.captured_by ? `• By: <@${t.captured_by}>` : null,
 		`• @everyone: ${bitsLabel(t.everyone)}`,
-		`• Bot (member overwrite): ${bitsLabel(t.bot)}`,
+		`• Bot role (slot): ${bitsLabel(t.bot)}`,
 		`• Member (slot): ${bitsLabel(t.member)}`,
 		t.roles.length
 			? `• Roles (${t.roles.length}):\n` +
@@ -202,7 +201,7 @@ export function capturePersonalChannelPermTemplate(opts: {
 	const botUserOw = overwrites.find((o) => o.type === 1 && o.id === botUserId);
 	const botRoleOw = overwrites.find((o) => o.type === 0 && o.id === botUserId);
 	const memberOw = overwrites.find((o) => o.type === 1 && o.id === memberUserId);
-	const botOw = botUserOw ?? botRoleOw;
+	const botOw = botRoleOw ?? botUserOw;
 
 	const roles: PersonalChannelRolePerm[] = [];
 	for (const ow of overwrites) {
@@ -244,15 +243,15 @@ export async function buildOverwritesFromTemplate(
 	config: GuildConfig,
 ): Promise<ChannelPermissionOverwrite[]> {
 	const botUserId = await getBotUserId(token);
+	const botRoleId = await resolveBotManagedRoleId(token, guildId, botUserId);
 	const template = effectivePersonalChannelPermTemplate(config);
 
 	const overwrites: ChannelPermissionOverwrite[] = [
-		// Bot member overwrite first — never lock ourselves out when denying @everyone.
-		// Do not also set a role overwrite for the bot: managed bot role id === bot user id,
-		// and Discord only allows one overwrite per snowflake (role PUT → HTTP 404).
+		// Bot managed role first (Roles list in Discord UI) — same pattern as Carl-bot.
+		// Do not also set a member overwrite for the bot user: one overwrite per snowflake.
 		{
-			id: botUserId,
-			type: 1,
+			id: botRoleId,
+			type: 0,
 			allow: template.bot.allow,
 			deny: template.bot.deny,
 		},
@@ -272,7 +271,7 @@ export async function buildOverwritesFromTemplate(
 
 	for (const role of template.roles) {
 		if (!/^\d{15,20}$/.test(role.role_id)) continue;
-		if (role.role_id === botUserId) continue;
+		if (role.role_id === botRoleId || role.role_id === botUserId) continue;
 		overwrites.push({
 			id: role.role_id,
 			type: 0,

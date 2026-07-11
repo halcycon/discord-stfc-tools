@@ -56,7 +56,8 @@ export interface DiscordRole {
 	mentionable: boolean;
 	/** Permission bitfield as decimal string. */
 	permissions?: string;
-	// Not all fields are typed; we keep it minimal for formatting.
+	/** Integration/bot tags when present. */
+	tags?: { bot_id?: string; integration_id?: string; premium_subscriber?: null };
 }
 
 export interface DiscordGuildInfo {
@@ -306,6 +307,40 @@ export async function getBotUserId(token: string): Promise<string> {
 	const response = await discordFetch(token, '/users/@me');
 	const user = (await response.json()) as { id: string };
 	return user.id;
+}
+
+/**
+ * Discord's managed bot role usually has the same id as the bot user / application.
+ * Prefer matching `tags.bot_id`, then id === botUserId.
+ */
+export async function resolveBotManagedRoleId(
+	token: string,
+	guildId: string,
+	botUserId?: string,
+): Promise<string> {
+	const userId = botUserId ?? (await getBotUserId(token));
+	const roles = await listGuildRoles(token, guildId);
+	const byTag = roles.find((r) => r.tags?.bot_id === userId);
+	if (byTag) return byTag.id;
+	const byId = roles.find((r) => r.id === userId);
+	if (byId) return byId.id;
+	return userId;
+}
+
+export async function deleteChannelPermission(
+	token: string,
+	channelId: string,
+	overwriteId: string,
+): Promise<void> {
+	try {
+		await discordFetch(token, `/channels/${channelId}/permissions/${overwriteId}`, {
+			method: 'DELETE',
+		});
+	} catch (err) {
+		// Missing overwrite is fine.
+		if (err instanceof DiscordApiError && err.status === 404) return;
+		throw err;
+	}
 }
 
 export async function sendDirectMessage(

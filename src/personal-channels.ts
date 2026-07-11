@@ -8,6 +8,7 @@ import {
 	isLinkableGuildTextChannel,
 	describeChannelType,
 	setChannelPermission,
+	deleteChannelPermission,
 	DiscordApiError,
 	type ChannelPermissionOverwrite,
 	type DiscordChannel,
@@ -66,8 +67,8 @@ export async function buildPersonalChannelOverwrites(
 }
 
 /**
- * Apply personal-channel permissions. Always grants the bot View/Send first
- * (needed for surveys and other posts). Non-fatal overwrite failures become warnings.
+ * Apply personal-channel permissions. Always grants the bot role first
+ * (needed for surveys, moves, and overwrite edits). Non-fatal overwrite failures become warnings.
  */
 export async function applyPersonalChannelPermissions(
 	token: string,
@@ -78,6 +79,16 @@ export async function applyPersonalChannelPermissions(
 ): Promise<{ warnings: string[] }> {
 	const warnings: string[] = [];
 	const overwrites = await buildPersonalChannelOverwrites(token, guildId, userId, config);
+	const botRoleOw = overwrites.find((o) => o.type === 0 && o.id !== guildId);
+
+	// Clear a stale bot *member* overwrite (same snowflake) so Discord shows the bot under Roles.
+	if (botRoleOw) {
+		try {
+			await deleteChannelPermission(token, channelId, botRoleOw.id);
+		} catch {
+			/* non-fatal — PUT below may still succeed */
+		}
+	}
 
 	for (const ow of overwrites) {
 		try {
@@ -86,7 +97,8 @@ export async function applyPersonalChannelPermissions(
 			let label: string;
 			if (ow.id === guildId) label = '@everyone';
 			else if (ow.id === userId && ow.type === 1) label = 'member';
-			else if (ow.type === 1) label = 'bot';
+			else if (ow.type === 0 && botRoleOw && ow.id === botRoleOw.id) label = 'bot role';
+			else if (ow.type === 1) label = 'user';
 			else label = `role ${ow.id}`;
 			warnings.push(formatPermError(label, err));
 		}
