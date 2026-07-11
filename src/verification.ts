@@ -1,7 +1,5 @@
 import {
-	addGuildMemberRole,
 	DiscordApiError,
-	removeGuildMemberRole,
 	sendDirectMessage,
 	setGuildMemberNickname,
 } from './discord-api';
@@ -11,18 +9,28 @@ import {
 	getVerifiedPlayer,
 	recordPlayerStats,
 	recordScreenshot,
-	upsertGuildConfig,
 	upsertVerifiedPlayer,
 } from './guild-db';
-import { buildMemberNickname, normalizeAllianceRank } from './nickname-utils';
 import { parseStfcProUrl, resolveSearchTerm } from './stfc-url';
 import { findPlayerByIdOrName } from './stfc-utils';
-import { ensurePersonalChannel } from './personal-channels';
-import { ensureDiplomacyChannel, diplomacyChannelsEnabled } from './diplomacy-channels';
 import { postVerificationLog } from './verification-log';
 import { AuditColor, postAuditLog } from './audit-log';
 import { DEFAULT_LOCALE, resolveLocale, t } from './i18n';
 import { ensureLocaleAfterVerify, sendLanguagePickerDm } from './i18n/language-picker';
+import {
+	needsAgreementBeforeFullAccess,
+	needsAgreementBeforeVerify,
+	playerHasAcceptedAgreement,
+	sendAgreementDm,
+} from './agreement';
+import {
+	applyDiplomacyForAlliance,
+	applyGuestRole,
+	applyMemberRoles,
+	applyPersonalChannelForMember,
+	formatDiscordApiFailure,
+	nicknameForPlayer,
+} from './verification-access';
 import type { GuildConfig, PlayerData } from './types';
 
 export type DmResult =
@@ -85,154 +93,6 @@ export async function lookupPlayerFromUrl(
 	return { player };
 }
 
-function getAllMemberRoleIds(config: GuildConfig): string[] {
-	const overlayRoleIds = Object.values(config.overlay_buckets ?? {})
-		.flatMap((b) => b.role_ids ?? []);
-
-	return [
-		...config.member_role_ids,
-		...config.operative_role_ids,
-		...config.agent_role_ids,
-		...config.premier_role_ids,
-		...config.commodore_role_ids,
-		...config.admiral_role_ids,
-		...overlayRoleIds,
-	];
-}
-
-function getOverlayRoleIdsForRank(config: GuildConfig, playerRank: string | undefined): string[] {
-	const rankKey = normalizeAllianceRank(playerRank);
-	if (!rankKey) return [];
-
-	const wanted = rankKey.toLowerCase();
-	const out = new Set<string>();
-	for (const bucket of Object.values(config.overlay_buckets ?? {})) {
-		const ranks = bucket.ranks ?? [];
-		const matches = ranks.some((r) => String(r).trim().toLowerCase() === wanted);
-		if (!matches) continue;
-		for (const id of bucket.role_ids ?? []) out.add(id);
-	}
-	return Array.from(out);
-}
-
-function getMemberRoleIdsForRank(config: GuildConfig, playerRank: string | undefined): string[] {
-	const rankKey = normalizeAllianceRank(playerRank);
-	const rankRoles =
-		rankKey === 'Operative'
-			? config.operative_role_ids
-			: rankKey === 'Agent'
-				? config.agent_role_ids
-				: rankKey === 'Premier'
-					? config.premier_role_ids
-					: rankKey === 'Commodore'
-						? config.commodore_role_ids
-						: rankKey === 'Admiral'
-							? config.admiral_role_ids
-							: [];
-
-	const all = new Set<string>();
-	for (const id of config.member_role_ids) all.add(id);
-	for (const id of rankRoles) all.add(id);
-	for (const id of getOverlayRoleIdsForRank(config, playerRank)) all.add(id);
-	return Array.from(all);
-}
-
-async function applyMemberRoles(
-	token: string,
-	config: GuildConfig,
-	guildId: string,
-	userId: string,
-	playerRank: string | undefined,
-): Promise<void> {
-	const roleIds = getMemberRoleIdsForRank(config, playerRank).filter((id) => /^\d{15,20}$/.test(id));
-	for (const roleId of roleIds) {
-		await addGuildMemberRole(token, guildId, userId, roleId);
-	}
-	if (config.guest_role_id) {
-		await removeGuildMemberRole(token, guildId, userId, config.guest_role_id);
-	}
-}
-
-async function applyGuestRole(
-	token: string,
-	config: GuildConfig,
-	guildId: string,
-	userId: string,
-): Promise<void> {
-	if (!config.guest_role_id) return;
-	await addGuildMemberRole(token, guildId, userId, config.guest_role_id);
-	const memberRoleIds = getAllMemberRoleIds(config).filter((id) => /^\d{15,20}$/.test(id));
-	for (const roleId of memberRoleIds) await removeGuildMemberRole(token, guildId, userId, roleId);
-}
-
-async function applyPersonalChannelForMember(
-	token: string,
-	config: GuildConfig,
-	guildId: string,
-	discordUserId: string,
-	playerName: string,
-	existingChannelId?: string | null,
-): Promise<string | null> {
-	const result = await ensurePersonalChannel(
-		token,
-		config,
-		guildId,
-		discordUserId,
-		playerName,
-		existingChannelId,
-	);
-	if (!result.ok) {
-		console.error('Personal channel setup failed:', result.error);
-		return null;
-	}
-	return result.channelId;
-}
-
-async function applyDiplomacyForAlliance(
-	env: Env,
-	token: string,
-	config: GuildConfig,
-	guildId: string,
-	allianceTag: string,
-): Promise<string | null> {
-	if (config.mode !== 'multi_alliance' || !diplomacyChannelsEnabled(config) || !allianceTag) {
-		return null;
-	}
-	const result = await ensureDiplomacyChannel(token, config, guildId, allianceTag);
-	if (!result.ok) {
-		console.error('Diplomacy channel setup failed:', result.error);
-		return null;
-	}
-	if (result.created || !config.diplomacy_channel_map[result.tag]) {
-		const nextMap = { ...config.diplomacy_channel_map, [result.tag]: result.channelId };
-		await upsertGuildConfig(env.STFC_DB, {
-			guild_id: guildId,
-			diplomacy_channel_map: nextMap,
-		});
-		config.diplomacy_channel_map = nextMap;
-	}
-	return result.channelId;
-}
-
-function nicknameForPlayer(config: GuildConfig, player: PlayerData): string {
-	return buildMemberNickname(config.nickname_template, config.mode, {
-		name: player.name,
-		allianceTag: player.allianceTag,
-		rank: player.rank,
-	});
-}
-
-function formatDiscordApiFailure(err: unknown): string {
-	if (err instanceof DiscordApiError) {
-		const bodySnippet =
-			typeof err.body === 'string' && err.body.trim()
-				? `\n${err.body.trim().slice(0, 250)}${err.body.trim().length > 250 ? '…' : ''}`
-				: '';
-		return `${err.message} (HTTP ${err.status})${bodySnippet}`;
-	}
-	return err instanceof Error ? err.message : 'unknown error';
-}
-
 function nicknamePermissionHint(err: unknown, locale: string): string {
 	const body = err instanceof DiscordApiError ? err.body ?? '' : '';
 	const isMissingPerms =
@@ -260,6 +120,18 @@ export async function processVerification(
 	const config = await getGuildConfig(env.STFC_DB, guildId);
 	if (!config) {
 		return t(locale, 'verify.result.not_configured');
+	}
+
+	const existingPlayer = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
+	if (needsAgreementBeforeVerify(config, existingPlayer)) {
+		if (env.DISCORD_BOT_TOKEN) {
+			try {
+				await sendAgreementDm(env.DISCORD_BOT_TOKEN, discordUserId, config, locale);
+			} catch (err) {
+				console.error('Agreement DM (before verify) failed:', err);
+			}
+		}
+		return t(locale, 'agree.gate.before_verify');
 	}
 
 	let archivedR2Key: string | undefined;
@@ -350,6 +222,37 @@ export async function processVerification(
 
 	try {
 		if (tagMatches) {
+			const verifiedForAgree = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
+			if (needsAgreementBeforeFullAccess(config, verifiedForAgree)) {
+				await applyGuestRole(token, config, guildId, discordUserId);
+				auditNotes.push('Guest/lounge until agreement accepted');
+				notes.push(t(locale, 'verify.note.agreement_pending'));
+				try {
+					await sendAgreementDm(token, discordUserId, config, locale);
+				} catch (err) {
+					console.error('Agreement DM (after verify) failed:', err);
+				}
+				await postLog('active', auditNotes);
+				await postAuditLog(env, config, {
+					title: 'Member verified (awaiting agreement)',
+					description: `<@${discordUserId}> → **${player.name}** [${player.allianceTag}] — lounge/guest until agreement`,
+					actorId: opts?.manualByUserId ?? discordUserId,
+					source: opts?.manualByUserId ? 'admin' : 'member',
+					color: AuditColor.warn,
+					fields: [
+						{ name: 'Ops', value: String(player.level), inline: true },
+						{ name: 'Notes', value: auditNotes.join(' · ') || '—', inline: false },
+					],
+				});
+				await finishLocale();
+				return t(locale, 'verify.result.needs_agreement', {
+					name: player.name,
+					tag: player.allianceTag,
+					level: player.level,
+					summary,
+				});
+			}
+
 			await applyMemberRoles(token, config, guildId, discordUserId, player.rank);
 			notes.push(t(locale, 'verify.note.roles_updated'));
 			auditNotes.push('Roles updated');
@@ -422,6 +325,15 @@ export async function processVerification(
 
 		await applyGuestRole(token, config, guildId, discordUserId);
 		auditNotes.push('Guest role assigned');
+		const guestRecord = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
+		if (config.agreement_enabled && !playerHasAcceptedAgreement(config, guestRecord)) {
+			try {
+				await sendAgreementDm(token, discordUserId, config, locale);
+				auditNotes.push('Agreement DM sent');
+			} catch (err) {
+				console.error('Agreement DM (guest) failed:', err);
+			}
+		}
 		await postLog('guest', auditNotes);
 		await postAuditLog(env, config, {
 			title: 'Member verified (guest)',
@@ -561,34 +473,42 @@ export async function syncVerifiedPlayer(
 	}
 
 	if (tagMatches) {
-		await applyMemberRoles(token, config, guildId, discordUserId, player.rank);
-		try {
-			await setGuildMemberNickname(token, guildId, discordUserId, nicknameForPlayer(config, player));
-		} catch (nickErr) {
-			console.error('Nickname sync failed:', nickErr);
-		}
-
-		const existing = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
-		const channelId = await applyPersonalChannelForMember(
-			token,
-			config,
-			guildId,
-			discordUserId,
-			player.name,
-			existing?.personal_channel_id,
-		);
-		if (channelId) {
-			await upsertVerifiedPlayer(env.STFC_DB, {
-				guild_id: guildId,
-				discord_user_id: discordUserId,
-				personal_channel_id: channelId,
-			});
-			if (!previous?.personal_channel_id) {
-				changes.push(`channel <#${channelId}>`);
+		const current = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
+		if (needsAgreementBeforeFullAccess(config, current)) {
+			await applyGuestRole(token, config, guildId, discordUserId);
+			if (changes.length > 0) {
+				changes.push('held at guest until agreement');
 			}
-		}
+		} else {
+			await applyMemberRoles(token, config, guildId, discordUserId, player.rank);
+			try {
+				await setGuildMemberNickname(token, guildId, discordUserId, nicknameForPlayer(config, player));
+			} catch (nickErr) {
+				console.error('Nickname sync failed:', nickErr);
+			}
 
-		await applyDiplomacyForAlliance(env, token, config, guildId, player.allianceTag);
+			const existing = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
+			const channelId = await applyPersonalChannelForMember(
+				token,
+				config,
+				guildId,
+				discordUserId,
+				player.name,
+				existing?.personal_channel_id,
+			);
+			if (channelId) {
+				await upsertVerifiedPlayer(env.STFC_DB, {
+					guild_id: guildId,
+					discord_user_id: discordUserId,
+					personal_channel_id: channelId,
+				});
+				if (!previous?.personal_channel_id) {
+					changes.push(`channel <#${channelId}>`);
+				}
+			}
+
+			await applyDiplomacyForAlliance(env, token, config, guildId, player.allianceTag);
+		}
 	} else {
 		await applyGuestRole(token, config, guildId, discordUserId);
 	}

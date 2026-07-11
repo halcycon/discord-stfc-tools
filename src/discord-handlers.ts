@@ -582,6 +582,96 @@ async function handleServerAssistantCommand(
 	);
 }
 
+async function handleServerAgreementCommand(
+	env: Env,
+	interaction: { guild_id?: string; member?: { permissions?: string } },
+	sub: { options?: Array<{ name: string; value?: unknown }> },
+): Promise<Response> {
+	const adminError = requireGuildAdmin(interaction);
+	if (adminError) return adminError;
+
+	const guildId = interaction.guild_id!;
+	const config = await getGuildConfig(env.STFC_DB, guildId);
+	if (!config) {
+		return interactionResponse('❌ Server not configured. Run `/server setup` first.', true);
+	}
+
+	const enabledRaw = getOptionValue(sub.options, 'enabled');
+	const timingRaw = getOptionValue(sub.options, 'timing') as string | undefined;
+	const modeRaw = getOptionValue(sub.options, 'mode') as string | undefined;
+	const channelRaw = getOptionValue(sub.options, 'channel');
+	const messageIdRaw = getOptionValue(sub.options, 'message_id') as string | undefined;
+	const versionRaw = getOptionValue(sub.options, 'version') as string | undefined;
+	const clearChannel = getOptionValue(sub.options, 'clear_channel') === true;
+
+	const anyOpt =
+		enabledRaw !== undefined ||
+		timingRaw !== undefined ||
+		modeRaw !== undefined ||
+		channelRaw !== undefined ||
+		messageIdRaw !== undefined ||
+		versionRaw !== undefined ||
+		clearChannel;
+
+	if (!anyOpt) {
+		return interactionResponse(
+			`📜 **Discord agreement**\n` +
+				`• Enabled: ${config.agreement_enabled ? 'yes' : 'no'}\n` +
+				`• Timing: \`${config.agreement_timing}\` (after_verify = guest lounge until agree)\n` +
+				`• Mode: \`${config.agreement_mode}\` (channel_react planned — DM button used for now)\n` +
+				`• Channel: ${config.agreement_channel_id ? `<#${config.agreement_channel_id}>` : 'not set'}\n` +
+				`• Message ID: ${config.agreement_message_id ?? '—'}\n` +
+				`• Version: ${config.agreement_version ?? '—'}\n\n` +
+				`Example:\n\`/server agreement enabled:true timing:after_verify channel:#discord-agreement version:2026-07\``,
+			true,
+		);
+	}
+
+	const patch: Partial<GuildConfig> & { guild_id: string } = { guild_id: guildId };
+	if (enabledRaw === true || enabledRaw === 'true') patch.agreement_enabled = true;
+	if (enabledRaw === false || enabledRaw === 'false') patch.agreement_enabled = false;
+	if (timingRaw === 'before_verify' || timingRaw === 'after_verify') {
+		patch.agreement_timing = timingRaw;
+	}
+	if (modeRaw === 'dm_button' || modeRaw === 'channel_react') {
+		patch.agreement_mode = modeRaw;
+	}
+	if (clearChannel) {
+		patch.agreement_channel_id = null;
+		patch.agreement_message_id = null;
+	} else if (channelRaw != null && channelRaw !== '') {
+		patch.agreement_channel_id = String(channelRaw);
+	}
+	if (messageIdRaw !== undefined) {
+		const mid = String(messageIdRaw).trim();
+		patch.agreement_message_id = mid || null;
+	}
+	if (versionRaw !== undefined) {
+		patch.agreement_version = String(versionRaw).trim() || null;
+	}
+
+	await upsertGuildConfig(env.STFC_DB, patch);
+	const refreshed = await getGuildConfig(env.STFC_DB, guildId);
+	await postAuditLog(env, refreshed, {
+		title: 'Agreement settings updated',
+		description:
+			`Enabled: **${refreshed?.agreement_enabled ? 'yes' : 'no'}** · ` +
+			`Timing: \`${refreshed?.agreement_timing}\` · Mode: \`${refreshed?.agreement_mode}\``,
+		source: 'admin',
+		color: AuditColor.info,
+	});
+
+	return interactionResponse(
+		`✅ Agreement settings updated.\n` +
+			`• Enabled: ${refreshed?.agreement_enabled ? 'yes' : 'no'}\n` +
+			`• Timing: \`${refreshed?.agreement_timing}\`\n` +
+			`• Mode: \`${refreshed?.agreement_mode}\`\n` +
+			`• Channel: ${refreshed?.agreement_channel_id ? `<#${refreshed.agreement_channel_id}>` : '—'}\n` +
+			`• Version: ${refreshed?.agreement_version ?? '—'}`,
+		true,
+	);
+}
+
 async function handleServerRolesCommand(env: Env, interaction: { guild_id?: string; member?: { permissions?: string } }, sub: { options?: Array<{ name: string; value?: unknown }> }): Promise<Response> {
 	const adminError = requireGuildAdmin(interaction);
 	if (adminError) return adminError;
@@ -1716,6 +1806,10 @@ export async function handleDiscordInteraction(
 			const { handleDmAssistantComponent } = await import('./dm-assistant');
 			return handleDmAssistantComponent(env, interaction);
 		}
+		if (customId?.startsWith('agree:')) {
+			const { handleAgreeComponent } = await import('./agreement');
+			return handleAgreeComponent(env, interaction);
+		}
 		return interactionResponse('❌ Unknown button.', true);
 	}
 
@@ -1781,6 +1875,9 @@ export async function handleDiscordInteraction(
 			}
 			if (sub?.name === 'assistant') {
 				return handleServerAssistantCommand(env, interaction as any, sub);
+			}
+			if (sub?.name === 'agreement') {
+				return handleServerAgreementCommand(env, interaction as any, sub);
 			}
 			if (sub?.name === 'verify') {
 				return handleServerVerifyCommand(env, ctx, interaction, sub, data.resolved);

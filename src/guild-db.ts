@@ -1,4 +1,6 @@
 import type {
+	AgreementMode,
+	AgreementTiming,
 	GuildConfig,
 	GuildMemberRecord,
 	OverlayBucket,
@@ -98,6 +100,13 @@ function mapGuildConfig(row: any): GuildConfig {
 		exchange_admin_role_ids: parseJsonArray(row.exchange_admin_role_ids),
 		dm_query_role_ids: parseJsonArray(row.dm_query_role_ids),
 		dm_ai_enabled: Boolean(row.dm_ai_enabled ?? 0),
+		agreement_enabled: Boolean(row.agreement_enabled ?? 0),
+		agreement_timing:
+			row.agreement_timing === 'before_verify' ? 'before_verify' : 'after_verify',
+		agreement_mode: row.agreement_mode === 'channel_react' ? 'channel_react' : 'dm_button',
+		agreement_channel_id: row.agreement_channel_id ?? null,
+		agreement_message_id: row.agreement_message_id ?? null,
+		agreement_version: row.agreement_version ?? null,
 		poll_interval_hours: row.poll_interval_hours ?? 6,
 		verification_enabled: Boolean(row.verification_enabled ?? 1),
 		created_at: row.created_at,
@@ -122,6 +131,9 @@ function mapVerifiedPlayer(row: any): VerifiedPlayer {
 		verification_status: row.verification_status as VerificationStatus,
 		personal_channel_id: row.personal_channel_id ?? null,
 		preferred_locale: row.preferred_locale ?? null,
+		agreement_accepted_at: row.agreement_accepted_at ?? null,
+		agreement_version: row.agreement_version ?? null,
+		agreement_method: row.agreement_method ?? null,
 		verified_at: row.verified_at ?? null,
 		last_synced_at: row.last_synced_at ?? null,
 	};
@@ -192,6 +204,7 @@ export async function upsertGuildConfig(
 		await upsertPersonalChannelArchiveField(db, config);
 		await upsertAuditLogChannelField(db, config);
 		await upsertDmAssistantConfigFields(db, config);
+		await upsertAgreementConfigFields(db, config);
 		return;
 	}
 
@@ -398,6 +411,57 @@ async function upsertDiplomacyConfigFields(
 	}
 
 	await upsertDmAssistantConfigFields(db, config);
+	await upsertAgreementConfigFields(db, config);
+}
+
+async function upsertAgreementConfigFields(
+	db: D1Database,
+	config: Partial<GuildConfig> & { guild_id: string },
+): Promise<void> {
+	const touched =
+		Object.prototype.hasOwnProperty.call(config, 'agreement_enabled') ||
+		Object.prototype.hasOwnProperty.call(config, 'agreement_timing') ||
+		Object.prototype.hasOwnProperty.call(config, 'agreement_mode') ||
+		Object.prototype.hasOwnProperty.call(config, 'agreement_channel_id') ||
+		Object.prototype.hasOwnProperty.call(config, 'agreement_message_id') ||
+		Object.prototype.hasOwnProperty.call(config, 'agreement_version');
+	if (!touched) return;
+
+	const enabledProvided = Object.prototype.hasOwnProperty.call(config, 'agreement_enabled');
+	const timingProvided = Object.prototype.hasOwnProperty.call(config, 'agreement_timing');
+	const modeProvided = Object.prototype.hasOwnProperty.call(config, 'agreement_mode');
+	const channelProvided = Object.prototype.hasOwnProperty.call(config, 'agreement_channel_id');
+	const messageProvided = Object.prototype.hasOwnProperty.call(config, 'agreement_message_id');
+	const versionProvided = Object.prototype.hasOwnProperty.call(config, 'agreement_version');
+
+	await db
+		.prepare(
+			`UPDATE guild_configs SET
+			 agreement_enabled = CASE WHEN ? = 1 THEN ? ELSE agreement_enabled END,
+			 agreement_timing = CASE WHEN ? = 1 THEN ? ELSE agreement_timing END,
+			 agreement_mode = CASE WHEN ? = 1 THEN ? ELSE agreement_mode END,
+			 agreement_channel_id = CASE WHEN ? = 1 THEN ? ELSE agreement_channel_id END,
+			 agreement_message_id = CASE WHEN ? = 1 THEN ? ELSE agreement_message_id END,
+			 agreement_version = CASE WHEN ? = 1 THEN ? ELSE agreement_version END,
+			 updated_at = datetime('now')
+			 WHERE guild_id = ?`,
+		)
+		.bind(
+			enabledProvided ? 1 : 0,
+			enabledProvided ? (config.agreement_enabled ? 1 : 0) : null,
+			timingProvided ? 1 : 0,
+			timingProvided ? (config.agreement_timing ?? 'after_verify') : null,
+			modeProvided ? 1 : 0,
+			modeProvided ? (config.agreement_mode ?? 'dm_button') : null,
+			channelProvided ? 1 : 0,
+			channelProvided ? (config.agreement_channel_id?.trim() || null) : null,
+			messageProvided ? 1 : 0,
+			messageProvided ? (config.agreement_message_id?.trim() || null) : null,
+			versionProvided ? 1 : 0,
+			versionProvided ? (config.agreement_version?.trim() || null) : null,
+			config.guild_id,
+		)
+		.run();
 }
 
 async function upsertDmAssistantConfigFields(
@@ -491,12 +555,16 @@ export async function upsertVerifiedPlayer(
 		verification_status?: VerificationStatus;
 		personal_channel_id?: string | null;
 		preferred_locale?: string | null;
+		agreement_accepted_at?: string | null;
+		agreement_version?: string | null;
+		agreement_method?: string | null;
 		verified_at?: string | null;
 		last_synced_at?: string | null;
 	},
 ): Promise<void> {
 	const now = new Date().toISOString();
 	const existing = await getVerifiedPlayer(db, data.guild_id, data.discord_user_id);
+	const agreementProvided = Object.prototype.hasOwnProperty.call(data, 'agreement_accepted_at');
 
 	if (!existing) {
 		await db
@@ -504,8 +572,9 @@ export async function upsertVerifiedPlayer(
 				`INSERT INTO verified_players
 				(guild_id, discord_user_id, player_id, player_name, alliance_tag, alliance_rank,
 				 ops_level, power, grade, stfc_pro_url, verification_status, personal_channel_id,
-				 preferred_locale, verified_at, last_synced_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				 preferred_locale, agreement_accepted_at, agreement_version, agreement_method,
+				 verified_at, last_synced_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.bind(
 				data.guild_id,
@@ -521,6 +590,9 @@ export async function upsertVerifiedPlayer(
 				data.verification_status ?? 'pending_invite',
 				data.personal_channel_id ?? null,
 				data.preferred_locale ?? null,
+				data.agreement_accepted_at ?? null,
+				data.agreement_version ?? null,
+				data.agreement_method ?? null,
 				data.verified_at ?? null,
 				data.last_synced_at ?? null,
 				now,
@@ -545,6 +617,9 @@ export async function upsertVerifiedPlayer(
 			 verification_status = COALESCE(?, verification_status),
 			 personal_channel_id = COALESCE(?, personal_channel_id),
 			 preferred_locale = CASE WHEN ? = 1 THEN ? ELSE preferred_locale END,
+			 agreement_accepted_at = CASE WHEN ? = 1 THEN ? ELSE agreement_accepted_at END,
+			 agreement_version = CASE WHEN ? = 1 THEN ? ELSE agreement_version END,
+			 agreement_method = CASE WHEN ? = 1 THEN ? ELSE agreement_method END,
 			 verified_at = COALESCE(?, verified_at),
 			 last_synced_at = COALESCE(?, last_synced_at),
 			 updated_at = ?
@@ -563,6 +638,12 @@ export async function upsertVerifiedPlayer(
 			data.personal_channel_id ?? null,
 			localeProvided ? 1 : 0,
 			localeProvided ? (data.preferred_locale?.trim() || null) : null,
+			agreementProvided ? 1 : 0,
+			agreementProvided ? (data.agreement_accepted_at?.trim() || null) : null,
+			agreementProvided ? 1 : 0,
+			agreementProvided ? (data.agreement_version?.trim() || null) : null,
+			agreementProvided ? 1 : 0,
+			agreementProvided ? (data.agreement_method?.trim() || null) : null,
 			data.verified_at ?? null,
 			data.last_synced_at ?? null,
 			now,

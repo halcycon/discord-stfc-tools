@@ -202,6 +202,64 @@ const commands = [
 			},
 			{
 				type: 1,
+				name: 'agreement',
+				description: 'Admin: Discord agreement / CoC gate (DM button; reaction later)',
+				options: [
+					{
+						type: 5,
+						name: 'enabled',
+						description: 'Require agreement acceptance',
+						required: false,
+					},
+					{
+						type: 3,
+						name: 'timing',
+						description: 'before_verify or after_verify (default after = guest lounge until agree)',
+						required: false,
+						choices: [
+							{ name: 'After verify (guest lounge until agree)', value: 'after_verify' },
+							{ name: 'Before verify (must agree first)', value: 'before_verify' },
+						],
+					},
+					{
+						type: 3,
+						name: 'mode',
+						description: 'dm_button (shipped) or channel_react (planned)',
+						required: false,
+						choices: [
+							{ name: 'DM Agree button', value: 'dm_button' },
+							{ name: 'Channel reaction (coming soon)', value: 'channel_react' },
+						],
+					},
+					{
+						type: 7,
+						name: 'channel',
+						description: 'Channel containing the agreement / CoC (linked in DM)',
+						required: false,
+						channel_types: [0],
+					},
+					{
+						type: 3,
+						name: 'message_id',
+						description: 'Optional message ID for future reaction mode',
+						required: false,
+					},
+					{
+						type: 3,
+						name: 'version',
+						description: 'Bump to force re-accept after CoC changes (e.g. 2026-07)',
+						required: false,
+					},
+					{
+						type: 5,
+						name: 'clear_channel',
+						description: 'Clear linked channel / message ID',
+						required: false,
+					},
+				],
+			},
+			{
+				type: 1,
 				name: 'verify',
 				description: 'Admin: manually verify a member with an stfc.pro link (no DM flow)',
 				options: [

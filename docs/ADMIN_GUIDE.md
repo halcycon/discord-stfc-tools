@@ -574,6 +574,25 @@ After create you get an ephemeral draft with buttons:
 
 ---
 
+## Discord agreement / code of conduct
+
+Optional gate for **single-** or **multi-alliance** servers. Members must accept via a **DM “I agree” button** (channel reactions planned next). Acceptance is logged to **audit** and, on promote, noted on the **verification log**.
+
+| Timing | Behaviour |
+|--------|-----------|
+| `after_verify` (default) | stfc.pro verify succeeds; member gets **guest/lounge** until they agree, then full member roles |
+| `before_verify` | Must agree before screenshot / stfc.pro link is accepted |
+
+```
+/server agreement
+/server agreement enabled:true timing:after_verify channel:#discord-agreement version:2026-07
+/server agreement enabled:false
+```
+
+Bump `version` when the CoC changes to force re-accept. `mode:channel_react` is reserved — DM button is used until reaction support ships.
+
+---
+
 ## DM assistant (Badgey / HAL)
 
 Verified members (and admins) can **DM the bot** outside of verification:

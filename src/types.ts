@@ -1,5 +1,9 @@
 export type GuildMode = 'single_alliance' | 'multi_alliance';
 export type StfcRegion = 'US' | 'EU';
+/** When agreement must be accepted relative to stfc.pro verification. */
+export type AgreementTiming = 'before_verify' | 'after_verify';
+/** How the member accepts. `channel_react` reserved for a follow-up. */
+export type AgreementMode = 'dm_button' | 'channel_react';
 
 export type VerificationStatus =
 	| 'pending_invite'
@@ -94,6 +98,18 @@ export interface GuildConfig {
 	dm_query_role_ids: string[];
 	/** When true and Workers AI is bound, allow optional NLP intent classification for DMs. */
 	dm_ai_enabled: boolean;
+	/** Require Discord agreement / CoC acceptance before or after verify. */
+	agreement_enabled: boolean;
+	/** before_verify = block screenshot/link until agree; after_verify = lounge/guest until agree (default). */
+	agreement_timing: AgreementTiming;
+	/** dm_button (v1) | channel_react (planned). */
+	agreement_mode: AgreementMode;
+	/** Optional channel to link in the agreement DM (existing CoC / Discord Agreement). */
+	agreement_channel_id: string | null;
+	/** Optional message ID for future channel-reaction mode. */
+	agreement_message_id: string | null;
+	/** Bump to force re-accept after CoC changes. */
+	agreement_version: string | null;
 	poll_interval_hours: number;
 	verification_enabled: boolean;
 	created_at: string;
@@ -126,6 +142,12 @@ export interface VerifiedPlayer {
 	personal_channel_id: string | null;
 	/** Player-facing bot language (en, de, …). Null until chosen. */
 	preferred_locale: string | null;
+	/** When the member accepted the Discord agreement / CoC (if required). */
+	agreement_accepted_at: string | null;
+	/** Version string they accepted (should match guild_configs.agreement_version). */
+	agreement_version: string | null;
+	/** dm_button | reaction */
+	agreement_method: string | null;
 	verified_at: string | null;
 	last_synced_at: string | null;
 }

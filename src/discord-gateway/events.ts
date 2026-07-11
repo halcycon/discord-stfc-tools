@@ -24,6 +24,41 @@ export async function handleDirectMessage(env: Env, message: DiscordMessage): Pr
 
 	const pending = await getPendingVerificationsForUser(env.STFC_DB, userId);
 	if (pending.length === 0) {
+		const { listVerifiedGuildsForUser } = await import('../guild-db');
+		const {
+			needsAgreementBeforeFullAccess,
+			needsAgreementBeforeVerify,
+			sendAgreementDm,
+			playerHasAcceptedAgreement,
+		} = await import('../agreement');
+		const verified = await listVerifiedGuildsForUser(env.STFC_DB, userId);
+		for (const row of verified) {
+			const cfg = await getGuildConfig(env.STFC_DB, row.guild_id);
+			if (!cfg?.agreement_enabled || playerHasAcceptedAgreement(cfg, row)) continue;
+			const loc = resolveLocale(row.preferred_locale);
+			const needs =
+				needsAgreementBeforeFullAccess(cfg, row) || needsAgreementBeforeVerify(cfg, row);
+			if (!needs) continue;
+			try {
+				await sendAgreementDm(token, userId, cfg, loc);
+				await sendChannelMessage(
+					token,
+					message.channel_id,
+					cfg.agreement_timing === 'before_verify'
+						? t(loc, 'agree.gate.before_verify')
+						: t(loc, 'verify.result.needs_agreement', {
+								name: row.player_name ?? message.author.username,
+								tag: row.alliance_tag ?? '—',
+								level: row.ops_level ?? '—',
+								summary: '',
+							}),
+				);
+				return;
+			} catch {
+				break;
+			}
+		}
+
 		await handleDmAssistantMessage(env, message);
 		return;
 	}
@@ -45,6 +80,17 @@ export async function handleDirectMessage(env: Env, message: DiscordMessage): Pr
 			content: languagePickerPrompt(),
 			components: buildLanguagePickerComponents(record.guild_id),
 		});
+		return;
+	}
+
+	const { needsAgreementBeforeVerify, sendAgreementDm } = await import('../agreement');
+	if (needsAgreementBeforeVerify(config, record)) {
+		try {
+			await sendAgreementDm(token, userId, config, locale);
+		} catch (err) {
+			console.error('Agreement DM failed:', err);
+		}
+		await sendChannelMessage(token, message.channel_id, t(locale, 'agree.gate.before_verify'));
 		return;
 	}
 

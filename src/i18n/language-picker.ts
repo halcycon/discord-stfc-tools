@@ -120,10 +120,19 @@ export async function handleLocaleComponent(
 
 	const confirm = t(locale, 'locale.picker.confirm', { label });
 	const welcome = t(locale, 'verify.invite.welcome');
-	const content = `${confirm}\n\n${welcome}`;
 
-	// Prefer updating the picker message; also safe if interaction was ephemeral.
-	return updateMessageResponse(content, { components: [] });
+	const { getGuildConfig } = await import('../guild-db');
+	const { needsAgreementBeforeVerify, agreementDmContent, buildAgreementComponents } =
+		await import('../agreement');
+	const config = await getGuildConfig(env.STFC_DB, guildId);
+	const refreshed = await getVerifiedPlayer(env.STFC_DB, guildId, userId);
+	if (config && needsAgreementBeforeVerify(config, refreshed)) {
+		return updateMessageResponse(`${confirm}\n\n${agreementDmContent(config, locale)}`, {
+			components: buildAgreementComponents(guildId, locale),
+		});
+	}
+
+	return updateMessageResponse(`${confirm}\n\n${welcome}`, { components: [] });
 }
 
 /** After verify success without a locale, nudge via DM. */

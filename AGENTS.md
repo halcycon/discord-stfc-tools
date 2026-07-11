@@ -88,6 +88,7 @@ Worker (src/index.ts) — wakes DO on fetch + cron
 - `/exchange` — cross-alliance resource donors/recipients (hub or category layout, Help/Ignore claim DMs)
 - `/language` — player preferred language for bot DMs (en/de/fr/es/pt/nl/pl/it/ru/tr/hu)
 - **DM assistant** — HAL refusal for unknown asks; Badgey voice + admin menu wizards; roster Q&A gated by `/server assistant`
+- **Discord agreement** — optional CoC gate (`/server agreement`); DM Agree button; timing before/after verify; channel react planned
 
 ### `/lookup`
 Parses STFC share strings like `[[RONE] Player S:73559 X:628.7432 Y:43.3874]`. Supports multiple coordinates per message. Returns Unicode box-drawing table with Alliance, System, Warp, Faction, Player. Uses in-memory `SYSTEM_DATA_MAP` — **not KV**.

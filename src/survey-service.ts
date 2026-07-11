@@ -239,6 +239,9 @@ export async function sendSurveyTest(
 		verification_status: 'active',
 		personal_channel_id: null,
 		preferred_locale: null,
+		agreement_accepted_at: null,
+		agreement_version: null,
+		agreement_method: null,
 		verified_at: null,
 		last_synced_at: null,
 	};
