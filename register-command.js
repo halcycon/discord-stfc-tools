@@ -579,11 +579,12 @@ const commands = [
 					},
 				],
 			},
-			{
-				type: 2,
-				name: 'channels',
-				description: 'Admin: configure personal member channels',
-				options: [
+		],
+	},
+	{
+		name: 'channels',
+		description: 'Admin: personal member channels, logs, and permissions',
+		options: [
 					{
 						type: 1,
 						name: 'map',
@@ -794,9 +795,103 @@ const commands = [
 					},
 					{
 						type: 1,
-						name: 'diplomacy',
-						description: 'Configure multi-alliance diplomacy channels (per alliance tag)',
+						name: 'log',
+						description: 'Set or create the admin verification log channel',
 						options: [
+							{
+								type: 7,
+								name: 'channel',
+								description: 'Existing text channel for verification archives',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'create',
+								description: 'Create a private verification-log channel',
+								required: false,
+							},
+							{
+								type: 3,
+								name: 'name',
+								description: 'Name when create:true (default verification-log)',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'clear',
+								description: 'Disable verification log posting',
+								required: false,
+							},
+						],
+					},
+					{
+						type: 1,
+						name: 'audit',
+						description: 'Set or create the general bot audit log channel',
+						options: [
+							{
+								type: 7,
+								name: 'channel',
+								description: 'Existing text channel for bot audit events',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'create',
+								description: 'Create a private bot-audit-log channel',
+								required: false,
+							},
+							{
+								type: 3,
+								name: 'name',
+								description: 'Name when create:true (default bot-audit-log)',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'clear',
+								description: 'Disable audit log posting',
+								required: false,
+							},
+						],
+					},
+					{
+						type: 1,
+						name: 'urgent',
+						description: 'Set or create the urgent staff alert channel (DM blocked, etc.)',
+						options: [
+							{
+								type: 7,
+								name: 'channel',
+								description: 'Existing text channel for urgent alerts',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'create',
+								description: 'Create a private bot-urgent channel',
+								required: false,
+							},
+							{
+								type: 3,
+								name: 'name',
+								description: 'Name when create:true (default bot-urgent)',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'clear',
+								description: 'Disable urgent alert posting',
+								required: false,
+							},
+						],
+					},
+				],
+	},
+	{
+		name: 'diplomacy',
+		description: 'Admin: multi-alliance diplomacy channels',
+		options: [
 							{
 								type: 5,
 								name: 'enable',
@@ -939,103 +1034,6 @@ const commands = [
 								required: false,
 							},
 						],
-					},
-					{
-						type: 1,
-						name: 'log',
-						description: 'Set or create the admin verification log channel',
-						options: [
-							{
-								type: 7,
-								name: 'channel',
-								description: 'Existing text channel for verification archives',
-								required: false,
-							},
-							{
-								type: 5,
-								name: 'create',
-								description: 'Create a private verification-log channel',
-								required: false,
-							},
-							{
-								type: 3,
-								name: 'name',
-								description: 'Name when create:true (default verification-log)',
-								required: false,
-							},
-							{
-								type: 5,
-								name: 'clear',
-								description: 'Disable verification log posting',
-								required: false,
-							},
-						],
-					},
-					{
-						type: 1,
-						name: 'audit',
-						description: 'Set or create the general bot audit log channel',
-						options: [
-							{
-								type: 7,
-								name: 'channel',
-								description: 'Existing text channel for bot audit events',
-								required: false,
-							},
-							{
-								type: 5,
-								name: 'create',
-								description: 'Create a private bot-audit-log channel',
-								required: false,
-							},
-							{
-								type: 3,
-								name: 'name',
-								description: 'Name when create:true (default bot-audit-log)',
-								required: false,
-							},
-							{
-								type: 5,
-								name: 'clear',
-								description: 'Disable audit log posting',
-								required: false,
-							},
-						],
-					},
-					{
-						type: 1,
-						name: 'urgent',
-						description: 'Set or create the urgent staff alert channel (DM blocked, etc.)',
-						options: [
-							{
-								type: 7,
-								name: 'channel',
-								description: 'Existing text channel for urgent alerts',
-								required: false,
-							},
-							{
-								type: 5,
-								name: 'create',
-								description: 'Create a private bot-urgent channel',
-								required: false,
-							},
-							{
-								type: 3,
-								name: 'name',
-								description: 'Name when create:true (default bot-urgent)',
-								required: false,
-							},
-							{
-								type: 5,
-								name: 'clear',
-								description: 'Disable urgent alert posting',
-								required: false,
-							},
-						],
-					},
-				],
-			},
-		],
 	},
 	{
 		name: 'survey',

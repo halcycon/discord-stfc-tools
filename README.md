@@ -22,7 +22,8 @@ Cloudflare Worker Discord bot for **Star Trek Fleet Command (STFC)**:
 | `/verify` | Verify STFC account with stfc.pro link |
 | `/server setup` | Configure guild (admin) |
 | `/server status` | Show guild configuration |
-| `/server channels …` | Personal channels, link existing, verification log |
+| `/channels …` | Personal channels, link existing, verification/audit/urgent logs |
+| `/diplomacy …` | Multi-alliance diplomacy channels |
 
 ## Quick start
 

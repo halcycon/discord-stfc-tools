@@ -60,7 +60,7 @@ export function defaultPersonalChannelPermTemplate(): PersonalChannelPermTemplat
 /**
  * Clone the built-in default (or an existing template) and attach staff/viewer roles.
  * Role allow bits match the member slot (or `roleAllow` if provided).
- * Use this when you have not locked a sample channel — pair with `/server channels extra-roles`.
+ * Use this when you have not locked a sample channel — pair with `/channels extra-roles`.
  */
 export function withExtraRolesOnPersonalChannelPermTemplate(
 	roleIds: string[],
@@ -167,7 +167,7 @@ export function formatPersonalChannelPermTemplate(
 		t.roles.length
 			? `• Roles (${t.roles.length}):\n` +
 				t.roles.map((r) => `  – <@&${r.role_id}>: ${bitsLabel(r)}`).join('\n')
-			: '• Roles: none — set `/server channels extra-roles` (no sample channel needed)',
+			: '• Roles: none — set `/channels extra-roles` (no sample channel needed)',
 	].filter(Boolean);
 	return lines.join('\n');
 }

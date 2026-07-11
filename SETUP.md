@@ -191,10 +191,10 @@ Minimal example:
 Typical follow-ups:
 
 ```
-/server channels extra-roles roles:@Officer
-/server channels map category_map:A-F=…,G-M=…
-/server channels log create:true
-/server channels link channel:#existing-member player:PlayerName apply_permissions:false
+/channels extra-roles roles:@Officer
+/channels map category_map:A-F=…,G-M=…
+/channels log create:true
+/channels link channel:#existing-member player:PlayerName apply_permissions:false
 /server status
 ```
 

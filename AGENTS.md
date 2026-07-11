@@ -80,11 +80,11 @@ Worker (src/index.ts) — wakes DO on fetch + cron
 - `/verify` — stfc.pro link + optional screenshot
 - `/server verify` — admin manual verify (user + stfc.pro link; same roles/nick/channel/log as self-verify)
 - `/server setup|status` — per-guild configuration (admin)
-- `/server channels log` — verification archive channel (create/link/clear)
-- `/server channels audit` / `urgent` — staff audit trail + high-signal alerts (e.g. DM blocked)
-- `/server channels permissions-audit` — read-only dump of existing member-channel overwrites (no sync/rewrite)
-- `/server channels permissions-template-from|show|clear` — lock overwrite pattern from a sample channel for new/linked creates
-- `/server channels link` — adopt existing member channels; `apply_permissions` uses locked template (or built-in default)
+- `/channels log` — verification archive channel (create/link/clear)
+- `/channels audit` / `urgent` — staff audit trail + high-signal alerts (e.g. DM blocked)
+- `/channels permissions-audit` — read-only dump of existing member-channel overwrites (no sync/rewrite)
+- `/channels permissions-template-from|show|clear` — lock overwrite pattern from a sample channel for new/linked creates
+- `/channels link` — adopt existing member channels; `apply_permissions` uses locked template (or built-in default)
 - `/player` — live stfc.pro lookup
 - Gateway DM flow: language picker → screenshot → link → roles/nickname/channels
 - Cron: member poll, guest alliance re-check, daily ops/power sync
@@ -113,7 +113,7 @@ Renders CSV as ASCII tables. Accepts inline `csv_data` or `.csv` attachment (max
 | `GET /gateway/status` | Gateway DO connection state |
 | `GET /systems` | First 10 bundled systems |
 
-**Logging:** `/server channels log` = verification screenshots/summaries; `/server channels audit` = general admin + automated bot events; `/server channels urgent` = optional high-signal alerts (e.g. DM blocked).
+**Logging:** `/channels log` = verification screenshots/summaries; `/channels audit` = general admin + automated bot events; `/channels urgent` = optional high-signal alerts (e.g. DM blocked).
 
 ---
 
@@ -617,7 +617,7 @@ Mock Discord REST and stfc.pro in Worker tests; use D1 local binding for integra
 2. ~~Guild schema + `/server setup`~~ — done
 3. ~~Gateway DM verification~~ — done
 4. Multi-alliance role tagging
-5. ~~Personal channel category configuration command~~ — done (`/server channels map|plan|rebalance`)
+5. ~~Personal channel category configuration command~~ — done (`/channels map|plan|rebalance`)
 5b. ~~Personal channel permissions audit + lockable template~~ — done (`permissions-audit`, `permissions-template`)
 6. ~~Button surveys / polls (`/survey`)~~ — done
 7. Daily sync polish + grade-based survey targeting refinements

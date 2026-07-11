@@ -257,7 +257,7 @@ This is **separate** from the general [bot audit log](#4b-bot-audit-log-admin--a
 ### Create a private log channel
 
 ```
-/server channels log create:true
+/channels log create:true
 ```
 
 Optional: `name:verification-archive`
@@ -266,12 +266,12 @@ Permissions applied:
 
 - `@everyone` — cannot view
 - Bot — can view / send / attach
-- Roles from `/server channels extra-roles` — can view / send
+- Roles from `/channels extra-roles` — can view / send
 
 ### Use an existing staff channel
 
 ```
-/server channels log channel:#staff-verify-log
+/channels log channel:#staff-verify-log
 ```
 
 Ensure the bot can **View Channel**, **Send Messages**, **Embed Links**, and **Attach Files** there.
@@ -279,7 +279,7 @@ Ensure the bot can **View Channel**, **Send Messages**, **Embed Links**, and **A
 ### Disable
 
 ```
-/server channels log clear:true
+/channels log clear:true
 ```
 
 ---
@@ -289,7 +289,7 @@ Ensure the bot can **View Channel**, **Send Messages**, **Embed Links**, and **A
 A staff-only channel for **everything the bot does** besides verification screenshots: admin commands, role/channel changes, cron sync summaries, invites, etc.
 
 ```
-/server channels audit create:true
+/channels audit create:true
 ```
 
 Optional: `name:bot-audit-log`
@@ -297,16 +297,16 @@ Optional: `name:bot-audit-log`
 Or link an existing channel:
 
 ```
-/server channels audit channel:#staff-bot-audit
+/channels audit channel:#staff-bot-audit
 ```
 
 Disable:
 
 ```
-/server channels audit clear:true
+/channels audit clear:true
 ```
 
-Same private-channel permission pattern as the verification log (`@everyone` denied; bot + `/server channels extra-roles` can view). Prefer setting **extra-roles** first so viewers are included on create.
+Same private-channel permission pattern as the verification log (`@everyone` denied; bot + `/channels extra-roles` can view). Prefer setting **extra-roles** first so viewers are included on create.
 
 Logged events include (non-exhaustive): `/server setup`, verify (brief — screenshots stay on the verification log), guest invites, player sync changes, personal-channel map/rebalance/link, diplomacy config, surveys sent/closed, exchange setup, daily sync / guest re-check summaries.
 
@@ -317,7 +317,7 @@ Logged events include (non-exhaustive): `/server setup`, verify (brief — scree
 Optional high-signal channel for events that need an admin to notice quickly — **not** the full audit trail. Today this includes **verification DM blocked (403)** when a member’s privacy settings prevent bot DMs.
 
 ```
-/server channels urgent create:true
+/channels urgent create:true
 ```
 
 Optional: `name:bot-urgent`
@@ -325,16 +325,16 @@ Optional: `name:bot-urgent`
 Or link an existing channel:
 
 ```
-/server channels urgent channel:#staff-urgent
+/channels urgent channel:#staff-urgent
 ```
 
 Disable:
 
 ```
-/server channels urgent clear:true
+/channels urgent clear:true
 ```
 
-Same private-channel pattern as audit/log (`@everyone` denied; bot + `/server channels extra-roles` can view). Prefer setting **extra-roles** first.
+Same private-channel pattern as audit/log (`@everyone` denied; bot + `/channels extra-roles` can view). Prefer setting **extra-roles** first.
 
 Urgent posts use a short Badgey-style message so they stand out from routine audit embeds. The same event is still written to the audit log when configured.
 
@@ -347,10 +347,10 @@ Urgent posts use a short Badgey-style message so they stand out from routine aud
 Before creating or linking member channels, configure which Discord roles can see **every** personal channel (officers, diplomats, etc.):
 
 ```
-/server channels extra-roles roles:@Officer,@Diplomat
+/channels extra-roles roles:@Officer,@Diplomat
 ```
 
-This attaches those roles to the **built-in default** permission template (same allow bits as the member). No sample channel lock required — confirm with `/server channels permissions-template-show`. Clear with an empty `roles:` value.
+This attaches those roles to the **built-in default** permission template (same allow bits as the member). No sample channel lock required — confirm with `/channels permissions-template-show`. Clear with an empty `roles:` value.
 
 This is **not** part of `/server setup` — it is required for personal channels.
 
@@ -371,42 +371,42 @@ If linking an **existing** private channel fails on permissions, give the bot **
 
 1. Add the bot on the **category** and choose **not** to sync to children, **or**
 2. Add the bot overwrite on each channel you care about, **or**
-3. Use `/server channels link … apply_permissions:true` once the bot can see the channel (rewrites that channel only).
+3. Use `/channels link … apply_permissions:true` once the bot can see the channel (rewrites that channel only).
 
 ### Audit existing permissions (read-only)
 
 Before changing anything, dump what Discord currently has on linked channels + channels under your member categories:
 
 ```
-/server channels permissions-audit
+/channels permissions-audit
 ```
 
 - Does **not** sync or rewrite permissions
 - Ephemeral summary with flags (`bot_missing_view`, `linked_member_no_overwrite`, …)
-- Full text dump attached to `/server channels audit` when that channel is set (keep this as your record)
+- Full text dump attached to `/channels audit` when that channel is set (keep this as your record)
 
 ### Lock a permission template from a sample channel (optional)
 
-You do **not** need this if the built-in default + `/server channels extra-roles` is enough.
+You do **not** need this if the built-in default + `/channels extra-roles` is enough.
 
 Once you find a member channel whose overwrites look right (bot can post, member + staff roles correct):
 
 ```
-/server channels permissions-template-from channel:#good-example
+/channels permissions-template-from channel:#good-example
 ```
 
-Optional: `member:@Owner` if the channel isn’t linked yet; `sync_extra_roles:false` to leave `/server channels extra-roles` unchanged (default **true** copies role overwrites into extra-roles).
+Optional: `member:@Owner` if the channel isn’t linked yet; `sync_extra_roles:false` to leave `/channels extra-roles` unchanged (default **true** copies role overwrites into extra-roles).
 
 If a locked template already lists role overwrites, those take precedence for personal channels; extra-roles still apply to log/audit/urgent channels.
 
 ```
-/server channels permissions-template-show
-/server channels permissions-template-clear
+/channels permissions-template-show
+/channels permissions-template-clear
 ```
 
-Locked templates are used for **new** personal channels and for `/server channels link` / verify when `apply_permissions` is on. Existing channels are not rewritten until you link/re-apply.
+Locked templates are used for **new** personal channels and for `/channels link` / verify when `apply_permissions` is on. Existing channels are not rewritten until you link/re-apply.
 
-Do this **before** `/server channels rebalance … create_missing:true` or bulk `/server channels link`, so new and rewritten channels get the right access. Changing extra-roles later does **not** rewrite existing channels until the next create/update/link that applies permissions.
+Do this **before** `/channels rebalance … create_missing:true` or bulk `/channels link`, so new and rewritten channels get the right access. Changing extra-roles later does **not** rewrite existing channels until the next create/update/link that applies permissions.
 
 ### Auto-create (single-alliance)
 
@@ -415,15 +415,15 @@ Buckets use the **first letter** of the in-game name (`A`–`Z`). Names starting
 **Recommended:** let the bot plan and apply categories (handles Discord’s ~50 channels/category limit):
 
 ```
-/server channels plan
-/server channels rebalance apply:true create_missing:true
+/channels plan
+/channels rebalance apply:true create_missing:true
 ```
 
 That creates/renames categories like `Member Channels A-M` / `Member Channels N-#`, updates the map, moves linked member channels, creates missing ones (if `create_missing`), and archives unlinked ones.
 
 Large servers take a while: the command shows **progress** on the slash reply, posts **started** + **finished** (or failed) to the audit log, and saves the category map as soon as categories exist so a retry can continue. Re-running `apply:true` **reuses** mapped categories (renames ranges in place, creates only extra buckets). If the map was empty after a crash, it also **adopts existing categories by matching name** (e.g. `Member Channels A-L`) instead of creating duplicates. Archive scans the current map, the previous map, and leftover `Member Channels *` categories so unlinked channels left behind by a partial run still get moved.
 
-The planner splits **fairly evenly** under the soft limit (50 players → two ~25 buckets, not 45+5). Re-run when occupancy nears the limit (`/server channels status` shows counts).
+The planner splits **fairly evenly** under the soft limit (50 players → two ~25 buckets, not 45+5). Re-run when occupancy nears the limit (`/channels status` shows counts).
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -439,17 +439,17 @@ The planner splits **fairly evenly** under the soft limit (50 players → two ~2
 
 **First-time / migration workflow:**
 
-1. `/server channels extra-roles` — who can see all member channels (see above).
+1. `/channels extra-roles` — who can see all member channels (see above).
 2. Verify players (`/verify` or `/server verify`).
-3. `/server channels link` for members who already have a channel (rebalance will **not** guess links by name).
-4. `/server channels plan` — review suggested ranges, missing channels, and unlinked channels.
-5. `/server channels rebalance apply:true create_missing:true` — splits categories, creates missing channels, moves linked ones, archives unlinked ones.
+3. `/channels link` for members who already have a channel (rebalance will **not** guess links by name).
+4. `/channels plan` — review suggested ranges, missing channels, and unlinked channels.
+5. `/channels rebalance apply:true create_missing:true` — splits categories, creates missing channels, moves linked ones, archives unlinked ones.
 
 **Manual map** (if you prefer to create categories yourself):
 
 ```
 /server categories
-/server channels map category_map:A-M=111...,N-#=222...
+/channels map category_map:A-M=111...,N-#=222...
 ```
 
 Or one range at a time: `range:A-M` + `category_id:…`.
@@ -459,7 +459,7 @@ On verify, the bot creates a private channel for the member in the matching cate
 Clear mappings (disables auto-create):
 
 ```
-/server channels map clear:true
+/channels map clear:true
 ```
 
 ### Link existing channels (any mode)
@@ -467,17 +467,17 @@ Clear mappings (disables auto-create):
 If the server already has member or diplomacy channels, **do not recreate them** — link them:
 
 ```
-/server channels link channel:#halcynicon player:Halcynicon
+/channels link channel:#halcynicon player:Halcynicon
 ```
 
 Pick a **text** (or announcement) channel — not a category. If linking fails because the bot can’t see the channel, give the bot **View Channel** there (private member channels often deny `@everyone`), then retry.
 
 ```
-/server channels link channel:#kwsn-diplomacy player:301268920
+/channels link channel:#kwsn-diplomacy player:301268920
 ```
 
 ```
-/server channels link channel:#some-channel user:@Member
+/channels link channel:#some-channel user:@Member
 ```
 
 | Option | Description |
@@ -492,13 +492,13 @@ Channel names always follow the **current in-game player name** (slugified). Cre
 Examples for an existing framework:
 
 ```
-/server channels link channel:#adam-diplomacy player:Adam apply_permissions:false
+/channels link channel:#adam-diplomacy player:Adam apply_permissions:false
 ```
 
 Status:
 
 ```
-/server channels status
+/channels status
 ```
 
 ---
@@ -514,7 +514,7 @@ Multi-alliance servers often have **dozens of tags** — Discord’s **50 channe
 ### Configure
 
 ```
-/server channels diplomacy
+/diplomacy
   enable:true
   everyone_can_view:true
   write_roles:Diplomat
@@ -542,7 +542,7 @@ Multi-alliance servers often have **dozens of tags** — Discord’s **50 channe
 ### Create for a tag
 
 ```
-/server channels diplomacy create_tag:KWSN
+/diplomacy create_tag:KWSN
 ```
 
 Also happens automatically on verify/sync in **multi_alliance** mode when diplomacy is enabled and the player has an alliance tag. Existing channels are **renamed** to the current slug and **moved** into the letter-bucket category (or legacy `category` if no map).
@@ -552,13 +552,13 @@ Also happens automatically on verify/sync in **multi_alliance** mode when diplom
 Preview splits:
 
 ```
-/server channels diplomacy sync_all:true plan:true soft_limit:45 create_missing:true
+/diplomacy sync_all:true plan:true soft_limit:45 create_missing:true
 ```
 
 Apply (creates `Diplomacy Channels A-M`-style categories as needed, moves channels by tag first letter, archives unlinked):
 
 ```
-/server channels diplomacy sync_all:true create_missing:true
+/diplomacy sync_all:true create_missing:true
 ```
 
 Same spirit as personal-channel rebalance. Progress posts on the slash command; audit gets started + finished. After the first successful sync, status shows the **category map** (ranges → categories) instead of a single legacy category.
@@ -566,14 +566,14 @@ Same spirit as personal-channel rebalance. Progress posts on the slash command; 
 ### Adopt an existing channel
 
 ```
-/server channels diplomacy link_tag:KWSN channel:#kwsn-diplo
-/server channels diplomacy link_tag:KWSN channel:#kwsn-diplo apply_permissions:false
+/diplomacy link_tag:KWSN channel:#kwsn-diplo
+/diplomacy link_tag:KWSN channel:#kwsn-diplo apply_permissions:false
 ```
 
 ### Status
 
 ```
-/server channels diplomacy
+/diplomacy
 ```
 
 (with no action options) prints the current diplomacy config, category map, and tag→channel map.
@@ -601,7 +601,7 @@ Admins can link a Discord member to an stfc.pro profile **without** the DM flow 
 
 This runs the same pipeline as self-verify (roles, nickname template, personal/diplomacy channels, verification log). The log embed notes `Manual by @Admin`. Repeat once per member; alliance guest rules still apply in single-alliance mode.
 
-Requires Administrator. Set the archive channel first (`/server channels log`) so staff can audit these posts.
+Requires Administrator. Set the archive channel first (`/channels log`) so staff can audit these posts.
 
 ### Admin testing
 
@@ -770,7 +770,7 @@ After create you get an ephemeral draft with buttons:
 | `/server categories` | List categories + IDs |
 | `/server rank-roles` | Preview roles for a rank |
 | `/server bucket` | Configure overlay buckets |
-| `/server channels …` | Personal channels + verification log |
+| `/channels …` | Personal channels + verification log |
 
 ---
 
@@ -793,14 +793,14 @@ After create you get an ephemeral draft with buttons:
 |---------|------------|
 | Roles not assigned / `50013` on `/roles/…` | [Raise bot in role hierarchy](#role-hierarchy-drag-the-bot-up); bot needs **Manage Roles** (Administrator not required) |
 | Nickname fails (403) | Manage Nicknames; bot role above member; **owner cannot be renamed** |
-| No verification DM / `DM open failed: 403` | Member privacy: **User Settings → Privacy** or server privacy — allow DMs from server members; or they blocked the bot. Use `/verify` in-channel as fallback; retry with `/server test-invite` after they fix privacy. After one 403 the bot stops auto-retrying that member (and posts to `/server channels urgent` if set) |
+| No verification DM / `DM open failed: 403` | Member privacy: **User Settings → Privacy** or server privacy — allow DMs from server members; or they blocked the bot. Use `/verify` in-channel as fallback; retry with `/server test-invite` after they fix privacy. After one 403 the bot stops auto-retrying that member (and posts to `/channels urgent` if set) |
 | Repeat “Verification invite failed” for people already verified | Fixed: manual `/server verify` marks invited; already `active`/`guest` are skipped; clobbered `pending_*` rows with player data are auto-restored. Redeploy to pick up — **no re-verify needed** if Discord roles still look correct |
 | “Server not configured” | Run `/server setup` |
-| Log channel silent | `/server channels log` set; bot can attach files; redeploy after feature add |
-| Personal channel not created | Single-alliance + category map set; check `/server channels status` |
-| `/server channels link` fails / “not a text channel” | Pick a **text** channel (not a category). Redeploy + re-register commands |
-| `/server channels link` permission overwrite fails | Bot needs **Manage Channels** + **View Channel** on that channel/category. After deploy, link still saves and reports which overwrites failed; bot is granted View/Send first so it can post surveys |
-| Diplomacy channel not created | Multi-alliance + `/server channels diplomacy enable:true`; rank write roles must exist from setup |
+| Log channel silent | `/channels log` set; bot can attach files; redeploy after feature add |
+| Personal channel not created | Single-alliance + category map set; check `/channels status` |
+| `/channels link` fails / “not a text channel” | Pick a **text** channel (not a category). Redeploy + re-register commands |
+| `/channels link` permission overwrite fails | Bot needs **Manage Channels** + **View Channel** on that channel/category. After deploy, link still saves and reports which overwrites failed; bot is granted View/Send first so it can post surveys |
+| Diplomacy channel not created | Multi-alliance + `/diplomacy enable:true`; rank write roles must exist from setup |
 | Link finds no player | Member must verify first, or use `user:@Member` |
 | stfc.pro lookup fails | Bot falls back to HTML scrape for numeric player IDs; confirm URL/server/region |
 | Survey create denied | Admin or `/survey creators` role; run `/server setup` first |
@@ -897,15 +897,15 @@ Excluded users never get verification invite DMs and are omitted from `/roster u
 
 1. [ ] Bot invited; role near top of list  
 2. [ ] `/server setup` with server, region, mode, tag, roles  
-3. [ ] `/server channels extra-roles` — officers/roles that see **all** member channels (not part of setup)  
-4. [ ] `/server channels audit create:true` — general bot audit (admin + automated actions)
-5. [ ] `/server channels urgent create:true` — high-signal alerts (DM blocked, etc.; optional)
-6. [ ] `/server channels log create:true` — verification archive (screenshots; separate from audit)
+3. [ ] `/channels extra-roles` — officers/roles that see **all** member channels (not part of setup)  
+4. [ ] `/channels audit create:true` — general bot audit (admin + automated actions)
+5. [ ] `/channels urgent create:true` — high-signal alerts (DM blocked, etc.; optional)
+6. [ ] `/channels log create:true` — verification archive (screenshots; separate from audit)
 7. [ ] Members pick language on first DM (or `/language`) — player-facing messages are localized  
-8. [ ] Link existing member channels with `/server channels link` if needed  
-9. [ ] `/server channels plan` then `/server channels rebalance apply:true create_missing:true` (or manual `/server channels map`)  
+8. [ ] Link existing member channels with `/channels link` if needed  
+9. [ ] `/channels plan` then `/channels rebalance apply:true create_missing:true` (or manual `/channels map`)  
 10. [ ] Optional: `nickname_template`, rank roles, `/server bucket`  
-11. [ ] Multi-alliance: `/server channels diplomacy enable:true write_roles:Diplomat write_ranks:Commodore,Admiral`  
+11. [ ] Multi-alliance: `/diplomacy enable:true write_roles:Diplomat write_ranks:Commodore,Admiral`  
 12. [ ] Optional: `/survey creators` for officers who may poll the alliance  
 13. [ ] Optional: `/exchange setup` + `/exchange resource create` for cross-alliance resources  
 14. [ ] `/server test-invite` → verify yourself → check roles, log, personal/diplomacy channels  

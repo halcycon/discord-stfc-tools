@@ -506,7 +506,7 @@ async function handleServerSetupCommand(
 				`${operativeRoleIds.length}/${agentRoleIds.length}/${premierRoleIds.length}/${commodoreRoleIds.length}/${admiralRoleIds.length}\n\n` +
 				`New members will receive a verification DM. They can also run \`/verify\`.\n` +
 				`Nickname placeholders: \`{player_name}\` \`{alliance_tag}\` \`{rank}\` \`{rank_prefix}\` \`{rank_paren}\`\n` +
-				`Tip: set \`/server channels audit create:true\` for a staff audit trail, and \`/server channels log\` for verification screenshots.`,
+				`Tip: set \`/channels audit create:true\` for a staff audit trail, and \`/channels log\` for verification screenshots.`,
 			true,
 		);
 	} catch (error) {
@@ -1285,7 +1285,7 @@ async function handleServerCategoriesCommand(
 		`📁 Categories (${channels.filter((c) => c.type === 4).length})\n` +
 			(lines.length ? lines.join('\n') : 'No categories found.') +
 			more +
-			`\n\nUse with \`/server channels map category_map:A-F=<id>\`.`,
+			`\n\nUse with \`/channels map category_map:A-F=<id>\`.`,
 		true,
 	);
 }
@@ -1533,7 +1533,7 @@ async function handleDiplomacyChannelsCommand(
 		}
 		if (!diplomacyChannelsEnabled(config)) {
 			return interactionResponse(
-				'❌ Diplomacy is disabled. Enable first: `/server channels diplomacy enable:true`',
+				'❌ Diplomacy is disabled. Enable first: `/diplomacy enable:true`',
 				true,
 			);
 		}
@@ -1595,7 +1595,7 @@ async function handleDiplomacyChannelsCommand(
 					`• Create categories: ${createCategories ? 'yes' : 'no'}\n` +
 					`• Create missing channels: ${createMissing ? 'yes' : 'no'}\n` +
 					`• Archive unlinked: ${archiveUnlinked ? 'yes' : 'no'}\n\n` +
-					`Run \`/server channels diplomacy sync_all:true\` (without plan) to apply.`,
+					`Run \`/diplomacy sync_all:true\` (without plan) to apply.`,
 				true,
 			);
 		}
@@ -1715,11 +1715,11 @@ async function handleDiplomacyChannelsCommand(
 			`• Write ranks: ${refreshed.diplomacy_write_ranks.join(', ') || 'none'}\n` +
 			`• Channels: ${formatDiplomacyChannelMap(refreshed.diplomacy_channel_map)}\n\n` +
 			`Examples:\n` +
-			`\`/server channels diplomacy enable:true write_roles:Diplomat write_ranks:Commodore,Admiral everyone_can_view:true\`\n` +
-			`\`/server channels diplomacy create_tag:KWSN\`\n` +
-			`\`/server channels diplomacy link_tag:KWSN channel:#kwsn-diplo apply_permissions:false\`\n` +
-			`\`/server channels diplomacy sync_all:true create_missing:true\` — letter buckets + rename/move/A–Z sort\n` +
-			`\`/server channels diplomacy sync_all:true plan:true soft_limit:45\` — preview category splits`,
+			`\`/diplomacy enable:true write_roles:Diplomat write_ranks:Commodore,Admiral everyone_can_view:true\`\n` +
+			`\`/diplomacy create_tag:KWSN\`\n` +
+			`\`/diplomacy link_tag:KWSN channel:#kwsn-diplo apply_permissions:false\`\n` +
+			`\`/diplomacy sync_all:true create_missing:true\` — letter buckets + rename/move/A–Z sort\n` +
+			`\`/diplomacy sync_all:true plan:true soft_limit:45\` — preview category splits`,
 		true,
 	);
 }
@@ -1823,7 +1823,7 @@ async function handleServerChannelsCommand(
 					: '') +
 				occupancyBlock +
 				`\n\nBuckets use first letter (A–Z; non-letters → \`#\`). ` +
-				`Plan: \`/server channels plan\`. Apply: \`/server channels rebalance apply:true\`.`,
+				`Plan: \`/channels plan\`. Apply: \`/channels rebalance apply:true\`.`,
 			true,
 		);
 	}
@@ -1958,7 +1958,7 @@ async function handleServerChannelsCommand(
 		if (!memberUserId) {
 			return interactionResponse(
 				'❌ Could not tell which Discord user is the channel owner.\n' +
-					'Link the channel first (`/server channels link`) or pass `member:@Them`.',
+					'Link the channel first (`/channels link`) or pass `member:@Them`.',
 				true,
 			);
 		}
@@ -2037,7 +2037,7 @@ async function handleServerChannelsCommand(
 				softLimit,
 			});
 			return interactionResponse(
-				`${result.summary}\n\nPreview only. Run \`/server channels rebalance apply:true\` to apply.`,
+				`${result.summary}\n\nPreview only. Run \`/channels rebalance apply:true\` to apply.`,
 				true,
 			);
 		}
@@ -2204,7 +2204,7 @@ async function handleServerChannelsCommand(
 						appId,
 						interaction.token,
 						`❌ Rebalance failed: ${errMsg}\n\n` +
-							`Partial moves may already be applied. Re-run \`/server channels rebalance apply:true\` to continue (idempotent for already-placed channels).`,
+							`Partial moves may already be applied. Re-run \`/channels rebalance apply:true\` to continue (idempotent for already-placed channels).`,
 						true,
 					);
 				}
@@ -2251,7 +2251,7 @@ async function handleServerChannelsCommand(
 				});
 				const viewerNote = config.personal_channel_extra_roles.length
 					? `Viewer roles (from channel extra-roles): ${config.personal_channel_extra_roles.map((id) => `<@&${id}>`).join(', ')}`
-					: 'No extra viewer roles yet — set `/server channels extra-roles` then recreate, or edit channel permissions manually.';
+					: 'No extra viewer roles yet — set `/channels extra-roles` then recreate, or edit channel permissions manually.';
 				return interactionResponse(
 					`✅ Created private verification log <#${channelId}>.\n` +
 						`• @everyone cannot view\n` +
@@ -2322,14 +2322,14 @@ async function handleServerChannelsCommand(
 				const refreshed = await getGuildConfig(env.STFC_DB, guildId);
 				await postAuditLog(env, refreshed, {
 					title: 'Audit log enabled',
-					description: `This channel will receive admin and automated bot events.\nVerification screenshots still go to \`/server channels log\`.`,
+					description: `This channel will receive admin and automated bot events.\nVerification screenshots still go to \`/channels log\`.`,
 					actorId,
 					source: 'admin',
 					color: AuditColor.success,
 				});
 				const viewerNote = config.personal_channel_extra_roles.length
 					? `Viewer roles (from channel extra-roles): ${config.personal_channel_extra_roles.map((id) => `<@&${id}>`).join(', ')}`
-					: 'No extra viewer roles yet — set `/server channels extra-roles`, then recreate or edit permissions.';
+					: 'No extra viewer roles yet — set `/channels extra-roles`, then recreate or edit permissions.';
 				return interactionResponse(
 					`✅ Created private audit log <#${channelId}>.\n` +
 						`• @everyone cannot view\n` +
@@ -2417,12 +2417,12 @@ async function handleServerChannelsCommand(
 				});
 				const viewerNote = config.personal_channel_extra_roles.length
 					? `Viewer roles (from channel extra-roles): ${config.personal_channel_extra_roles.map((id) => `<@&${id}>`).join(', ')}`
-					: 'No extra viewer roles yet — set `/server channels extra-roles`, then recreate or edit permissions.';
+					: 'No extra viewer roles yet — set `/channels extra-roles`, then recreate or edit permissions.';
 				return interactionResponse(
 					`✅ Created private urgent alerts <#${channelId}>.\n` +
 						`• @everyone cannot view\n` +
 						`• ${viewerNote}\n\n` +
-						`High-signal events (e.g. verification DM blocked) post here. Full detail stays on \`/server channels audit\`.`,
+						`High-signal events (e.g. verification DM blocked) post here. Full detail stays on \`/channels audit\`.`,
 					true,
 				);
 			} catch (error) {
@@ -2890,6 +2890,31 @@ export async function handleDiscordInteraction(
 			if (sub?.name === 'channels') {
 				return handleServerChannelsCommand(env, ctx, interaction as any, sub);
 			}
+		}
+
+		if (data.name === 'channels') {
+			return handleServerChannelsCommand(env, ctx, interaction as any, data);
+		}
+
+		if (data.name === 'diplomacy') {
+			const adminError = requireGuildAdmin(interaction as any);
+			if (adminError) return adminError;
+			const guildId = interaction.guild_id as string | undefined;
+			if (!guildId) {
+				return interactionResponse('❌ Run `/diplomacy` inside the server.', true);
+			}
+			const config = await getGuildConfig(env.STFC_DB, guildId);
+			if (!config) {
+				return interactionResponse('❌ Server not configured. Run `/server setup` first.', true);
+			}
+			return handleDiplomacyChannelsCommand(
+				env,
+				ctx,
+				interaction as any,
+				guildId,
+				config,
+				data.options,
+			);
 		}
 
 		if (data.name === 'table') {
