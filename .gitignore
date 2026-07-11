@@ -40,3 +40,6 @@ kv-bulk-upload.json
 # Temporary files
 *.tmp
 *.temp
+
+# Private review notes (not for public repo)
+docs/MERGED_VERIFIER_SUGGESTIONS.md

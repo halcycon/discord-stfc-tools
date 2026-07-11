@@ -32,7 +32,7 @@ console.log('');
 console.log('📋 DETAILED OFFICER VIEW:');
 console.log('# James T. Kirk');
 console.log('');
-console.log('https://stfc-tools.adam-57b.workers.dev/officers/1.png');
+console.log('https://stfc-tools.your-subdomain.workers.dev/officers/1.png');
 console.log('(Officer portrait appears here)');
 console.log('');
 console.log('┌─────────────────┬────────────────────────────────┐');

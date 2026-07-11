@@ -697,5 +697,5 @@ export async function getMembersNeedingInvite(db: D1Database, guildId: string): 
 		)
 		.bind(guildId)
 		.all();
-	return (results ?? []) as GuildMemberRecord[];
+	return (results ?? []) as unknown as GuildMemberRecord[];
 }

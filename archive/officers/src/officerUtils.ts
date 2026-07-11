@@ -100,7 +100,7 @@ export function handleOfficerLookup(searchTerm: string, rank: number = 1): strin
             'Class': getOfficerClassName(officer.class),
             'Rarity': `${officer.rarity}⭐`,
             'Faction': getFactionName(officer.faction).substring(0, 12),
-            'Image': `https://stfc-tools.adam-57b.workers.dev/officers/${officer.art_id}.png`
+            'Image': `https://stfc-tools.your-subdomain.workers.dev/officers/${officer.art_id}.png`
         }));
         
         const columns: TableColumn[] = [
@@ -124,7 +124,7 @@ export function formatOfficerDetails(officer: OfficerData, rank: number = 1): st
     // Start with officer header info and image
     let result = `**${officer.name}** (${getOfficerClassName(officer.class)} • ${getFactionName(officer.faction)})\n`;
     result += `🌟 Rarity: ${officer.rarity}⭐ | Max Rank: ${officer.max_rank}\n`;
-    result += `https://stfc-tools.adam-57b.workers.dev/officers/${officer.art_id}.png\n\n`;
+    result += `https://stfc-tools.your-subdomain.workers.dev/officers/${officer.art_id}.png\n\n`;
     
     // Show abilities
     if (officer.captain_ability) {

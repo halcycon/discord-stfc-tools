@@ -4,7 +4,7 @@
 async function testOfficerSearch() {
     try {
         // Test the direct API endpoint to make sure officer search works
-        const testUrl = 'https://stfc-tools.adam-57b.workers.dev';
+        const testUrl = 'https://stfc-tools.your-subdomain.workers.dev';
         
         console.log('🔍 Testing officer search functionality...');
         console.log(`📡 Worker URL: ${testUrl}`);

@@ -2,7 +2,7 @@
 const { verifyKey } = require('discord-interactions');
 
 async function testOfficerButtonInteraction() {
-    const testUrl = 'https://stfc-tools.adam-57b.workers.dev/discord';
+    const testUrl = 'https://stfc-tools.your-subdomain.workers.dev/discord';
     
     // Mock Discord button interaction for officer selection
     const buttonInteraction = {

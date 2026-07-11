@@ -8,7 +8,7 @@ Your Discord `/officer` command system is now fully operational with **real abil
 - **582 Real Ability Descriptions** from official API translations
 - **91% Coverage** (582/640 abilities have descriptions)
 - **0 "Unknown Officer"** entries - all names properly mapped
-- **Live Deployment** at https://stfc-tools.adam-57b.workers.dev
+- **Live Deployment** at https://stfc-tools.your-subdomain.workers.dev
 
 ## 🚀 Key Features Implemented
 
@@ -38,7 +38,7 @@ Your Discord `/officer` command system is now fully operational with **real abil
 When a user types `/officer kirk`, they now get:
 
 ```
-🖖 **[James T. Kirk](https://stfc-tools.adam-57b.workers.dev/officers/1.png)**
+🖖 **[James T. Kirk](https://stfc-tools.your-subdomain.workers.dev/officers/1.png)**
 📊 **Officer Stats**
 │ Class: Command │ Rarity: Common │ Faction: Federation │
 

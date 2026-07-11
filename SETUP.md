@@ -280,7 +280,7 @@ DISCORD_BOT_TOKEN=...         # required for command registration AND runtime
 D1_DATABASE_NAME=stfc-officers   # keep your existing database name
 D1_DATABASE_ID=your-existing-id  # keep your existing ID
 
-WORKER_URL=https://stfc-tools.adam-57b.workers.dev   # your deployed URL
+WORKER_URL=https://stfc-tools.your-subdomain.workers.dev   # your deployed URL
 ```
 
 ### 3. Enable Discord privileged intents

@@ -10,9 +10,9 @@ Context for AI agents and contributors working on this repository. Read this bef
 
 **Officer lookup was removed** (Jul 2026) and archived under `archive/officers/` — incomplete, ~14 MB assets, unrelated to verification.
 
-**Production URL:** `https://stfc-tools.adam-57b.workers.dev`
+**Production URL:** set via `WORKER_URL` in `.env` (e.g. `https://stfc-tools.<your-subdomain>.workers.dev`)
 
-**Sister project:** `/home/adam/workspace/discord-stfc-tracker/discord-stfc-tracker/` — alliance snapshot tracker with stfc.pro integration. Reuse code from there; do not duplicate its full multi-tenant snapshot system unless explicitly needed.
+**Sister project:** sibling repo `discord-stfc-tracker` — alliance snapshot tracker with stfc.pro integration. Reuse code from there; do not duplicate its full multi-tenant snapshot system unless explicitly needed.
 
 ---
 
@@ -195,7 +195,7 @@ Legacy officer tables may still exist in this D1 database from earlier work; the
 
 ## Sister project: discord-stfc-tracker
 
-**Path:** `/home/adam/workspace/discord-stfc-tracker/discord-stfc-tracker/`
+**Path:** sibling checkout of `discord-stfc-tracker` (not required to run this bot)
 
 **Purpose:** Multi-tenant alliance roster snapshotter. Periodically fetches stfc.pro data, stores in D1, detects player movements across alliances.
 

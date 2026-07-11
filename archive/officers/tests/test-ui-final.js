@@ -21,9 +21,9 @@ console.log('└───┴─────────────────�
 console.log('');
 
 console.log('🖼️  OFFICER IMAGES:');
-console.log('  1. https://stfc-tools.adam-57b.workers.dev/officers/1.png');
-console.log('  2. https://stfc-tools.adam-57b.workers.dev/officers/83.png');
-console.log('  3. https://stfc-tools.adam-57b.workers.dev/officers/150.png');
+console.log('  1. https://stfc-tools.your-subdomain.workers.dev/officers/1.png');
+console.log('  2. https://stfc-tools.your-subdomain.workers.dev/officers/83.png');
+console.log('  3. https://stfc-tools.your-subdomain.workers.dev/officers/150.png');
 console.log('');
 
 console.log('🔘 BUTTON BEHAVIOR:');

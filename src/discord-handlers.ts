@@ -1753,7 +1753,7 @@ export async function handleDiscordInteraction(
 
 		if (data.name === 'table') {
 			const csvInput = getOptionValue(data.options, 'csv_data') as string | undefined;
-			const csvFileOption = data.options?.find((opt) => opt.name === 'csv_file');
+			const csvFileOption = data.options?.find((opt: { name: string; value?: unknown }) => opt.name === 'csv_file');
 			let csvFile = null;
 			if (csvFileOption?.value) {
 				csvFile = interaction.data.resolved?.attachments?.[String(csvFileOption.value)];
