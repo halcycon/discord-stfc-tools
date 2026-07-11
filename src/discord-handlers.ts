@@ -1217,8 +1217,22 @@ export async function handleDiscordInteraction(
 		return Response.json({ type: 1 });
 	}
 
+	if (interaction.type === 3) {
+		const customId = interaction.data?.custom_id as string | undefined;
+		if (customId?.startsWith('survey:')) {
+			const { handleSurveyComponent } = await import('./survey-handlers');
+			return handleSurveyComponent(env, ctx, interaction);
+		}
+		return interactionResponse('❌ Unknown button.', true);
+	}
+
 	if (interaction.type === 2) {
 		const { data } = interaction;
+
+		if (data.name === 'survey') {
+			const { handleSurveyCommand } = await import('./survey-handlers');
+			return handleSurveyCommand(env, ctx, interaction, data);
+		}
 
 		if (data.name === 'lookup') {
 			const coordinateLink = data.options?.[0]?.value as string | undefined;

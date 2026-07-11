@@ -233,7 +233,81 @@ export async function sendDirectMessage(
 		method: 'POST',
 		body: JSON.stringify({ content }),
 	});
-	return msgResponse.json() as Promise<{ channel_id: string; id: string }>;
+	const msg = await msgResponse.json() as { id: string };
+	return { channel_id: channel.id, id: msg.id };
+}
+
+export type DiscordButton = {
+	type: 2;
+	style: number;
+	label: string;
+	custom_id: string;
+	disabled?: boolean;
+};
+
+export type DiscordActionRow = {
+	type: 1;
+	components: DiscordButton[];
+};
+
+export async function sendMessageWithComponents(
+	token: string,
+	channelId: string,
+	opts: {
+		content?: string;
+		embeds?: DiscordEmbed[];
+		components?: DiscordActionRow[];
+	},
+): Promise<{ id: string; channel_id: string }> {
+	const response = await discordFetch(token, `/channels/${channelId}/messages`, {
+		method: 'POST',
+		body: JSON.stringify({
+			content: opts.content,
+			embeds: opts.embeds,
+			components: opts.components,
+		}),
+	});
+	const msg = (await response.json()) as { id: string };
+	return { id: msg.id, channel_id: channelId };
+}
+
+export function interactionResponseWithComponents(
+	content: string,
+	opts?: {
+		ephemeral?: boolean;
+		embeds?: DiscordEmbed[];
+		components?: DiscordActionRow[];
+	},
+): Response {
+	return Response.json({
+		type: 4,
+		data: {
+			content,
+			embeds: opts?.embeds,
+			components: opts?.components,
+			...(opts?.ephemeral !== false ? { flags: 64 } : {}),
+		},
+	});
+}
+
+/** Type 6 — defer a component update (then edit later via webhook). */
+export function deferredComponentResponse(): Response {
+	return Response.json({ type: 6 });
+}
+
+/** Type 7 — update the message that contained the component. */
+export function updateMessageResponse(
+	content: string,
+	opts?: { embeds?: DiscordEmbed[]; components?: DiscordActionRow[] },
+): Response {
+	return Response.json({
+		type: 7,
+		data: {
+			content,
+			embeds: opts?.embeds,
+			components: opts?.components ?? [],
+		},
+	});
 }
 
 export async function addGuildMemberRole(
@@ -329,6 +403,7 @@ export async function editInteractionResponse(
 	interactionToken: string,
 	content: string,
 	ephemeral = false,
+	opts?: { components?: DiscordActionRow[]; embeds?: DiscordEmbed[] },
 ): Promise<void> {
 	const url = `${DISCORD_API}/webhooks/${applicationId}/${interactionToken}/messages/@original`;
 	await fetch(url, {
@@ -337,6 +412,8 @@ export async function editInteractionResponse(
 		body: JSON.stringify({
 			content,
 			...(ephemeral ? { flags: 64 } : {}),
+			...(opts?.components !== undefined ? { components: opts.components } : {}),
+			...(opts?.embeds !== undefined ? { embeds: opts.embeds } : {}),
 		}),
 	});
 }

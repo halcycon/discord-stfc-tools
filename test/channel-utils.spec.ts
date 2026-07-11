@@ -35,6 +35,8 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		diplomacy_write_role_ids: [],
 		diplomacy_write_ranks: ['Commodore', 'Admiral'],
 		diplomacy_name_template: null,
+		survey_creator_role_ids: [],
+		survey_results_role_ids: [],
 		poll_interval_hours: 6,
 		verification_enabled: true,
 		created_at: '',

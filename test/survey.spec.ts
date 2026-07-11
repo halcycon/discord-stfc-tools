@@ -1,0 +1,159 @@
+import { describe, expect, it } from 'vitest';
+import { canCreateSurvey, canViewSurveyResults } from '../src/survey-handlers';
+import {
+	buildSurveyVoteComponents,
+	formatSurveyResultsTable,
+	parseSurveyOptions,
+} from '../src/survey-service';
+import { describeSurveyTarget } from '../src/survey-targeting';
+import type { SurveyRecord } from '../src/survey-types';
+import type { GuildConfig } from '../src/types';
+
+function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
+	return {
+		guild_id: '1',
+		mode: 'single_alliance',
+		stfc_server: 108,
+		stfc_region: 'EU',
+		alliance_tag: 'TEST',
+		guest_role_id: null,
+		member_role_ids: [],
+		operative_role_ids: [],
+		agent_role_ids: [],
+		premier_role_ids: [],
+		commodore_role_ids: [],
+		admiral_role_ids: [],
+		overlay_buckets: {},
+		channel_category_map: {},
+		personal_channel_extra_roles: [],
+		alliance_role_prefix: null,
+		nickname_template: null,
+		verification_log_channel_id: null,
+		diplomacy_enabled: false,
+		diplomacy_category_id: null,
+		diplomacy_channel_map: {},
+		diplomacy_everyone_can_view: true,
+		diplomacy_view_role_ids: [],
+		diplomacy_write_role_ids: [],
+		diplomacy_write_ranks: [],
+		diplomacy_name_template: null,
+		survey_creator_role_ids: [],
+		survey_results_role_ids: [],
+		poll_interval_hours: 6,
+		verification_enabled: true,
+		created_at: '',
+		updated_at: '',
+		...overrides,
+	};
+}
+
+function sampleSurvey(overrides: Partial<SurveyRecord> = {}): SurveyRecord {
+	return {
+		id: 7,
+		guild_id: '1',
+		created_by: 'creator1',
+		question: 'Ready for G5?',
+		button_type: 'multi_choice',
+		options: ['Yes', 'No', 'Maybe'],
+		status: 'sent',
+		delivery: 'dm',
+		target_type: 'grade',
+		target_grades: [5],
+		target_alliance_tags: [],
+		target_role_ids: [],
+		target_ranks: [],
+		target_ops_min: null,
+		target_ops_max: null,
+		target_user_ids: [],
+		viewer_role_ids: [],
+		log_channel_id: null,
+		target_count: 3,
+		sent_at: null,
+		closed_at: null,
+		created_at: '',
+		...overrides,
+	};
+}
+
+describe('survey helpers', () => {
+	it('parseSurveyOptions splits and caps at 5', () => {
+		expect(parseSurveyOptions(' Yes | No | Maybe ')).toEqual(['Yes', 'No', 'Maybe']);
+		expect(parseSurveyOptions('A|B|C|D|E|F')).toEqual(['A', 'B', 'C', 'D', 'E']);
+	});
+
+	it('buildSurveyVoteComponents uses one row of buttons (not table cells)', () => {
+		const rows = buildSurveyVoteComponents(9, ['Yes', 'No']);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].components).toHaveLength(2);
+		expect(rows[0].components[0].custom_id).toBe('survey:vote:9:0');
+		expect(rows[0].components[0].label).toBe('Yes');
+	});
+
+	it('formatSurveyResultsTable uses ASCII tables for summary and who-voted', () => {
+		const text = formatSurveyResultsTable(sampleSurvey(), [
+			{ discord_user_id: 'u1', response: 'Yes', player_name: 'Alice' },
+			{ discord_user_id: 'u2', response: 'No', player_name: 'Bob' },
+			{ discord_user_id: 'u3', response: 'Yes', player_name: null },
+		]);
+		expect(text).toContain('Summary');
+		expect(text).toContain('Who voted');
+		expect(text).toContain('Alice');
+		expect(text).toContain('```');
+		expect(text).not.toContain('components');
+	});
+
+	it('describeSurveyTarget summarises filters', () => {
+		expect(describeSurveyTarget(sampleSurvey())).toContain('grades G5');
+		expect(
+			describeSurveyTarget(
+				sampleSurvey({
+					target_type: 'level',
+					target_grades: [],
+					target_ops_min: 40,
+					target_ops_max: 50,
+				}),
+			),
+		).toContain('ops 40–50');
+	});
+
+	it('canCreateSurvey allows admins or configured roles', () => {
+		const adminPerms = String(0x8); // ADMINISTRATOR
+		expect(canCreateSurvey(baseConfig(), { member: { permissions: adminPerms } })).toBe(true);
+		expect(canCreateSurvey(baseConfig(), { member: { roles: ['r1'], permissions: '0' } })).toBe(
+			false,
+		);
+		expect(
+			canCreateSurvey(baseConfig({ survey_creator_role_ids: ['r1'] }), {
+				member: { roles: ['r1'], permissions: '0' },
+			}),
+		).toBe(true);
+	});
+
+	it('canViewSurveyResults allows creator, admins, and results roles', () => {
+		const survey = { created_by: 'creator1', viewer_role_ids: ['view1'] };
+		expect(
+			canViewSurveyResults(survey, baseConfig(), {
+				user: { id: 'creator1' },
+				member: { roles: [], permissions: '0' },
+			}),
+		).toBe(true);
+		expect(
+			canViewSurveyResults(survey, baseConfig({ survey_results_role_ids: ['res1'] }), {
+				user: { id: 'other' },
+				member: { roles: ['res1'], permissions: '0' },
+			}),
+		).toBe(true);
+		expect(
+			canViewSurveyResults(survey, baseConfig(), {
+				user: { id: 'other' },
+				member: { roles: ['view1'], permissions: '0' },
+			}),
+		).toBe(true);
+		expect(
+			canViewSurveyResults(survey, baseConfig(), {
+				user: { id: 'other' },
+				member: { roles: [], permissions: '0' },
+			}),
+		).toBe(false);
+	});
+});

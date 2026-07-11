@@ -82,6 +82,7 @@ Worker (src/index.ts) — wakes DO on fetch + cron
 - `/player` — live stfc.pro lookup
 - Gateway DM flow: screenshot → link → roles/nickname/channels
 - Cron: member poll, guest alliance re-check, daily ops/power sync
+- `/survey` — button polls (role/rank/level/grade/user targeting); private log channel; ASCII result tables
 
 ### `/lookup`
 Parses STFC share strings like `[[RONE] Player S:73559 X:628.7432 Y:43.3874]`. Supports multiple coordinates per message. Returns Unicode box-drawing table with Alliance, System, Warp, Faction, Player. Uses in-memory `SYSTEM_DATA_MAP` — **not KV**.
@@ -109,6 +110,7 @@ src/
   discord-gateway/         # Gateway DO + DM verification
   verification.ts          # Verify flow + roles
   guild-db.ts              # STFC_DB access
+  survey-*.ts              # Surveys / button polls
   stfc-utils.ts            # stfc.pro client
   systemUtils.ts           # Coordinate lookup
   systemData.ts            # Bundled systems (generated — do not hand-edit)
@@ -117,6 +119,7 @@ src/
 
 migrations/
   001_guild_schema.sql     # Guild/player tables
+  007_surveys.sql          # Survey lifecycle + targeting + alliance_rank
 
 archive/officers/          # REMOVED officer feature (scripts, SQL, assets, docs)
 
@@ -588,5 +591,6 @@ Mock Discord REST and stfc.pro in Worker tests; use D1 local binding for integra
 3. ~~Gateway DM verification~~ — done
 4. Multi-alliance role tagging
 5. Personal channel category configuration command
-6. Daily sync + grade-based surveys
-7. Optional: drop legacy officer tables from D1
+6. ~~Button surveys / polls (`/survey`)~~ — done
+7. Daily sync polish + grade-based survey targeting refinements
+8. Optional: drop legacy officer tables from D1

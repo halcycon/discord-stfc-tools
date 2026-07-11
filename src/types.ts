@@ -72,6 +72,10 @@ export interface GuildConfig {
 	diplomacy_write_ranks: string[];
 	/** Channel name pattern; `{tag}` → alliance tag. Default diplomacy-{tag}. */
 	diplomacy_name_template: string | null;
+	/** Roles allowed to create/send surveys (empty = Administrator only). */
+	survey_creator_role_ids: string[];
+	/** Roles allowed to view survey results in addition to the creator. */
+	survey_results_role_ids: string[];
 	poll_interval_hours: number;
 	verification_enabled: boolean;
 	created_at: string;
@@ -85,6 +89,7 @@ export interface VerifiedPlayer {
 	player_id: number | null;
 	player_name: string | null;
 	alliance_tag: string | null;
+	alliance_rank: string | null;
 	ops_level: number | null;
 	power: number | null;
 	grade: number | null;

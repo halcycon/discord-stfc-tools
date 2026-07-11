@@ -83,6 +83,8 @@ function mapGuildConfig(row: any): GuildConfig {
 			return ranks.length > 0 ? ranks : ['Commodore', 'Admiral'];
 		})(),
 		diplomacy_name_template: row.diplomacy_name_template ?? null,
+		survey_creator_role_ids: parseJsonArray(row.survey_creator_role_ids),
+		survey_results_role_ids: parseJsonArray(row.survey_results_role_ids),
 		poll_interval_hours: row.poll_interval_hours ?? 6,
 		verification_enabled: Boolean(row.verification_enabled ?? 1),
 		created_at: row.created_at,
@@ -99,6 +101,7 @@ function mapVerifiedPlayer(row: any): VerifiedPlayer {
 		player_id: row.player_id ?? null,
 		player_name: row.player_name ?? null,
 		alliance_tag: row.alliance_tag ?? null,
+		alliance_rank: row.alliance_rank ?? null,
 		ops_level: row.ops_level ?? null,
 		power: row.power ?? null,
 		grade: row.grade ?? null,
@@ -239,41 +242,65 @@ async function upsertDiplomacyConfigFields(
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_write_role_ids') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_write_ranks') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_name_template');
-	if (!has) return;
+	if (has) {
+		const categoryProvided = Object.prototype.hasOwnProperty.call(config, 'diplomacy_category_id');
+		const nameProvided = Object.prototype.hasOwnProperty.call(config, 'diplomacy_name_template');
 
-	const categoryProvided = Object.prototype.hasOwnProperty.call(config, 'diplomacy_category_id');
-	const nameProvided = Object.prototype.hasOwnProperty.call(config, 'diplomacy_name_template');
+		await db
+			.prepare(
+				`UPDATE guild_configs SET
+				 diplomacy_enabled = COALESCE(?, diplomacy_enabled),
+				 diplomacy_category_id = CASE WHEN ? = 1 THEN ? ELSE diplomacy_category_id END,
+				 diplomacy_channel_map = COALESCE(?, diplomacy_channel_map),
+				 diplomacy_everyone_can_view = COALESCE(?, diplomacy_everyone_can_view),
+				 diplomacy_view_role_ids = COALESCE(?, diplomacy_view_role_ids),
+				 diplomacy_write_role_ids = COALESCE(?, diplomacy_write_role_ids),
+				 diplomacy_write_ranks = COALESCE(?, diplomacy_write_ranks),
+				 diplomacy_name_template = CASE WHEN ? = 1 THEN ? ELSE diplomacy_name_template END,
+				 updated_at = datetime('now')
+				 WHERE guild_id = ?`,
+			)
+			.bind(
+				config.diplomacy_enabled !== undefined ? (config.diplomacy_enabled ? 1 : 0) : null,
+				categoryProvided ? 1 : 0,
+				categoryProvided ? (config.diplomacy_category_id?.trim() || null) : null,
+				config.diplomacy_channel_map ? JSON.stringify(config.diplomacy_channel_map) : null,
+				config.diplomacy_everyone_can_view !== undefined
+					? (config.diplomacy_everyone_can_view ? 1 : 0)
+					: null,
+				config.diplomacy_view_role_ids ? JSON.stringify(config.diplomacy_view_role_ids) : null,
+				config.diplomacy_write_role_ids ? JSON.stringify(config.diplomacy_write_role_ids) : null,
+				config.diplomacy_write_ranks ? JSON.stringify(config.diplomacy_write_ranks) : null,
+				nameProvided ? 1 : 0,
+				nameProvided ? (config.diplomacy_name_template?.trim() || null) : null,
+				config.guild_id,
+			)
+			.run();
+	}
 
-	await db
-		.prepare(
-			`UPDATE guild_configs SET
-			 diplomacy_enabled = COALESCE(?, diplomacy_enabled),
-			 diplomacy_category_id = CASE WHEN ? = 1 THEN ? ELSE diplomacy_category_id END,
-			 diplomacy_channel_map = COALESCE(?, diplomacy_channel_map),
-			 diplomacy_everyone_can_view = COALESCE(?, diplomacy_everyone_can_view),
-			 diplomacy_view_role_ids = COALESCE(?, diplomacy_view_role_ids),
-			 diplomacy_write_role_ids = COALESCE(?, diplomacy_write_role_ids),
-			 diplomacy_write_ranks = COALESCE(?, diplomacy_write_ranks),
-			 diplomacy_name_template = CASE WHEN ? = 1 THEN ? ELSE diplomacy_name_template END,
-			 updated_at = datetime('now')
-			 WHERE guild_id = ?`,
-		)
-		.bind(
-			config.diplomacy_enabled !== undefined ? (config.diplomacy_enabled ? 1 : 0) : null,
-			categoryProvided ? 1 : 0,
-			categoryProvided ? (config.diplomacy_category_id?.trim() || null) : null,
-			config.diplomacy_channel_map ? JSON.stringify(config.diplomacy_channel_map) : null,
-			config.diplomacy_everyone_can_view !== undefined
-				? (config.diplomacy_everyone_can_view ? 1 : 0)
-				: null,
-			config.diplomacy_view_role_ids ? JSON.stringify(config.diplomacy_view_role_ids) : null,
-			config.diplomacy_write_role_ids ? JSON.stringify(config.diplomacy_write_role_ids) : null,
-			config.diplomacy_write_ranks ? JSON.stringify(config.diplomacy_write_ranks) : null,
-			nameProvided ? 1 : 0,
-			nameProvided ? (config.diplomacy_name_template?.trim() || null) : null,
-			config.guild_id,
-		)
-		.run();
+	const surveyRolesTouched =
+		Object.prototype.hasOwnProperty.call(config, 'survey_creator_role_ids') ||
+		Object.prototype.hasOwnProperty.call(config, 'survey_results_role_ids');
+	if (surveyRolesTouched) {
+		const creatorsProvided = Object.prototype.hasOwnProperty.call(config, 'survey_creator_role_ids');
+		const resultsProvided = Object.prototype.hasOwnProperty.call(config, 'survey_results_role_ids');
+		await db
+			.prepare(
+				`UPDATE guild_configs SET
+				 survey_creator_role_ids = CASE WHEN ? = 1 THEN ? ELSE survey_creator_role_ids END,
+				 survey_results_role_ids = CASE WHEN ? = 1 THEN ? ELSE survey_results_role_ids END,
+				 updated_at = datetime('now')
+				 WHERE guild_id = ?`,
+			)
+			.bind(
+				creatorsProvided ? 1 : 0,
+				creatorsProvided ? JSON.stringify(config.survey_creator_role_ids ?? []) : null,
+				resultsProvided ? 1 : 0,
+				resultsProvided ? JSON.stringify(config.survey_results_role_ids ?? []) : null,
+				config.guild_id,
+			)
+			.run();
+	}
 }
 
 export async function getKnownMemberIds(db: D1Database, guildId: string): Promise<Set<string>> {
@@ -333,6 +360,7 @@ export async function upsertVerifiedPlayer(
 		player_id?: number | null;
 		player_name?: string | null;
 		alliance_tag?: string | null;
+		alliance_rank?: string | null;
 		ops_level?: number | null;
 		power?: number | null;
 		grade?: number | null;
@@ -350,9 +378,9 @@ export async function upsertVerifiedPlayer(
 		await db
 			.prepare(
 				`INSERT INTO verified_players
-				(guild_id, discord_user_id, player_id, player_name, alliance_tag,
+				(guild_id, discord_user_id, player_id, player_name, alliance_tag, alliance_rank,
 				 ops_level, power, grade, stfc_pro_url, verification_status, personal_channel_id, verified_at, last_synced_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.bind(
 				data.guild_id,
@@ -360,6 +388,7 @@ export async function upsertVerifiedPlayer(
 				data.player_id ?? null,
 				data.player_name ?? null,
 				data.alliance_tag ?? null,
+				data.alliance_rank ?? null,
 				data.ops_level ?? null,
 				data.power ?? null,
 				data.grade ?? null,
@@ -380,6 +409,7 @@ export async function upsertVerifiedPlayer(
 			 player_id = COALESCE(?, player_id),
 			 player_name = COALESCE(?, player_name),
 			 alliance_tag = COALESCE(?, alliance_tag),
+			 alliance_rank = COALESCE(?, alliance_rank),
 			 ops_level = COALESCE(?, ops_level),
 			 power = COALESCE(?, power),
 			 grade = COALESCE(?, grade),
@@ -395,6 +425,7 @@ export async function upsertVerifiedPlayer(
 			data.player_id ?? null,
 			data.player_name ?? null,
 			data.alliance_tag ?? null,
+			data.alliance_rank ?? null,
 			data.ops_level ?? null,
 			data.power ?? null,
 			data.grade ?? null,

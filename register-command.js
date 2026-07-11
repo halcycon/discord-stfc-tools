@@ -485,6 +485,151 @@ const commands = [
 			},
 		],
 	},
+	{
+		name: 'survey',
+		description: 'Create and manage button surveys / polls for verified players',
+		options: [
+			{
+				type: 1,
+				name: 'create',
+				description: 'Draft a survey (test, then approve & send)',
+				options: [
+					{
+						type: 3,
+						name: 'question',
+						description: 'Survey question shown to players',
+						required: true,
+					},
+					{
+						type: 3,
+						name: 'options',
+						description: 'Answers separated by | (2–5), e.g. Yes|No|Maybe',
+						required: true,
+					},
+					{
+						type: 3,
+						name: 'target',
+						description: 'Who receives it (default all verified)',
+						required: false,
+						choices: [
+							{ name: 'All verified', value: 'all' },
+							{ name: 'Discord role', value: 'role' },
+							{ name: 'In-game rank', value: 'rank' },
+							{ name: 'Ops level range', value: 'level' },
+							{ name: 'Ops grade (G3–G7)', value: 'grade' },
+							{ name: 'Specific users', value: 'users' },
+						],
+					},
+					{
+						type: 3,
+						name: 'delivery',
+						description: 'Where to send (default dm)',
+						required: false,
+						choices: [
+							{ name: 'Direct message', value: 'dm' },
+							{ name: 'Personal channel (DM fallback)', value: 'personal_channel' },
+						],
+					},
+					{
+						type: 3,
+						name: 'grades',
+						description: 'For target:grade — e.g. 5,6',
+						required: false,
+					},
+					{
+						type: 3,
+						name: 'ranks',
+						description: 'For target:rank — e.g. Commodore,Admiral',
+						required: false,
+					},
+					{
+						type: 3,
+						name: 'roles',
+						description: 'For target:role — role IDs or <@&id>, comma-separated',
+						required: false,
+					},
+					{
+						type: 3,
+						name: 'users',
+						description: 'For target:users — Discord IDs or <@id>, comma-separated',
+						required: false,
+					},
+					{
+						type: 4,
+						name: 'ops_min',
+						description: 'For target:level — minimum ops',
+						required: false,
+						min_value: 1,
+						max_value: 80,
+					},
+					{
+						type: 4,
+						name: 'ops_max',
+						description: 'For target:level — maximum ops',
+						required: false,
+						min_value: 1,
+						max_value: 80,
+					},
+					{
+						type: 3,
+						name: 'alliance_tags',
+						description: 'Optional filter — tags comma-separated',
+						required: false,
+					},
+				],
+			},
+			{
+				type: 1,
+				name: 'list',
+				description: 'List recent surveys for this server',
+			},
+			{
+				type: 1,
+				name: 'results',
+				description: 'Show vote summary tables for a survey',
+				options: [
+					{
+						type: 4,
+						name: 'id',
+						description: 'Survey ID from /survey list',
+						required: true,
+					},
+				],
+			},
+			{
+				type: 1,
+				name: 'close',
+				description: 'Close a survey (no more votes)',
+				options: [
+					{
+						type: 4,
+						name: 'id',
+						description: 'Survey ID to close',
+						required: true,
+					},
+				],
+			},
+			{
+				type: 1,
+				name: 'creators',
+				description: 'Admin: who can create surveys / view results',
+				options: [
+					{
+						type: 3,
+						name: 'roles',
+						description: 'Creator role IDs or mentions, comma-separated (empty = admins)',
+						required: false,
+					},
+					{
+						type: 3,
+						name: 'results_roles',
+						description: 'Extra roles that can view results',
+						required: false,
+					},
+				],
+			},
+		],
+	},
 ];
 
 async function registerCommands() {

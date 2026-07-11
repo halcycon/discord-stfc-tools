@@ -311,7 +311,58 @@ Wrong alliance → guest role. Cron re-checks periodically; when the tag matches
 
 ---
 
-## 7. Other `/server` commands
+## 7. Surveys & polls (`/survey`)
+
+Button surveys for verified players (DM or personal channel). Votes land in a private `#survey-{id}` log channel. Results use ASCII tables (buttons stay on the message — never inside tables).
+
+### Who can create
+
+| Setting | Default |
+|---------|---------|
+| Creators | **Administrators** only |
+| Results viewers | Survey creator + Administrators |
+
+```
+/survey creators roles:Officer,Leadership
+/survey creators results_roles:Officer
+```
+
+Use role IDs or `<@&id>` mentions, comma-separated. Empty `roles` clears back to admins-only.
+
+### Create → test → send
+
+```
+/survey create question:"Ready for the event?" options:Yes|No|Maybe target:grade grades:5,6
+```
+
+| Option | Purpose |
+|--------|---------|
+| `question` | Shown to players |
+| `options` | `A\|B\|C` — **2–5** answers (Discord button limit) |
+| `target` | `all` · `role` · `rank` · `level` · `grade` · `users` |
+| `delivery` | `dm` (default) or `personal_channel` (falls back to DM) |
+| `grades` / `ranks` / `roles` / `users` / `ops_min` / `ops_max` | Filters for the chosen `target` |
+| `alliance_tags` | Optional extra filter (comma-separated tags) |
+
+After create you get an ephemeral draft with buttons:
+
+1. **Test to me** — DM yourself (draft clicks are **not** counted)
+2. **Approve & send** — creates `#survey-{id}`, DMs/posts buttons to matched players, logs each vote
+3. **Cancel** — deletes the draft
+
+### Results & close
+
+```
+/survey list
+/survey results id:12
+/survey close id:12
+```
+
+`/survey results` shows a **Summary** vote table and a **Who voted** table.
+
+---
+
+## 8. Other `/server` commands
 
 | Command | Purpose |
 |---------|---------|
@@ -325,17 +376,18 @@ Wrong alliance → guest role. Cron re-checks periodically; when the tag matches
 
 ---
 
-## 8. Utility commands (everyone)
+## 9. Utility commands (everyone)
 
 | Command | Purpose |
 |---------|---------|
 | `/player` | Live stfc.pro lookup (needs `/server setup`) |
 | `/lookup` | Coordinate share-string lookup |
 | `/table` / `/tablehelp` | CSV → ASCII table |
+| `/survey …` | Surveys / polls (creator roles; see §7) |
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 | Symptom | Likely fix |
 |---------|------------|
@@ -348,6 +400,9 @@ Wrong alliance → guest role. Cron re-checks periodically; when the tag matches
 | Diplomacy channel not created | Multi-alliance + `/server channels diplomacy enable:true`; rank write roles must exist from setup |
 | Link finds no player | Member must verify first, or use `user:@Member` |
 | stfc.pro lookup fails | Bot falls back to HTML scrape for numeric player IDs; confirm URL/server/region |
+| Survey create denied | Admin or `/survey creators` role; run `/server setup` first |
+| Survey DM missing | Member allows DMs from server members; bot can message them |
+| Zero matched players | Check `target` filters vs verified roster (`/survey list` shows target count) |
 
 ---
 
@@ -360,5 +415,6 @@ Wrong alliance → guest role. Cron re-checks periodically; when the tag matches
 5. [ ] `/server channels log create:true`  
 6. [ ] Optional: `nickname_template`, rank roles, `/server bucket`  
 7. [ ] Multi-alliance: `/server channels diplomacy enable:true write_roles:Diplomat write_ranks:Commodore,Admiral`  
-8. [ ] `/server test-invite` → verify yourself → check roles, log, personal/diplomacy channels  
-9. [ ] `/server status` looks correct  
+8. [ ] Optional: `/survey creators` for officers who may poll the alliance  
+9. [ ] `/server test-invite` → verify yourself → check roles, log, personal/diplomacy channels  
+10. [ ] `/server status` looks correct  
