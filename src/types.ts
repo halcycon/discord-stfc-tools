@@ -1,3 +1,5 @@
+import type { PersonalChannelPermTemplate } from './personal-channel-perm-template';
+
 export type GuildMode = 'single_alliance' | 'multi_alliance';
 export type StfcRegion = 'US' | 'EU';
 /** When agreement must be accepted relative to stfc.pro verification. */
@@ -5,6 +7,7 @@ export type AgreementTiming = 'before_verify' | 'after_verify';
 /** How the member accepts. `channel_react` reserved for a follow-up. */
 export type AgreementMode = 'dm_button' | 'channel_react';
 
+export type { PersonalChannelPermTemplate };
 export type VerificationStatus =
 	| 'pending_invite'
 	| 'pending_screenshot'
@@ -65,6 +68,11 @@ export interface GuildConfig {
 	urgent_notify_channel_id: string | null;
 	channel_category_map: Record<string, string>;
 	personal_channel_extra_roles: string[];
+	/**
+	 * Locked-in overwrite pattern for new/linked personal channels.
+	 * Null = built-in default (bot + deny @everyone + member + extra-roles).
+	 */
+	personal_channel_perm_template: PersonalChannelPermTemplate | null;
 	/** Category for member channels no longer linked to a verified player. */
 	personal_channel_archive_category_id: string | null;
 	/** Multi-alliance: create/link one diplomacy channel per alliance tag. */

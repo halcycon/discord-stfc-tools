@@ -81,6 +81,10 @@ Worker (src/index.ts) — wakes DO on fetch + cron
 - `/server verify` — admin manual verify (user + stfc.pro link; same roles/nick/channel/log as self-verify)
 - `/server setup|status` — per-guild configuration (admin)
 - `/server channels log` — verification archive channel (create/link/clear)
+- `/server channels audit` / `urgent` — staff audit trail + high-signal alerts (e.g. DM blocked)
+- `/server channels permissions-audit` — read-only dump of existing member-channel overwrites (no sync/rewrite)
+- `/server channels permissions-template from|show|clear` — lock overwrite pattern from a sample channel for new/linked creates
+- `/server channels link` — adopt existing member channels; `apply_permissions` uses locked template (or built-in default)
 - `/player` — live stfc.pro lookup
 - Gateway DM flow: language picker → screenshot → link → roles/nickname/channels
 - Cron: member poll, guest alliance re-check, daily ops/power sync
@@ -88,9 +92,11 @@ Worker (src/index.ts) — wakes DO on fetch + cron
 - `/exchange` — cross-alliance resource donors/recipients (hub or category layout, Help/Ignore claim DMs)
 - `/language` — player preferred language for bot DMs (en/de/fr/es/pt/nl/pl/it/ru/tr/hu)
 - `/roster` — grades / ops / unverified member lists (admin or assistant roles)
-- `/server exclude` — skip Discord users from invites and unverified stats (other bots, etc.)
+- `/server exclude` — skip Discord users from invites and unverified stats (other bots, etc.; Discord bots auto-skipped)
 - **DM assistant** — HAL refusal for unknown asks; Badgey voice + admin menu wizards; roster Q&A gated by `/server assistant`
 - **Discord agreement** — optional CoC gate (`/server agreement`); DM Agree button; timing before/after verify; channel react planned
+
+**Personal channel permissions (agents):** Prefer **not** Discord “sync category → children” when existing channels have per-member allows — that wipes them. Audit first (`permissions-audit`), lock a good sample (`permissions-template from`), then create/link. Template lives on `guild_configs.personal_channel_perm_template` (JSON); null = built-in bot + deny @everyone + member + `personal_channel_extra_roles`. Bot overwrite is always applied first so the bot can post surveys. Docs: `docs/ADMIN_GUIDE.md` § personal channels.
 
 ### `/lookup`
 Parses STFC share strings like `[[RONE] Player S:73559 X:628.7432 Y:43.3874]`. Supports multiple coordinates per message. Returns Unicode box-drawing table with Alliance, System, Warp, Faction, Player. Uses in-memory `SYSTEM_DATA_MAP` — **not KV**.
@@ -119,10 +125,16 @@ src/
   discord-handlers.ts      # Slash command routing
   discord-gateway/         # Gateway DO + DM verification
   verification.ts          # Verify flow + roles
+  verification-access.ts   # Roles, nick, personal/diplomacy channel apply
+  personal-channels.ts     # Create/link/rebalance member channels
+  personal-channel-perm-template.ts  # Locked overwrite template (from sample channel)
+  channel-permission-audit.ts        # Read-only overwrite audit report
   guild-db.ts              # STFC_DB access
   survey-*.ts              # Surveys / button polls
   stfc-utils.ts            # stfc.pro client
   dm-assistant/            # DM HAL/Badgey router, admin wizards, roster Q&A
+  roster-handlers.ts       # /roster slash commands
+  urgent-notify.ts         # Optional high-signal staff alerts
   systemUtils.ts           # Coordinate lookup
   systemData.ts            # Bundled systems (generated — do not hand-edit)
   tableUtils.ts            # CSV tables
@@ -131,6 +143,9 @@ src/
 migrations/
   001_guild_schema.sql     # Guild/player tables
   007_surveys.sql          # Survey lifecycle + targeting + alliance_rank
+  017_urgent_notify_channel.sql
+  018_guild_excluded_users.sql
+  019_personal_channel_perm_template.sql
 
 archive/officers/          # REMOVED officer feature (scripts, SQL, assets, docs)
 
@@ -176,7 +191,8 @@ Binding in code: **`STFC_DB`**. Cloudflare D1 database name remains `stfc-office
 
 | Table | Purpose |
 |-------|---------|
-| `guild_configs` | Per-Discord-server mode, STFC server/region, roles, categories |
+| `guild_configs` | Per-Discord-server mode, STFC server/region, roles, categories, log/audit/urgent channels, `personal_channel_perm_template` |
+| `guild_excluded_users` | Discord users skipped for invites + unverified roster stats |
 | `guild_members` | Known members + verification invite tracking |
 | `verified_players` | Discord ↔ STFC player link, ops/power/grade, status |
 | `verification_screenshots` | Archived profile screenshots (R2 key + Discord URL) |
@@ -602,6 +618,7 @@ Mock Discord REST and stfc.pro in Worker tests; use D1 local binding for integra
 3. ~~Gateway DM verification~~ — done
 4. Multi-alliance role tagging
 5. ~~Personal channel category configuration command~~ — done (`/server channels map|plan|rebalance`)
+5b. ~~Personal channel permissions audit + lockable template~~ — done (`permissions-audit`, `permissions-template`)
 6. ~~Button surveys / polls (`/survey`)~~ — done
 7. Daily sync polish + grade-based survey targeting refinements
 8. Optional: drop legacy officer tables from D1

@@ -6,6 +6,9 @@ import {
 	listGuildRoles,
 	listGuildChannels,
 	createGuildRole,
+	sendChannelMessageWithEmbed,
+	getBotUserId,
+	fetchGuildChannel,
 } from './discord-api';
 import {
 	getGuildConfig,
@@ -41,6 +44,15 @@ import {
 	planPersonalChannels,
 	rebalancePersonalChannels,
 } from './personal-channels';
+import {
+	auditPersonalChannelPermissions,
+	formatPermissionAuditReportText,
+	formatPermissionAuditSummaryMessage,
+} from './channel-permission-audit';
+import {
+	capturePersonalChannelPermTemplate,
+	formatPersonalChannelPermTemplate,
+} from './personal-channel-perm-template';
 import { DEFAULT_SOFT_LIMIT } from './personal-channel-plan';
 import { defaultNicknameTemplate } from './nickname-utils';
 import { createVerificationLogChannel } from './verification-log';
@@ -1315,12 +1327,36 @@ async function handleServerChannelsCommand(
 			resolved?: {
 				channels?: Record<
 					string,
-					{ id: string; name?: string; type?: number; parent_id?: string | null; guild_id?: string | null }
+					{
+						id: string;
+						name?: string;
+						type?: number;
+						parent_id?: string | null;
+						guild_id?: string | null;
+						permission_overwrites?: Array<{
+							id: string;
+							type?: number;
+							allow?: string | number;
+							deny?: string | number;
+						}>;
+					}
 				>;
 			};
 		};
 	},
-	channelsGroup: { options?: Array<{ name: string; value?: unknown; type?: number; options?: Array<{ name: string; value?: unknown; type?: number }> }> },
+	channelsGroup: {
+		options?: Array<{
+			name: string;
+			value?: unknown;
+			type?: number;
+			options?: Array<{
+				name: string;
+				value?: unknown;
+				type?: number;
+				options?: Array<{ name: string; value?: unknown; type?: number }>;
+			}>;
+		}>;
+	},
 ): Promise<Response> {
 	const adminError = requireGuildAdmin(interaction);
 	if (adminError) return adminError;
@@ -1367,6 +1403,7 @@ async function handleServerChannelsCommand(
 				`• Enabled: ${personalChannelsEnabled(config) ? 'yes' : 'no (set category map or run rebalance)'}\n` +
 				`• Category map: ${formatCategoryMap(config.channel_category_map)}\n` +
 				`• Extra roles: ${config.personal_channel_extra_roles.join(', ') || 'none'}\n` +
+				`• Perm template: ${config.personal_channel_perm_template ? `locked (from <#${config.personal_channel_perm_template.source_channel_id ?? '—'}> )` : 'built-in default'}\n` +
 				`• Verification log: ${config.verification_log_channel_id ? `<#${config.verification_log_channel_id}>` : 'not set'}\n` +
 				`• Audit log: ${config.audit_log_channel_id ? `<#${config.audit_log_channel_id}>` : 'not set'}\n` +
 				`• Urgent alerts: ${config.urgent_notify_channel_id ? `<#${config.urgent_notify_channel_id}>` : 'not set'}\n` +
@@ -1380,6 +1417,212 @@ async function handleServerChannelsCommand(
 				`Plan: \`/server channels plan\`. Apply: \`/server channels rebalance apply:true\`.`,
 			true,
 		);
+	}
+
+	if (sub.name === 'permissions-audit') {
+		if (!env.DISCORD_BOT_TOKEN) {
+			return interactionResponse('❌ DISCORD_BOT_TOKEN not configured.', true);
+		}
+
+		const appId = interaction.application_id ?? env.DISCORD_APPLICATION_ID;
+		if (!appId) {
+			return interactionResponse('❌ DISCORD_APPLICATION_ID not configured.', true);
+		}
+
+		const deferred = deferredResponse();
+		ctx.waitUntil(
+			(async () => {
+				try {
+					const players = await listPlayersForPersonalChannels(env.STFC_DB, guildId);
+					const report = await auditPersonalChannelPermissions(
+						env.DISCORD_BOT_TOKEN!,
+						guildId,
+						config,
+						players,
+					);
+					const summary = formatPermissionAuditSummaryMessage(report);
+					const fullText = formatPermissionAuditReportText(report);
+
+					if (config.audit_log_channel_id && env.DISCORD_BOT_TOKEN) {
+						try {
+							const bytes = new TextEncoder().encode(fullText);
+							await sendChannelMessageWithEmbed(env.DISCORD_BOT_TOKEN, config.audit_log_channel_id, {
+								content: `🔎 Personal channel permission audit — ${report.channelCount} channels, ${report.flaggedCount} flagged`,
+								embeds: [
+									{
+										title: 'Personal channel permissions audit',
+										description: report.summaryLines.join('\n').slice(0, 4000),
+										color: report.flaggedCount ? AuditColor.warn : AuditColor.success,
+										timestamp: report.auditedAt,
+									},
+								],
+								file: {
+									bytes,
+									filename: `channel-perms-${guildId}-${Date.now()}.txt`,
+									contentType: 'text/plain; charset=utf-8',
+								},
+							});
+						} catch (err) {
+							console.error('Permission audit log post failed:', err);
+						}
+					}
+
+					await postAuditLog(env, config, {
+						title: 'Personal channel permissions audited',
+						description:
+							`${report.channelCount} channels scanned · ${report.flaggedCount} flagged · ` +
+							`${report.inaccessibleCount} inaccessible (read-only; no sync/rewrite)`,
+						actorId: interaction.member?.user?.id,
+						source: 'admin',
+						color: report.flaggedCount ? AuditColor.warn : AuditColor.success,
+					});
+
+					await editInteractionResponse(appId, interaction.token, summary, true);
+				} catch (error) {
+					await editInteractionResponse(
+						appId,
+						interaction.token,
+						`❌ Permission audit failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+						true,
+					);
+				}
+			})(),
+		);
+		return deferred;
+	}
+
+	if (sub.name === 'permissions-template') {
+		const action = sub.options?.[0];
+		if (!action) {
+			return interactionResponse(
+				'Use `/server channels permissions-template from|show|clear`.',
+				true,
+			);
+		}
+
+		if (action.name === 'show') {
+			return interactionResponse(
+				formatPersonalChannelPermTemplate(config.personal_channel_perm_template),
+				true,
+			);
+		}
+
+		if (action.name === 'clear') {
+			await upsertGuildConfig(env.STFC_DB, {
+				guild_id: guildId,
+				personal_channel_perm_template: null,
+			});
+			await postAuditLog(env, config, {
+				title: 'Personal channel permission template cleared',
+				description: 'New/linked channels will use built-in defaults again.',
+				actorId: interaction.member?.user?.id,
+				source: 'admin',
+				color: AuditColor.warn,
+			});
+			return interactionResponse(
+				'✅ Cleared locked permission template. New channels use the built-in default again.\n' +
+					formatPersonalChannelPermTemplate(null),
+				true,
+			);
+		}
+
+		if (action.name === 'from') {
+			if (!env.DISCORD_BOT_TOKEN) {
+				return interactionResponse('❌ DISCORD_BOT_TOKEN not configured.', true);
+			}
+			const channelId = getOptionValue(action.options, 'channel') as string | undefined;
+			if (!channelId || !/^\d{15,20}$/.test(channelId)) {
+				return interactionResponse('❌ Provide a valid text `channel:`.', true);
+			}
+
+			const syncExtraRaw = getOptionValue(action.options, 'sync_extra_roles');
+			const syncExtraRoles =
+				syncExtraRaw === undefined || syncExtraRaw === null
+					? true
+					: syncExtraRaw === true || syncExtraRaw === 'true';
+
+			const memberOpt = getOptionValue(action.options, 'member');
+			let memberUserId = memberOpt != null ? String(memberOpt) : undefined;
+
+			if (!memberUserId) {
+				const linked = await env.STFC_DB.prepare(
+					`SELECT discord_user_id FROM verified_players
+					 WHERE guild_id = ? AND personal_channel_id = ?
+					 LIMIT 1`,
+				)
+					.bind(guildId, channelId)
+					.first<{ discord_user_id: string }>();
+				memberUserId = linked?.discord_user_id;
+			}
+
+			if (!memberUserId) {
+				return interactionResponse(
+					'❌ Could not tell which Discord user is the channel owner.\n' +
+						'Link the channel first (`/server channels link`) or pass `member:@Them`.',
+					true,
+				);
+			}
+
+			const known = interaction.data?.resolved?.channels?.[channelId];
+			let overwrites = known?.permission_overwrites;
+			if (!overwrites) {
+				const fetched = await fetchGuildChannel(env.DISCORD_BOT_TOKEN, channelId);
+				if (!fetched.ok) {
+					return interactionResponse(`❌ ${fetched.error}`, true);
+				}
+				overwrites = fetched.channel.permission_overwrites ?? [];
+			}
+
+			const botUserId = await getBotUserId(env.DISCORD_BOT_TOKEN);
+			const template = capturePersonalChannelPermTemplate({
+				guildId,
+				botUserId,
+				memberUserId,
+				channelId,
+				overwrites: overwrites.map((o) => ({
+					id: o.id,
+					type: (o.type === 1 ? 1 : 0) as 0 | 1,
+					allow: String(o.allow ?? '0'),
+					deny: String(o.deny ?? '0'),
+				})),
+				capturedBy: interaction.member?.user?.id ?? null,
+			});
+
+			const patch: Parameters<typeof upsertGuildConfig>[1] = {
+				guild_id: guildId,
+				personal_channel_perm_template: template,
+			};
+			if (syncExtraRoles) {
+				patch.personal_channel_extra_roles = template.roles.map((r) => r.role_id);
+			}
+			await upsertGuildConfig(env.STFC_DB, patch);
+
+			await postAuditLog(env, { ...config, personal_channel_perm_template: template }, {
+				title: 'Personal channel permission template locked',
+				description:
+					`Captured from <#${channelId}> (member slot <@${memberUserId}>). ` +
+					`New/linked channels will use this pattern.` +
+					(syncExtraRoles
+						? ` Extra-roles synced (${template.roles.length}).`
+						: ''),
+				actorId: interaction.member?.user?.id,
+				source: 'admin',
+				color: AuditColor.success,
+			});
+
+			return interactionResponse(
+				`✅ Locked permission template from <#${channelId}>.\n` +
+					`Member slot: <@${memberUserId}>\n` +
+					(syncExtraRoles
+						? `Extra-roles updated from role overwrites (${template.roles.length}).\n\n`
+						: '\n') +
+					formatPersonalChannelPermTemplate(template) +
+					`\n\n_Existing channels are unchanged. New creates / \`link\` with apply_permissions will use this template._`,
+				true,
+			);
+		}
+
+		return interactionResponse('❌ Unknown permissions-template action.', true);
 	}
 
 	if (sub.name === 'plan' || sub.name === 'rebalance') {

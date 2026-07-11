@@ -365,6 +365,41 @@ The bot overwrite is applied **before** denying `@everyone`, so the bot never lo
 
 If linking an **existing** private channel fails on permissions, give the bot **View Channel** (and **Manage Channels**) on that channel or its category, then retry — or use `apply_permissions:false` and add the bot overwrite manually.
 
+**Do not “Sync now” from the category** onto existing member channels if those channels already have per-member allows — Discord sync will wipe individual overwrites. Prefer:
+
+1. Add the bot on the **category** and choose **not** to sync to children, **or**
+2. Add the bot overwrite on each channel you care about, **or**
+3. Use `/server channels link … apply_permissions:true` once the bot can see the channel (rewrites that channel only).
+
+### Audit existing permissions (read-only)
+
+Before changing anything, dump what Discord currently has on linked channels + channels under your member categories:
+
+```
+/server channels permissions-audit
+```
+
+- Does **not** sync or rewrite permissions
+- Ephemeral summary with flags (`bot_missing_view`, `linked_member_no_overwrite`, …)
+- Full text dump attached to `/server channels audit` when that channel is set (keep this as your record)
+
+### Lock a permission template from a sample channel
+
+Once you find a member channel whose overwrites look right (bot can post, member + staff roles correct):
+
+```
+/server channels permissions-template from channel:#good-example
+```
+
+Optional: `member:@Owner` if the channel isn’t linked yet; `sync_extra_roles:false` to leave `/server channels extra-roles` unchanged (default **true** copies role overwrites into extra-roles).
+
+```
+/server channels permissions-template show
+/server channels permissions-template clear
+```
+
+Locked templates are used for **new** personal channels and for `/server channels link` / verify when `apply_permissions` is on. Existing channels are not rewritten until you link/re-apply.
+
 Do this **before** `/server channels rebalance … create_missing:true` or bulk `/server channels link`, so new and rewritten channels get the right access. Changing extra-roles later does **not** rewrite existing channels until the next create/update/link that applies permissions.
 
 ### Auto-create (single-alliance)

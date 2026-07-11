@@ -65,12 +65,20 @@ export interface DiscordGuildInfo {
 	owner_id: string;
 }
 
+export type ChannelPermissionOverwrite = {
+	id: string;
+	type: 0 | 1;
+	allow: string;
+	deny: string;
+};
+
 export interface DiscordChannel {
 	id: string;
 	name: string;
 	type: number;
 	parent_id?: string | null;
 	guild_id?: string | null;
+	permission_overwrites?: ChannelPermissionOverwrite[];
 }
 
 /** Guild text (0) and announcement (5) — usable as personal/diplomacy channels. */
@@ -431,13 +439,6 @@ export async function setGuildMemberNickname(
 		body: JSON.stringify({ nick }),
 	});
 }
-
-export type ChannelPermissionOverwrite = {
-	id: string;
-	type: 0 | 1;
-	allow: string;
-	deny: string;
-};
 
 export async function createGuildTextChannel(
 	token: string,

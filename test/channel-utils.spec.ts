@@ -24,6 +24,7 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		overlay_buckets: {},
 		channel_category_map: { 'A-F': 'cat-af', 'G-M': 'cat-gm' },
 		personal_channel_extra_roles: [],
+		personal_channel_perm_template: null,
 		personal_channel_archive_category_id: null,
 		alliance_role_prefix: null,
 		nickname_template: null,

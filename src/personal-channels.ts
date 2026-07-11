@@ -5,7 +5,6 @@ import {
 	createGuildTextChannel,
 	fetchGuildChannel,
 	getGuildChannel,
-	getBotUserId,
 	isLinkableGuildTextChannel,
 	describeChannelType,
 	setChannelPermission,
@@ -14,6 +13,7 @@ import {
 	type DiscordChannel,
 } from './discord-api';
 import { categoryForPlayerName, personalChannelsEnabled, slugPersonalChannelName } from './channel-utils';
+import { buildOverwritesFromTemplate } from './personal-channel-perm-template';
 import {
 	DEFAULT_CATEGORY_NAME_TEMPLATE,
 	DEFAULT_SOFT_LIMIT,
@@ -27,11 +27,6 @@ import {
 } from './personal-channel-plan';
 import type { GuildConfig, VerifiedPlayer } from './types';
 
-const VIEW_CHANNEL = '1024';
-/** Member: view + send + read history */
-const MEMBER_PERMS = String(0x400 | 0x800 | 0x10000);
-/** Bot: view + send + embed + attach + read history (surveys / posts in member channels) */
-const BOT_PERMS = String(0x400 | 0x800 | 0x4000 | 0x8000 | 0x10000);
 const DEFAULT_ARCHIVE_NAME = 'Member Channels Archive';
 
 export type PersonalChannelResult =
@@ -58,6 +53,7 @@ function formatPermError(targetLabel: string, err: unknown): string {
 
 /**
  * Permission overwrites for a private member channel.
+ * Uses locked-in template when set; otherwise built-in default.
  * Bot is listed first so it keeps access after @everyone is denied.
  */
 export async function buildPersonalChannelOverwrites(
@@ -66,17 +62,7 @@ export async function buildPersonalChannelOverwrites(
 	userId: string,
 	config: GuildConfig,
 ): Promise<ChannelPermissionOverwrite[]> {
-	const botUserId = await getBotUserId(token);
-	const overwrites: ChannelPermissionOverwrite[] = [
-		{ id: botUserId, type: 1, allow: BOT_PERMS, deny: '0' },
-		{ id: guildId, type: 0, allow: '0', deny: VIEW_CHANNEL },
-		{ id: userId, type: 1, allow: MEMBER_PERMS, deny: '0' },
-	];
-	for (const roleId of config.personal_channel_extra_roles) {
-		if (!/^\d{15,20}$/.test(roleId)) continue;
-		overwrites.push({ id: roleId, type: 0, allow: MEMBER_PERMS, deny: '0' });
-	}
-	return overwrites;
+	return buildOverwritesFromTemplate(token, guildId, userId, config);
 }
 
 /**

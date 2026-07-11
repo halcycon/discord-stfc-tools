@@ -30,6 +30,7 @@ function cfg(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		urgent_notify_channel_id: null,
 		channel_category_map: {},
 		personal_channel_extra_roles: [],
+		personal_channel_perm_template: null,
 		personal_channel_archive_category_id: null,
 		diplomacy_enabled: false,
 		diplomacy_category_id: null,

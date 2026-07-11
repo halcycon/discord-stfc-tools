@@ -5,10 +5,12 @@ import type {
 	GuildExcludedUser,
 	GuildMemberRecord,
 	OverlayBucket,
+	PersonalChannelPermTemplate,
 	StfcRegion,
 	VerificationStatus,
 	VerifiedPlayer,
 } from './types';
+import { parsePersonalChannelPermTemplate } from './personal-channel-perm-template';
 
 function parseJsonArray(value: string | null | undefined): string[] {
 	if (!value) return [];
@@ -75,6 +77,9 @@ function mapGuildConfig(row: any): GuildConfig {
 		urgent_notify_channel_id: row.urgent_notify_channel_id ?? null,
 		channel_category_map: parseJsonObject(row.channel_category_map),
 		personal_channel_extra_roles: parseJsonArray(row.personal_channel_extra_roles),
+		personal_channel_perm_template: parsePersonalChannelPermTemplate(
+			row.personal_channel_perm_template,
+		),
 		personal_channel_archive_category_id: row.personal_channel_archive_category_id ?? null,
 		diplomacy_enabled: Boolean(row.diplomacy_enabled ?? 0),
 		diplomacy_category_id: row.diplomacy_category_id ?? null,
@@ -206,6 +211,7 @@ export async function upsertGuildConfig(
 		await upsertPersonalChannelArchiveField(db, config);
 		await upsertAuditLogChannelField(db, config);
 		await upsertUrgentNotifyChannelField(db, config);
+		await upsertPersonalChannelPermTemplateField(db, config);
 		await upsertDmAssistantConfigFields(db, config);
 		await upsertAgreementConfigFields(db, config);
 		return;
@@ -263,6 +269,24 @@ export async function upsertGuildConfig(
 	await upsertPersonalChannelArchiveField(db, config);
 	await upsertAuditLogChannelField(db, config);
 	await upsertUrgentNotifyChannelField(db, config);
+	await upsertPersonalChannelPermTemplateField(db, config);
+}
+
+async function upsertPersonalChannelPermTemplateField(
+	db: D1Database,
+	config: Partial<GuildConfig> & { guild_id: string },
+): Promise<void> {
+	if (!Object.prototype.hasOwnProperty.call(config, 'personal_channel_perm_template')) return;
+	const value = config.personal_channel_perm_template;
+	await db
+		.prepare(
+			`UPDATE guild_configs SET
+			 personal_channel_perm_template = ?,
+			 updated_at = datetime('now')
+			 WHERE guild_id = ?`,
+		)
+		.bind(value ? JSON.stringify(value) : null, config.guild_id)
+		.run();
 }
 
 async function upsertAuditLogChannelField(

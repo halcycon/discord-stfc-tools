@@ -586,6 +586,55 @@ const commands = [
 					},
 					{
 						type: 1,
+						name: 'permissions-audit',
+						description:
+							'Read-only dump of member-channel permission overwrites (does not sync/rewrite)',
+					},
+					{
+						type: 2,
+						name: 'permissions-template',
+						description: 'Lock in permission overwrites from an existing member channel',
+						options: [
+							{
+								type: 1,
+								name: 'from',
+								description: 'Capture overwrites from a sample channel and lock as template',
+								options: [
+									{
+										type: 7,
+										name: 'channel',
+										description: 'Existing member channel to copy permissions from',
+										required: true,
+										channel_types: [0, 5],
+									},
+									{
+										type: 6,
+										name: 'member',
+										description: 'Channel owner (required if channel is not linked yet)',
+										required: false,
+									},
+									{
+										type: 5,
+										name: 'sync_extra_roles',
+										description: 'Also set /server channels extra-roles from role overwrites (default true)',
+										required: false,
+									},
+								],
+							},
+							{
+								type: 1,
+								name: 'show',
+								description: 'Show the locked-in (or default) permission template',
+							},
+							{
+								type: 1,
+								name: 'clear',
+								description: 'Clear locked template and return to built-in defaults',
+							},
+						],
+					},
+					{
+						type: 1,
 						name: 'plan',
 						description: 'Dry-run: suggest letter-range category splits from member names',
 						options: [
