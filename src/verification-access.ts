@@ -160,16 +160,30 @@ export async function demotePlayerToGuest(
 		}
 	}
 
-	const roleChanges = await applyGuestRole(token, config, guildId, discordUserId);
-	notes.push(formatRoleChangeNote(roleChanges));
+	let roleChanges: RoleChangeResult | undefined;
+	let channelArchived = false;
+	try {
+		roleChanges = await applyGuestRole(token, config, guildId, discordUserId);
+		notes.push(formatRoleChangeNote(roleChanges));
 
-	const channelArchived = await archivePersonalChannelOnDemotion(
-		token,
-		config,
-		existing?.personal_channel_id,
-	);
-	if (channelArchived && existing?.personal_channel_id) {
-		notes.push(`channel archived <#${existing.personal_channel_id}>`);
+		channelArchived = await archivePersonalChannelOnDemotion(
+			token,
+			config,
+			existing?.personal_channel_id,
+		);
+		if (channelArchived && existing?.personal_channel_id) {
+			notes.push(`channel archived <#${existing.personal_channel_id}>`);
+		}
+	} catch (error) {
+		console.error('Demote Discord access update failed:', error);
+		return {
+			ok: false,
+			error: formatDiscordApiFailure(error),
+			roleChanges,
+			channelArchived,
+			hadVerifiedRow,
+			notes,
+		};
 	}
 
 	if (
@@ -418,17 +432,30 @@ export async function applyGuestRole(
 		if (current.has(config.guest_role_id)) {
 			unchanged.push(config.guest_role_id);
 		} else {
-			await addGuildMemberRole(token, guildId, userId, config.guest_role_id);
-			added.push(config.guest_role_id);
-			current.add(config.guest_role_id);
+			try {
+				await addGuildMemberRole(token, guildId, userId, config.guest_role_id);
+				added.push(config.guest_role_id);
+				current.add(config.guest_role_id);
+			} catch (err) {
+				const hint =
+					err instanceof DiscordApiError && (err.status === 403 || err.status === 500)
+						? ' Check that the bot’s highest role is **above** the guest role in Server Settings → Roles.'
+						: '';
+				throw new Error(`Failed to assign guest role <@&${config.guest_role_id}>.${hint} ${formatDiscordApiFailure(err)}`);
+			}
 		}
 	}
 
 	const memberRoleIds = getAllMemberRoleIds(config).filter((id) => /^\d{15,20}$/.test(id));
 	for (const roleId of memberRoleIds) {
 		if (!current.has(roleId)) continue;
-		await removeGuildMemberRole(token, guildId, userId, roleId);
-		removed.push(roleId);
+		try {
+			await removeGuildMemberRole(token, guildId, userId, roleId);
+			removed.push(roleId);
+		} catch (err) {
+			// Hierarchy / missing perms — keep going so one sticky role doesn't abort demotion.
+			console.warn(`Failed to remove role ${roleId} from ${userId}:`, err);
+		}
 	}
 
 	return { added, removed, unchanged };

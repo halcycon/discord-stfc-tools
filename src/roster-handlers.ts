@@ -271,52 +271,74 @@ export async function handleRosterCommand(
 					let ok = 0;
 					let failed = 0;
 					const errors: string[] = [];
-					for (let i = 0; i < unverified.length; i++) {
-						const m = unverified[i];
-						if (i === 0 || (i + 1) % 10 === 0 || i + 1 === unverified.length) {
-							await editInteractionResponse(
-								appId,
-								interaction.token!,
-								`⏳ Demoting unverified ${i + 1}/${unverified.length} (ok ${ok}, failed ${failed})…`,
-								true,
-							);
+					try {
+						for (let i = 0; i < unverified.length; i++) {
+							const m = unverified[i];
+							if (i === 0 || (i + 1) % 10 === 0 || i + 1 === unverified.length) {
+								await editInteractionResponse(
+									appId,
+									interaction.token!,
+									`⏳ Demoting unverified ${i + 1}/${unverified.length} (ok ${ok}, failed ${failed})…`,
+									true,
+								);
+							}
+							try {
+								const result = await demotePlayerToGuest(env, config, guildId, m.user.id, {
+									reason: 'unverified_bulk',
+									actorId,
+									source: 'admin',
+									requireGuestRole: true,
+									skipAudit: true,
+								});
+								if (result.ok) ok++;
+								else {
+									failed++;
+									if (errors.length < 8) {
+										errors.push(`<@${m.user.id}>: ${result.error ?? 'unknown'}`);
+									}
+								}
+							} catch (err) {
+								failed++;
+								console.error(`Bulk demote failed for ${m.user.id}:`, err);
+								if (errors.length < 8) {
+									const msg = err instanceof Error ? err.message : 'unknown error';
+									errors.push(`<@${m.user.id}>: ${msg.slice(0, 180)}`);
+								}
+							}
+							await sleep(350);
 						}
-						const result = await demotePlayerToGuest(env, config, guildId, m.user.id, {
-							reason: 'unverified_bulk',
+
+						const { postAuditLog, AuditColor } = await import('./audit-log');
+						await postAuditLog(env, config, {
+							title: 'Bulk demote unverified',
+							description:
+								`Demoted **${ok}** unverified member(s)` + (failed ? ` · **${failed}** failed` : ''),
 							actorId,
 							source: 'admin',
-							requireGuestRole: true,
-							skipAudit: true,
+							color: failed ? AuditColor.warn : AuditColor.success,
 						});
-						if (result.ok) ok++;
-						else {
-							failed++;
-							if (errors.length < 8) {
-								errors.push(`<@${m.user.id}>: ${result.error ?? 'unknown'}`);
-							}
-						}
-						await sleep(200);
+
+						await editInteractionResponse(
+							appId,
+							interaction.token!,
+							`✅ **Bulk demote unverified complete**\n` +
+								`• Demoted: ${ok}\n` +
+								`• Failed: ${failed}\n` +
+								`• Guest role: <@&${config.guest_role_id}>` +
+								(errors.length ? `\n\n⚠ Errors:\n${errors.join('\n')}` : ''),
+							true,
+						);
+					} catch (err) {
+						console.error('Bulk demote unverified aborted:', err);
+						const msg = err instanceof Error ? err.message : 'unknown error';
+						await editInteractionResponse(
+							appId,
+							interaction.token!,
+							`❌ **Bulk demote aborted** after ok ${ok}, failed ${failed}.\n${msg.slice(0, 400)}` +
+								(errors.length ? `\n\n⚠ Earlier errors:\n${errors.join('\n')}` : ''),
+							true,
+						);
 					}
-
-					const { postAuditLog, AuditColor } = await import('./audit-log');
-					await postAuditLog(env, config, {
-						title: 'Bulk demote unverified',
-						description: `Demoted **${ok}** unverified member(s)` + (failed ? ` · **${failed}** failed` : ''),
-						actorId,
-						source: 'admin',
-						color: failed ? AuditColor.warn : AuditColor.success,
-					});
-
-					await editInteractionResponse(
-						appId,
-						interaction.token!,
-						`✅ **Bulk demote unverified complete**\n` +
-							`• Demoted: ${ok}\n` +
-							`• Failed: ${failed}\n` +
-							`• Guest role: <@&${config.guest_role_id}>` +
-							(errors.length ? `\n\n⚠ Errors:\n${errors.join('\n')}` : ''),
-						true,
-					);
 				})(),
 			);
 			return deferred;
