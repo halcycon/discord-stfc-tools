@@ -86,6 +86,7 @@ function mapGuildConfig(row: any): GuildConfig {
 		survey_creator_role_ids: parseJsonArray(row.survey_creator_role_ids),
 		survey_results_role_ids: parseJsonArray(row.survey_results_role_ids),
 		survey_log_name_template: row.survey_log_name_template ?? null,
+		survey_log_category_id: row.survey_log_category_id ?? null,
 		poll_interval_hours: row.poll_interval_hours ?? 6,
 		verification_enabled: Boolean(row.verification_enabled ?? 1),
 		created_at: row.created_at,
@@ -282,17 +283,20 @@ async function upsertDiplomacyConfigFields(
 	const surveyRolesTouched =
 		Object.prototype.hasOwnProperty.call(config, 'survey_creator_role_ids') ||
 		Object.prototype.hasOwnProperty.call(config, 'survey_results_role_ids') ||
-		Object.prototype.hasOwnProperty.call(config, 'survey_log_name_template');
+		Object.prototype.hasOwnProperty.call(config, 'survey_log_name_template') ||
+		Object.prototype.hasOwnProperty.call(config, 'survey_log_category_id');
 	if (surveyRolesTouched) {
 		const creatorsProvided = Object.prototype.hasOwnProperty.call(config, 'survey_creator_role_ids');
 		const resultsProvided = Object.prototype.hasOwnProperty.call(config, 'survey_results_role_ids');
 		const logNameProvided = Object.prototype.hasOwnProperty.call(config, 'survey_log_name_template');
+		const logCategoryProvided = Object.prototype.hasOwnProperty.call(config, 'survey_log_category_id');
 		await db
 			.prepare(
 				`UPDATE guild_configs SET
 				 survey_creator_role_ids = CASE WHEN ? = 1 THEN ? ELSE survey_creator_role_ids END,
 				 survey_results_role_ids = CASE WHEN ? = 1 THEN ? ELSE survey_results_role_ids END,
 				 survey_log_name_template = CASE WHEN ? = 1 THEN ? ELSE survey_log_name_template END,
+				 survey_log_category_id = CASE WHEN ? = 1 THEN ? ELSE survey_log_category_id END,
 				 updated_at = datetime('now')
 				 WHERE guild_id = ?`,
 			)
@@ -303,6 +307,8 @@ async function upsertDiplomacyConfigFields(
 				resultsProvided ? JSON.stringify(config.survey_results_role_ids ?? []) : null,
 				logNameProvided ? 1 : 0,
 				logNameProvided ? (config.survey_log_name_template?.trim() || null) : null,
+				logCategoryProvided ? 1 : 0,
+				logCategoryProvided ? (config.survey_log_category_id?.trim() || null) : null,
 				config.guild_id,
 			)
 			.run();

@@ -41,6 +41,7 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		survey_creator_role_ids: [],
 		survey_results_role_ids: [],
 		survey_log_name_template: null,
+		survey_log_category_id: null,
 		poll_interval_hours: 6,
 		verification_enabled: true,
 		created_at: '',

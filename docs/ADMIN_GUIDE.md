@@ -328,11 +328,16 @@ Button surveys for verified players (DM or personal channel). Votes land in a **
 /survey creators roles:Officer,Leadership
 /survey creators results_roles:Officer
 /survey creators log_name:poll-{id}
+/survey creators create_category:true category_name:Surveys
+/survey creators category:#ExistingCategory
+/survey creators clear_category:true
 ```
 
 Use role IDs or `<@&id>` mentions, comma-separated. Empty `roles` clears back to admins-only.
 
 **Log channels are private:** `@everyone` cannot see them. Access is granted to the bot, the member who created the survey, configured **creator** roles, and **results_roles**. Discord Administrators can still see them via admin override.
+
+**Category:** New survey logs are created under the configured category (if set). `create_category:true` makes a private category (default name `Surveys`) and saves it. Or pick an existing one with `category:`. Does not move already-created channels.
 
 `log_name` uses `{id}` (or `{n}`) for the survey number — e.g. `event-feedback-{id}` → `#event-feedback-12`. Applies to **new** surveys only (rename `#survey-1` manually in Discord if you want).
 

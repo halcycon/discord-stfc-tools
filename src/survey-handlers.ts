@@ -12,6 +12,7 @@ import {
 	buildSurveyAdminComponents,
 	buildSurveyResultsMessage,
 	createSurveyDraft,
+	createSurveyLogCategory,
 	handleSurveyVote,
 	sendSurveyBroadcast,
 	sendSurveyTest,
@@ -22,6 +23,16 @@ import type { GuildConfig } from './types';
 
 function getOptionValue(options: Array<{ name: string; value?: unknown }> | undefined, name: string): unknown {
 	return options?.find((opt) => opt.name === name)?.value;
+}
+
+function formatSurveySettings(config: GuildConfig): string {
+	return (
+		`📋 **Survey settings**\n` +
+		`• Creators: ${config.survey_creator_role_ids.map((id) => `<@&${id}>`).join(', ') || 'Administrators only'}\n` +
+		`• Log / results viewers: ${config.survey_results_role_ids.map((id) => `<@&${id}>`).join(', ') || 'creator + admins (+ creator roles)'}\n` +
+		`• Log channel name: \`${config.survey_log_name_template || 'survey-{id}'}\`\n` +
+		`• Log category: ${config.survey_log_category_id ? `<#${config.survey_log_category_id}>` : 'none (server root)'}`
+	);
 }
 
 function memberRoleIds(interaction: {
@@ -92,7 +103,14 @@ export async function handleSurveyCommand(
 		const rolesRaw = getOptionValue(sub.options, 'roles') as string | undefined;
 		const resultsRaw = getOptionValue(sub.options, 'results_roles') as string | undefined;
 		const logNameRaw = getOptionValue(sub.options, 'log_name') as string | undefined;
+		const categoryOpt = getOptionValue(sub.options, 'category');
+		const createCategory = getOptionValue(sub.options, 'create_category') as boolean | undefined;
+		const categoryNameRaw = getOptionValue(sub.options, 'category_name') as string | undefined;
+		const clearCategory = getOptionValue(sub.options, 'clear_category') as boolean | undefined;
+
 		const patch: Partial<GuildConfig> & { guild_id: string } = { guild_id: guildId };
+		const notes: string[] = [];
+
 		if (rolesRaw !== undefined) {
 			patch.survey_creator_role_ids = rolesRaw
 				.split(',')
@@ -108,28 +126,70 @@ export async function handleSurveyCommand(
 		if (logNameRaw !== undefined) {
 			patch.survey_log_name_template = logNameRaw.trim() || null;
 		}
-		if (
-			rolesRaw === undefined &&
-			resultsRaw === undefined &&
-			logNameRaw === undefined
-		) {
+		if (clearCategory) {
+			patch.survey_log_category_id = null;
+			notes.push('Cleared survey log category (new logs go to the channel list root).');
+		} else if (createCategory) {
+			if (!env.DISCORD_BOT_TOKEN) {
+				return interactionResponse('❌ DISCORD_BOT_TOKEN not configured.', true);
+			}
+			// Apply role patches first so new category overwrites use updated viewer roles.
+			if (
+				rolesRaw !== undefined ||
+				resultsRaw !== undefined ||
+				logNameRaw !== undefined
+			) {
+				await upsertGuildConfig(env.STFC_DB, patch);
+			}
+			const cfgForCreate =
+				(await getGuildConfig(env.STFC_DB, guildId)) ?? config;
+			try {
+				const cat = await createSurveyLogCategory(
+					env.DISCORD_BOT_TOKEN,
+					guildId,
+					cfgForCreate,
+					categoryNameRaw || 'Surveys',
+				);
+				patch.survey_log_category_id = cat.id;
+				notes.push(`Created category **${cat.name}** (<#${cat.id}>).`);
+			} catch (err) {
+				return interactionResponse(
+					`❌ Could not create category: ${err instanceof Error ? err.message : 'error'}`,
+					true,
+				);
+			}
+		} else if (categoryOpt !== undefined && categoryOpt !== null) {
+			const cat = String(categoryOpt);
+			if (!/^\d{15,20}$/.test(cat)) {
+				return interactionResponse('❌ Invalid category.', true);
+			}
+			patch.survey_log_category_id = cat;
+			notes.push(`Linked category <#${cat}>.`);
+		}
+
+		const anyChange =
+			rolesRaw !== undefined ||
+			resultsRaw !== undefined ||
+			logNameRaw !== undefined ||
+			clearCategory === true ||
+			createCategory === true ||
+			(categoryOpt !== undefined && categoryOpt !== null);
+
+		if (!anyChange) {
 			return interactionResponse(
-				`📋 **Survey settings**\n` +
-					`• Creators: ${config.survey_creator_role_ids.map((id) => `<@&${id}>`).join(', ') || 'Administrators only'}\n` +
-					`• Log / results viewers: ${config.survey_results_role_ids.map((id) => `<@&${id}>`).join(', ') || 'creator + admins (+ creator roles)'}\n` +
-					`• Log channel name: \`${config.survey_log_name_template || 'survey-{id}'}\`\n\n` +
-					`Log channels are **private** (@everyone cannot see). Visible to: bot, the creator, creator roles, and results viewer roles.`,
+				formatSurveySettings(config) +
+					`\n\nLog channels are **private**. Use \`category:\` to link an existing category, or \`create_category:true\` to make one.`,
 				true,
 			);
 		}
+
 		await upsertGuildConfig(env.STFC_DB, patch);
 		const refreshed = await getGuildConfig(env.STFC_DB, guildId);
 		return interactionResponse(
 			`✅ Survey settings updated.\n` +
-				`• Creators: ${refreshed!.survey_creator_role_ids.map((id) => `<@&${id}>`).join(', ') || 'Administrators only'}\n` +
-				`• Log / results viewers: ${refreshed!.survey_results_role_ids.map((id) => `<@&${id}>`).join(', ') || 'creator + admins (+ creator roles)'}\n` +
-				`• Log channel name: \`${refreshed!.survey_log_name_template || 'survey-{id}'}\`\n` +
-				`(Applies to **new** surveys; rename existing channels in Discord if needed.)`,
+				formatSurveySettings(refreshed!) +
+				(notes.length ? `\n${notes.map((n) => `• ${n}`).join('\n')}` : '') +
+				`\n(Category/name apply to **new** survey logs.)`,
 			true,
 		);
 	}

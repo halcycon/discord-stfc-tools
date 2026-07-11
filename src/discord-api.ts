@@ -383,6 +383,27 @@ export async function createGuildTextChannel(
 	return response.json() as Promise<{ id: string }>;
 }
 
+/** Create a guild category (channel type 4). */
+export async function createGuildCategory(
+	token: string,
+	guildId: string,
+	name: string,
+	opts?: { permissionOverwrites?: ChannelPermissionOverwrite[] },
+): Promise<{ id: string; name: string }> {
+	const body: Record<string, unknown> = {
+		name: name.slice(0, 100),
+		type: 4,
+	};
+	if (opts?.permissionOverwrites?.length) {
+		body.permission_overwrites = opts.permissionOverwrites;
+	}
+	const response = await discordFetch(token, `/guilds/${guildId}/channels`, {
+		method: 'POST',
+		body: JSON.stringify(body),
+	});
+	return response.json() as Promise<{ id: string; name: string }>;
+}
+
 export async function setChannelPermission(
 	token: string,
 	channelId: string,

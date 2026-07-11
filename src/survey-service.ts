@@ -1,8 +1,10 @@
 import {
+	createGuildCategory,
 	createGuildTextChannel,
 	getBotUserId,
 	sendChannelMessage,
 	sendMessageWithComponents,
+	type ChannelPermissionOverwrite,
 	type DiscordActionRow,
 	type DiscordEmbed,
 } from './discord-api';
@@ -235,6 +237,45 @@ export async function sendSurveyTest(
 	);
 }
 
+async function surveyLogPermissionOverwrites(
+	token: string,
+	guildId: string,
+	config: GuildConfig,
+	creatorUserId?: string,
+): Promise<ChannelPermissionOverwrite[]> {
+	const botUserId = await getBotUserId(token);
+	const overwrites: ChannelPermissionOverwrite[] = [
+		{ id: guildId, type: 0, allow: '0', deny: DENY_VIEW },
+		{ id: botUserId, type: 1, allow: STAFF_ALLOW, deny: '0' },
+	];
+	if (creatorUserId && /^\d{15,20}$/.test(creatorUserId)) {
+		overwrites.push({ id: creatorUserId, type: 1, allow: STAFF_ALLOW, deny: '0' });
+	}
+	const viewRoleIds = new Set([
+		...config.survey_results_role_ids,
+		...config.survey_creator_role_ids,
+	]);
+	for (const roleId of viewRoleIds) {
+		if (/^\d{15,20}$/.test(roleId)) {
+			overwrites.push({ id: roleId, type: 0, allow: STAFF_ALLOW, deny: '0' });
+		}
+	}
+	return overwrites;
+}
+
+/** Create a private category for survey logs and return its id. */
+export async function createSurveyLogCategory(
+	token: string,
+	guildId: string,
+	config: GuildConfig,
+	name = 'Surveys',
+): Promise<{ id: string; name: string }> {
+	const overwrites = await surveyLogPermissionOverwrites(token, guildId, config);
+	return createGuildCategory(token, guildId, name.trim() || 'Surveys', {
+		permissionOverwrites: overwrites,
+	});
+}
+
 async function ensureSurveyLogChannel(
 	db: D1Database,
 	token: string,
@@ -244,25 +285,21 @@ async function ensureSurveyLogChannel(
 ): Promise<string> {
 	if (survey.log_channel_id) return survey.log_channel_id;
 
-	const botUserId = await getBotUserId(token);
-	const overwrites = [
-		{ id: guildId, type: 0 as const, allow: '0', deny: DENY_VIEW },
-		{ id: botUserId, type: 1 as const, allow: STAFF_ALLOW, deny: '0' },
-		{ id: survey.created_by, type: 1 as const, allow: STAFF_ALLOW, deny: '0' },
-	];
-	const viewRoleIds = new Set([
-		...config.survey_results_role_ids,
-		...config.survey_creator_role_ids,
-		...survey.viewer_role_ids,
-	]);
-	for (const roleId of viewRoleIds) {
-		if (/^\d{15,20}$/.test(roleId)) {
+	const overwrites = await surveyLogPermissionOverwrites(
+		token,
+		guildId,
+		config,
+		survey.created_by,
+	);
+	for (const roleId of survey.viewer_role_ids) {
+		if (/^\d{15,20}$/.test(roleId) && !overwrites.some((o) => o.id === roleId)) {
 			overwrites.push({ id: roleId, type: 0, allow: STAFF_ALLOW, deny: '0' });
 		}
 	}
 
 	const channelName = resolveSurveyLogChannelName(config.survey_log_name_template, survey.id);
 	const channel = await createGuildTextChannel(token, guildId, channelName, {
+		parentId: config.survey_log_category_id ?? undefined,
 		topic: `Survey #${survey.id}: ${survey.question.slice(0, 100)}`,
 		permissionOverwrites: overwrites,
 	});

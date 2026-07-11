@@ -78,6 +78,8 @@ export interface GuildConfig {
 	survey_results_role_ids: string[];
 	/** Discord channel name pattern for survey logs; `{id}` → survey id. Default survey-{id}. */
 	survey_log_name_template: string | null;
+	/** Category for newly created survey log channels. */
+	survey_log_category_id: string | null;
 	poll_interval_hours: number;
 	verification_enabled: boolean;
 	created_at: string;
