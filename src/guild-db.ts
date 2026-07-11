@@ -83,6 +83,8 @@ function mapGuildConfig(row: any): GuildConfig {
 		personal_channel_archive_category_id: row.personal_channel_archive_category_id ?? null,
 		diplomacy_enabled: Boolean(row.diplomacy_enabled ?? 0),
 		diplomacy_category_id: row.diplomacy_category_id ?? null,
+		diplomacy_category_map: parseJsonObject(row.diplomacy_category_map),
+		diplomacy_archive_category_id: row.diplomacy_archive_category_id ?? null,
 		diplomacy_channel_map: parseJsonObject(row.diplomacy_channel_map),
 		diplomacy_everyone_can_view: row.diplomacy_everyone_can_view === undefined || row.diplomacy_everyone_can_view === null
 			? true
@@ -344,6 +346,8 @@ async function upsertDiplomacyConfigFields(
 	const has =
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_enabled') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_category_id') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_category_map') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_archive_category_id') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_channel_map') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_everyone_can_view') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_view_role_ids') ||
@@ -352,6 +356,10 @@ async function upsertDiplomacyConfigFields(
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_name_template');
 	if (has) {
 		const categoryProvided = Object.prototype.hasOwnProperty.call(config, 'diplomacy_category_id');
+		const archiveProvided = Object.prototype.hasOwnProperty.call(
+			config,
+			'diplomacy_archive_category_id',
+		);
 		const nameProvided = Object.prototype.hasOwnProperty.call(config, 'diplomacy_name_template');
 
 		await db
@@ -359,6 +367,8 @@ async function upsertDiplomacyConfigFields(
 				`UPDATE guild_configs SET
 				 diplomacy_enabled = COALESCE(?, diplomacy_enabled),
 				 diplomacy_category_id = CASE WHEN ? = 1 THEN ? ELSE diplomacy_category_id END,
+				 diplomacy_category_map = COALESCE(?, diplomacy_category_map),
+				 diplomacy_archive_category_id = CASE WHEN ? = 1 THEN ? ELSE diplomacy_archive_category_id END,
 				 diplomacy_channel_map = COALESCE(?, diplomacy_channel_map),
 				 diplomacy_everyone_can_view = COALESCE(?, diplomacy_everyone_can_view),
 				 diplomacy_view_role_ids = COALESCE(?, diplomacy_view_role_ids),
@@ -372,6 +382,9 @@ async function upsertDiplomacyConfigFields(
 				config.diplomacy_enabled !== undefined ? (config.diplomacy_enabled ? 1 : 0) : null,
 				categoryProvided ? 1 : 0,
 				categoryProvided ? (config.diplomacy_category_id?.trim() || null) : null,
+				config.diplomacy_category_map ? JSON.stringify(config.diplomacy_category_map) : null,
+				archiveProvided ? 1 : 0,
+				archiveProvided ? (config.diplomacy_archive_category_id?.trim() || null) : null,
 				config.diplomacy_channel_map ? JSON.stringify(config.diplomacy_channel_map) : null,
 				config.diplomacy_everyone_can_view !== undefined
 					? (config.diplomacy_everyone_can_view ? 1 : 0)

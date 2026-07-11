@@ -20,6 +20,7 @@ import {
 	findVerifiedPlayersForLink,
 	getVerifiedPlayer,
 	listPlayersForPersonalChannels,
+	listActiveVerifiedPlayers,
 	excludeGuildUser,
 	unexcludeGuildUser,
 	listExcludedUsers,
@@ -63,6 +64,8 @@ import {
 	ensureDiplomacyChannel,
 	formatDiplomacyChannelMap,
 	linkDiplomacyChannel,
+	planDiplomacyChannels,
+	rebalanceDiplomacyChannels,
 } from './diplomacy-channels';
 
 function getOptionValue(options: Array<{ name: string; value?: unknown }> | undefined, name: string): unknown {
@@ -1090,19 +1093,40 @@ async function handleServerCategoriesCommand(
 
 async function handleDiplomacyChannelsCommand(
 	env: Env,
+	ctx: ExecutionContext,
+	interaction: {
+		application_id?: string;
+		token: string;
+		member?: { user?: { id?: string } };
+		data?: {
+			resolved?: {
+				channels?: Record<
+					string,
+					{
+						id: string;
+						name?: string;
+						type?: number;
+						parent_id?: string | null;
+						guild_id?: string | null;
+					}
+				>;
+			};
+		};
+	},
 	guildId: string,
 	config: GuildConfig,
 	options: Array<{ name: string; value?: unknown }> | undefined,
-	actorId?: string,
-	resolvedChannels?: Record<
-		string,
-		{ id: string; name?: string; type?: number; parent_id?: string | null; guild_id?: string | null }
-	>,
 ): Promise<Response> {
+	const actorId = interaction.member?.user?.id;
+	const resolvedChannels = interaction.data?.resolved?.channels;
 	const disableRaw = getOptionValue(options, 'disable');
 	const disable = disableRaw === true || disableRaw === 'true';
 	const enableRaw = getOptionValue(options, 'enable');
 	const enable = enableRaw === true || enableRaw === 'true';
+	const syncAllRaw = getOptionValue(options, 'sync_all');
+	const syncAll = syncAllRaw === true || syncAllRaw === 'true';
+	const createMissingRaw = getOptionValue(options, 'create_missing');
+	const createMissing = createMissingRaw === true || createMissingRaw === 'true';
 	const createTagRaw = (getOptionValue(options, 'create_tag') as string | undefined)?.trim();
 	const linkTagRaw = (getOptionValue(options, 'link_tag') as string | undefined)?.trim();
 	const channelOpt = getOptionValue(options, 'channel');
@@ -1241,8 +1265,10 @@ async function handleDiplomacyChannelsCommand(
 			color: AuditColor.success,
 		});
 		return interactionResponse(
-			`✅ ${result.created ? 'Created' : 'Updated'} diplomacy channel for **[${result.tag}]**: <#${result.channelId}>\n` +
-				`View: ${config.diplomacy_everyone_can_view ? '@everyone' : 'role-restricted'}; ` +
+			`✅ ${result.created ? 'Created' : 'Updated'} diplomacy channel for **[${result.tag}]**: <#${result.channelId}>` +
+				(result.renamed ? ' (renamed)' : '') +
+				(result.moved ? ' (moved to category)' : '') +
+				`\nView: ${config.diplomacy_everyone_can_view ? '@everyone' : 'role-restricted'}; ` +
 				`write roles/ranks applied from config.`,
 			true,
 		);
@@ -1293,6 +1319,8 @@ async function handleDiplomacyChannelsCommand(
 		});
 		return interactionResponse(
 			`✅ Linked <#${result.channelId}> as diplomacy for **[${result.tag}]**.` +
+				(result.renamed ? ' Renamed to slug.' : '') +
+				(result.moved ? ' Moved to diplomacy category.' : '') +
 				(applyPermissions
 					? ' Applied configured view/write permissions.'
 					: ' Left existing channel permissions unchanged.'),
@@ -1300,14 +1328,189 @@ async function handleDiplomacyChannelsCommand(
 		);
 	}
 
+	if (syncAll) {
+		if (!env.DISCORD_BOT_TOKEN) {
+			return interactionResponse('❌ DISCORD_BOT_TOKEN not configured.', true);
+		}
+		if (!diplomacyChannelsEnabled(config)) {
+			return interactionResponse(
+				'❌ Diplomacy is disabled. Enable first: `/server channels diplomacy enable:true`',
+				true,
+			);
+		}
+
+		const softLimitRaw = getOptionValue(options, 'soft_limit');
+		const softLimit =
+			softLimitRaw != null && Number.isFinite(Number(softLimitRaw))
+				? Math.max(10, Math.min(50, Number(softLimitRaw)))
+				: DEFAULT_SOFT_LIMIT;
+		const categoryNameTemplate = (
+			getOptionValue(options, 'category_name_template') as string | undefined
+		)?.trim();
+		const planOnlyRaw = getOptionValue(options, 'plan');
+		const planOnly = planOnlyRaw === true || planOnlyRaw === 'true';
+		const renameRaw = getOptionValue(options, 'rename_categories');
+		const renameCategories =
+			renameRaw === undefined || renameRaw === null
+				? true
+				: renameRaw === true || renameRaw === 'true';
+		const createCatsRaw = getOptionValue(options, 'create_categories');
+		const createCategories =
+			createCatsRaw === undefined || createCatsRaw === null
+				? true
+				: createCatsRaw === true || createCatsRaw === 'true';
+		const archiveUnlinkedRaw = getOptionValue(options, 'archive_unlinked');
+		const archiveUnlinked =
+			archiveUnlinkedRaw === undefined || archiveUnlinkedRaw === null
+				? true
+				: archiveUnlinkedRaw === true || archiveUnlinkedRaw === 'true';
+		const archiveCategoryOpt = getOptionValue(options, 'archive_category');
+		const archiveCategoryId =
+			archiveCategoryOpt != null ? String(archiveCategoryOpt) : undefined;
+		const archiveName = (getOptionValue(options, 'archive_name') as string | undefined)?.trim();
+
+		let createMissingTags: string[] | undefined;
+		if (createMissing || planOnly) {
+			const players = await listActiveVerifiedPlayers(env.STFC_DB, guildId);
+			createMissingTags = [
+				...new Set(
+					players
+						.map((p) => p.alliance_tag?.trim())
+						.filter((t): t is string => Boolean(t)),
+				),
+			];
+		}
+
+		if (planOnly) {
+			const preview = planDiplomacyChannels(config, {
+				softLimit,
+				createMissingTags: createMissing ? createMissingTags : undefined,
+			});
+			const templateNote = categoryNameTemplate || 'Diplomacy Channels {range}';
+			return interactionResponse(
+				`${preview.summary}\n\n` +
+					`**Preview only** (plan:true).\n` +
+					`• Category name template: \`${templateNote}\`\n` +
+					`• Soft limit: ${softLimit}\n` +
+					`• Rename categories: ${renameCategories ? 'yes' : 'no'}\n` +
+					`• Create categories: ${createCategories ? 'yes' : 'no'}\n` +
+					`• Create missing channels: ${createMissing ? 'yes' : 'no'}\n` +
+					`• Archive unlinked: ${archiveUnlinked ? 'yes' : 'no'}\n\n` +
+					`Run \`/server channels diplomacy sync_all:true\` (without plan) to apply.`,
+				true,
+			);
+		}
+
+		const appId = interaction.application_id ?? env.DISCORD_APPLICATION_ID;
+		if (!appId) {
+			return interactionResponse('❌ DISCORD_APPLICATION_ID not configured.', true);
+		}
+
+		const deferred = deferredResponse();
+		ctx.waitUntil(
+			(async () => {
+				try {
+					await postAuditLog(env, config, {
+						title: 'Diplomacy sync started',
+						description: `Triggered by <@${actorId ?? 'unknown'}>.`,
+						actorId,
+						source: 'admin',
+						color: AuditColor.info,
+					});
+
+					const result = await rebalanceDiplomacyChannels(
+						env.DISCORD_BOT_TOKEN!,
+						config,
+						guildId,
+						{
+							createMissingTags: createMissing ? createMissingTags : undefined,
+							softLimit,
+							categoryNameTemplate,
+							renameCategories,
+							createCategories,
+							archiveUnlinked,
+							archiveCategoryId,
+							archiveName,
+							applyPermissions,
+							onProgress: async (message) => {
+								await editInteractionResponse(appId, interaction.token, message, true);
+							},
+							onCategoriesReady: async (categoryMap, archiveId) => {
+								await upsertGuildConfig(env.STFC_DB, {
+									guild_id: guildId,
+									diplomacy_category_map: categoryMap,
+									diplomacy_archive_category_id: archiveId,
+								});
+							},
+							onChannelMapped: async (tag, channelId) => {
+								const latest = await getGuildConfig(env.STFC_DB, guildId);
+								const nextMap = {
+									...(latest?.diplomacy_channel_map ?? {}),
+									[tag]: channelId,
+								};
+								await upsertGuildConfig(env.STFC_DB, {
+									guild_id: guildId,
+									diplomacy_channel_map: nextMap,
+								});
+							},
+						},
+					);
+
+					await upsertGuildConfig(env.STFC_DB, {
+						guild_id: guildId,
+						diplomacy_channel_map: result.channelMap,
+						diplomacy_category_map: result.categoryMap,
+						diplomacy_archive_category_id: result.archiveCategoryId,
+					});
+					const after = await getGuildConfig(env.STFC_DB, guildId);
+					await postAuditLog(env, after, {
+						title: 'Diplomacy sync complete',
+						description: result.summary.slice(0, 1500),
+						actorId,
+						source: 'admin',
+						color: result.ok ? AuditColor.success : AuditColor.warn,
+					});
+					await editInteractionResponse(appId, interaction.token, result.summary, true);
+				} catch (error) {
+					const errMsg = error instanceof Error ? error.message : 'unknown error';
+					try {
+						await postAuditLog(env, config, {
+							title: 'Diplomacy sync failed',
+							description: errMsg.slice(0, 1500),
+							actorId,
+							source: 'admin',
+							color: AuditColor.danger,
+						});
+					} catch {
+						/* ignore */
+					}
+					await editInteractionResponse(
+						appId,
+						interaction.token,
+						`❌ Diplomacy sync failed: ${errMsg}`,
+						true,
+					);
+				}
+			})(),
+		);
+		return deferred;
+	}
+
 	// Status / config summary
 	const refreshed = (await getGuildConfig(env.STFC_DB, guildId))!;
+	const categoryMapLine =
+		Object.keys(refreshed.diplomacy_category_map).length > 0
+			? formatCategoryMap(refreshed.diplomacy_category_map)
+			: refreshed.diplomacy_category_id
+				? `legacy <#${refreshed.diplomacy_category_id}>`
+				: 'none';
 	return interactionResponse(
 		`🤝 **Diplomacy channels**\n` +
 			`• Enabled: ${diplomacyChannelsEnabled(refreshed) ? 'yes' : 'no'}\n` +
 			`• Everyone can view: ${refreshed.diplomacy_everyone_can_view ? 'yes' : 'no'}\n` +
-			`• Category: ${refreshed.diplomacy_category_id ? `<#${refreshed.diplomacy_category_id}>` : 'none'}\n` +
-			`• Name template: \`${refreshed.diplomacy_name_template?.trim() || 'diplomacy-{tag}'}\`\n` +
+			`• Category map: ${categoryMapLine}\n` +
+			`• Archive: ${refreshed.diplomacy_archive_category_id ? `<#${refreshed.diplomacy_archive_category_id}>` : 'none'}\n` +
+			`• Channel name template: \`${refreshed.diplomacy_name_template?.trim() || 'diplomacy-{tag}'}\`\n` +
 			`• View roles: ${refreshed.diplomacy_view_role_ids.map((id) => `<@&${id}>`).join(', ') || 'none'}\n` +
 			`• Write roles: ${refreshed.diplomacy_write_role_ids.map((id) => `<@&${id}>`).join(', ') || 'none'}\n` +
 			`• Write ranks: ${refreshed.diplomacy_write_ranks.join(', ') || 'none'}\n` +
@@ -1315,7 +1518,9 @@ async function handleDiplomacyChannelsCommand(
 			`Examples:\n` +
 			`\`/server channels diplomacy enable:true write_roles:Diplomat write_ranks:Commodore,Admiral everyone_can_view:true\`\n` +
 			`\`/server channels diplomacy create_tag:KWSN\`\n` +
-			`\`/server channels diplomacy link_tag:KWSN channel:#kwsn-diplo apply_permissions:false\``,
+			`\`/server channels diplomacy link_tag:KWSN channel:#kwsn-diplo apply_permissions:false\`\n` +
+			`\`/server channels diplomacy sync_all:true create_missing:true\` — letter buckets + rename/move/A–Z sort\n` +
+			`\`/server channels diplomacy sync_all:true plan:true soft_limit:45\` — preview category splits`,
 		true,
 	);
 }
@@ -1810,14 +2015,7 @@ async function handleServerChannelsCommand(
 	}
 
 	if (sub.name === 'diplomacy') {
-		return handleDiplomacyChannelsCommand(
-			env,
-			guildId,
-			config,
-			sub.options,
-			interaction.member?.user?.id,
-			interaction.data?.resolved?.channels,
-		);
+		return handleDiplomacyChannelsCommand(env, ctx, interaction, guildId, config, sub.options);
 	}
 
 	if (sub.name === 'log') {

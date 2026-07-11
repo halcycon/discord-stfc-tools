@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	diplomacyChannelsEnabled,
 	diplomacyWriteRoleIds,
+	planDiplomacyChannels,
 	slugDiplomacyChannelName,
 } from '../src/diplomacy-channels';
 import type { GuildConfig } from '../src/types';
@@ -32,6 +33,8 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		urgent_notify_channel_id: null,
 		diplomacy_enabled: true,
 		diplomacy_category_id: null,
+		diplomacy_category_map: {},
+		diplomacy_archive_category_id: null,
 		diplomacy_channel_map: {},
 		diplomacy_everyone_can_view: true,
 		diplomacy_view_role_ids: [],
@@ -68,6 +71,11 @@ describe('diplomacy-channels', () => {
 		expect(slugDiplomacyChannelName('KWSN', '{tag}-diplo')).toBe('kwsn-diplo');
 	});
 
+	it('slugDiplomacyChannelName latinizes lookalike tags', () => {
+		expect(slugDiplomacyChannelName('KWβN')).toBe('diplomacy-kwbn');
+		expect(slugDiplomacyChannelName('ŁTAG', '{tag}-diplo')).toBe('ltag-diplo');
+	});
+
 	it('diplomacyWriteRoleIds merges write roles and rank roles', () => {
 		expect(diplomacyWriteRoleIds(baseConfig()).sort()).toEqual([
 			'111111111111111111',
@@ -79,5 +87,19 @@ describe('diplomacy-channels', () => {
 	it('diplomacyChannelsEnabled respects flag', () => {
 		expect(diplomacyChannelsEnabled(baseConfig())).toBe(true);
 		expect(diplomacyChannelsEnabled(baseConfig({ diplomacy_enabled: false }))).toBe(false);
+	});
+
+	it('planDiplomacyChannels splits tags under soft limit', () => {
+		const tags = Array.from({ length: 50 }, (_, i) =>
+			String.fromCharCode(65 + (i % 26)) + String(i),
+		);
+		const map = Object.fromEntries(tags.map((t) => [t, `ch-${t}`]));
+		const result = planDiplomacyChannels(
+			baseConfig({ diplomacy_channel_map: map }),
+			{ softLimit: 45 },
+		);
+		expect(result.plan.total).toBe(50);
+		expect(result.plan.categoryCount).toBeGreaterThanOrEqual(2);
+		expect(result.summary).toContain('Diplomacy category plan');
 	});
 });

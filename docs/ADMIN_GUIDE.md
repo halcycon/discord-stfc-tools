@@ -509,6 +509,8 @@ One shared text channel **per alliance tag** (not per player). Typical use: ever
 
 Discord cannot gate on in-game rank directly — write access uses the Discord roles assigned for those ranks (`commodore_roles` / `admiral_roles` from `/server setup`) plus any `write_roles` you configure.
 
+Multi-alliance servers often have **dozens of tags** — Discord’s **50 channels per category** limit applies. Prefer **letter-bucket categories** (same idea as personal channels) via `sync_all`, not a single `category:`.
+
 ### Configure
 
 ```
@@ -517,7 +519,6 @@ Discord cannot gate on in-game rank directly — write access uses the Discord r
   everyone_can_view:true
   write_roles:Diplomat
   write_ranks:Commodore,Admiral
-  category:#Diplomacy
   name_template:diplomacy-{tag}
 ```
 
@@ -529,8 +530,14 @@ Discord cannot gate on in-game rank directly — write access uses the Discord r
 | `view_roles` | Extra viewer roles (especially if everyone cannot view) |
 | `write_roles` | Roles that can send (e.g. Diplomat) — created by name if missing |
 | `write_ranks` | In-game ranks whose Discord rank roles may write |
-| `category` | Parent category for newly created channels |
-| `name_template` | Channel name; `{tag}` → alliance tag (default `diplomacy-{tag}`) |
+| `category` | Legacy **single** parent category (used only when no letter-bucket map yet) |
+| `name_template` | Channel name; `{tag}` → alliance tag (default `diplomacy-{tag}`). Tags are **latinized** like personal channels (`β`→`b`, `Ł`→`l`, …) |
+| `sync_all` | Plan/create letter-bucket categories, rename/move channels, A–Z sort, optional archive |
+| `plan` | With `sync_all`: preview buckets only (no Discord writes) |
+| `soft_limit` | With `sync_all`: max channels per category (10–50, default 45) |
+| `category_name_template` | With `sync_all`: category name; `{range}` → e.g. `A-M` (default `Diplomacy Channels {range}`) |
+| `create_missing` | With `sync_all`: also create channels for alliance tags on verified players |
+| `archive_unlinked` | With `sync_all`: move unlinked channels under diplomacy categories to archive (default true) |
 
 ### Create for a tag
 
@@ -538,7 +545,23 @@ Discord cannot gate on in-game rank directly — write access uses the Discord r
 /server channels diplomacy create_tag:KWSN
 ```
 
-Also happens automatically on verify/sync in **multi_alliance** mode when diplomacy is enabled and the player has an alliance tag.
+Also happens automatically on verify/sync in **multi_alliance** mode when diplomacy is enabled and the player has an alliance tag. Existing channels are **renamed** to the current slug and **moved** into the letter-bucket category (or legacy `category` if no map).
+
+### Sync / rebalance (letter buckets)
+
+Preview splits:
+
+```
+/server channels diplomacy sync_all:true plan:true soft_limit:45 create_missing:true
+```
+
+Apply (creates `Diplomacy Channels A-M`-style categories as needed, moves channels by tag first letter, archives unlinked):
+
+```
+/server channels diplomacy sync_all:true create_missing:true
+```
+
+Same spirit as personal-channel rebalance. Progress posts on the slash command; audit gets started + finished. After the first successful sync, status shows the **category map** (ranges → categories) instead of a single legacy category.
 
 ### Adopt an existing channel
 
@@ -553,7 +576,7 @@ Also happens automatically on verify/sync in **multi_alliance** mode when diplom
 /server channels diplomacy
 ```
 
-(with no action options) prints the current diplomacy config and tag→channel map.
+(with no action options) prints the current diplomacy config, category map, and tag→channel map.
 
 ---
 

@@ -724,7 +724,7 @@ const commands = [
 							{
 								type: 7,
 								name: 'category',
-								description: 'Category for newly created diplomacy channels',
+								description: 'Legacy single category (prefer sync_all letter buckets)',
 								required: false,
 								channel_types: [4],
 							},
@@ -774,7 +774,74 @@ const commands = [
 							{
 								type: 5,
 								name: 'apply_permissions',
-								description: 'When linking, rewrite perms from config (default true)',
+								description: 'When linking/syncing, rewrite perms from config (default true)',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'sync_all',
+								description:
+									'Letter-bucket categories + rename/move/A–Z sort all diplomacy channels',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'plan',
+								description: 'With sync_all: preview letter buckets only (no writes)',
+								required: false,
+							},
+							{
+								type: 4,
+								name: 'soft_limit',
+								description: 'With sync_all: max channels per category (10–50, default 45)',
+								required: false,
+								min_value: 10,
+								max_value: 50,
+							},
+							{
+								type: 3,
+								name: 'category_name_template',
+								description:
+									'With sync_all: category name; use {range} (default Diplomacy Channels {range})',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'create_categories',
+								description: 'With sync_all: create missing letter-bucket categories (default true)',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'rename_categories',
+								description: 'With sync_all: rename categories to template (default true)',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'create_missing',
+								description: 'With sync_all: also create channels for verified alliance tags',
+								required: false,
+							},
+							{
+								type: 5,
+								name: 'archive_unlinked',
+								description:
+									'With sync_all: move unlinked channels under diplomacy cats to archive (default true)',
+								required: false,
+							},
+							{
+								type: 7,
+								name: 'archive_category',
+								description: 'With sync_all: archive category target',
+								required: false,
+								channel_types: [4],
+							},
+							{
+								type: 3,
+								name: 'archive_name',
+								description:
+									'With sync_all: find/create archive by name (default Diplomacy Channels Archive)',
 								required: false,
 							},
 						],

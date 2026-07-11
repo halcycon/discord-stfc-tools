@@ -115,6 +115,8 @@ function syncAppliedFromSchema(migrationIds, applied) {
 			columnExists('guild_configs', 'verification_log_channel_id'),
 		'006_diplomacy_channels.sql': () => columnExists('guild_configs', 'diplomacy_enabled'),
 		'007_surveys.sql': () => columnExists('verified_players', 'alliance_rank'),
+		'020_diplomacy_category_map.sql': () =>
+			columnExists('guild_configs', 'diplomacy_category_map'),
 	};
 
 	for (const id of migrationIds) {

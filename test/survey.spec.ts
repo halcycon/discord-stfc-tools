@@ -36,6 +36,8 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		urgent_notify_channel_id: null,
 		diplomacy_enabled: false,
 		diplomacy_category_id: null,
+		diplomacy_category_map: {},
+		diplomacy_archive_category_id: null,
 		diplomacy_channel_map: {},
 		diplomacy_everyone_can_view: true,
 		diplomacy_view_role_ids: [],

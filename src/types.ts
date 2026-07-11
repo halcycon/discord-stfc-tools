@@ -77,7 +77,11 @@ export interface GuildConfig {
 	personal_channel_archive_category_id: string | null;
 	/** Multi-alliance: create/link one diplomacy channel per alliance tag. */
 	diplomacy_enabled: boolean;
+	/** Legacy single category (used when diplomacy_category_map is empty). */
 	diplomacy_category_id: string | null;
+	/** Letter-range → Discord category ID (same shape as channel_category_map). */
+	diplomacy_category_map: Record<string, string>;
+	diplomacy_archive_category_id: string | null;
 	/** allianceTag (upper) → Discord channel ID */
 	diplomacy_channel_map: Record<string, string>;
 	/** If true, @everyone can view diplomacy channels (send still restricted). */

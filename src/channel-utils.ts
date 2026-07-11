@@ -12,17 +12,36 @@ export function personalChannelsEnabled(config: GuildConfig): boolean {
 	return Object.keys(config.channel_category_map).length > 0;
 }
 
-/** Pick a Discord category ID from the player's first letter (A–Z, else `#`). */
-export function categoryForPlayerName(config: GuildConfig, playerName: string): string | undefined {
-	if (!playerName.trim()) return undefined;
-	const letter: LetterKey = letterKeyForName(playerName);
+/** Pick a Discord category ID from the first letter of a name (A–Z, else `#`). */
+export function categoryForLetterName(
+	categoryMap: Record<string, string>,
+	name: string,
+): string | undefined {
+	if (!name.trim() || Object.keys(categoryMap).length === 0) return undefined;
+	const letter: LetterKey = letterKeyForName(name);
 
-	for (const [range, categoryId] of Object.entries(config.channel_category_map)) {
+	for (const [range, categoryId] of Object.entries(categoryMap)) {
 		const parsed = parseLetterRange(range);
 		if (!parsed) continue;
 		if (letterInRange(letter, parsed.start, parsed.end)) return categoryId;
 	}
 	return undefined;
+}
+
+/** Pick a Discord category ID from the player's first letter (A–Z, else `#`). */
+export function categoryForPlayerName(config: GuildConfig, playerName: string): string | undefined {
+	return categoryForLetterName(config.channel_category_map, playerName);
+}
+
+/** Diplomacy: letter bucket from alliance tag, or legacy single `diplomacy_category_id`. */
+export function categoryForAllianceTag(
+	config: GuildConfig,
+	allianceTag: string,
+): string | undefined {
+	const fromMap = categoryForLetterName(config.diplomacy_category_map, allianceTag);
+	if (fromMap) return fromMap;
+	if (Object.keys(config.diplomacy_category_map).length > 0) return undefined;
+	return config.diplomacy_category_id ?? undefined;
 }
 
 /** Slug a player name into a Discord channel name (Latin lookalikes folded first). */

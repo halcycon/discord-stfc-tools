@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	categoryForAllianceTag,
 	categoryForPlayerName,
 	parseCategoryMapInput,
 	personalChannelsEnabled,
@@ -33,6 +34,8 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		urgent_notify_channel_id: null,
 		diplomacy_enabled: false,
 		diplomacy_category_id: null,
+		diplomacy_category_map: {},
+		diplomacy_archive_category_id: null,
 		diplomacy_channel_map: {},
 		diplomacy_everyone_can_view: true,
 		diplomacy_view_role_ids: [],
@@ -104,6 +107,24 @@ describe('channel-utils', () => {
 		});
 		expect(categoryForPlayerName(config, 'Łukasz')).toBe('cat-al');
 		expect(categoryForPlayerName(config, 'ンZed')).toBe('cat-mz');
+	});
+
+	it('categoryForAllianceTag uses diplomacy letter buckets', () => {
+		const config = baseConfig({
+			diplomacy_category_map: { 'A-M': 'dip-am', 'N-#': 'dip-nz' },
+			diplomacy_category_id: 'legacy-cat',
+		});
+		expect(categoryForAllianceTag(config, 'KWSN')).toBe('dip-am');
+		expect(categoryForAllianceTag(config, 'ROME')).toBe('dip-nz');
+		expect(categoryForAllianceTag(config, 'ŁTAG')).toBe('dip-am');
+	});
+
+	it('categoryForAllianceTag falls back to legacy single category', () => {
+		const config = baseConfig({
+			diplomacy_category_map: {},
+			diplomacy_category_id: 'legacy-cat',
+		});
+		expect(categoryForAllianceTag(config, 'KWSN')).toBe('legacy-cat');
 	});
 
 	it('parseCategoryMapInput parses bulk maps', () => {

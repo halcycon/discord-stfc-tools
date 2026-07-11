@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareChannelNamesAlpha } from '../src/personal-channels';
+import { compareChannelNamesAlpha } from '../src/channel-sort';
 
 describe('compareChannelNamesAlpha', () => {
 	it('orders case-insensitively with numeric awareness', () => {
