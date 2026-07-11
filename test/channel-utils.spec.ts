@@ -90,6 +90,22 @@ describe('channel-utils', () => {
 		expect(slugPersonalChannelName('A. Player', '123')).toBe('a-player');
 	});
 
+	it('slugPersonalChannelName folds lookalike Unicode', () => {
+		expect(slugPersonalChannelName('KOŁES', '123')).toBe('koles');
+		expect(slugPersonalChannelName('RAMβX', '123')).toBe('rambx');
+		expect(slugPersonalChannelName('ンAlpha', '123')).toBe('nalpha');
+		expect(slugPersonalChannelName('José', '123')).toBe('jose');
+		expect(slugPersonalChannelName('Сool', '123')).toBe('cool'); // Cyrillic С
+	});
+
+	it('categoryForPlayerName uses latinized first letter', () => {
+		const config = baseConfig({
+			channel_category_map: { 'A-L': 'cat-al', 'M-Z': 'cat-mz', '#': 'cat-hash' },
+		});
+		expect(categoryForPlayerName(config, 'Łukasz')).toBe('cat-al');
+		expect(categoryForPlayerName(config, 'ンZed')).toBe('cat-mz');
+	});
+
 	it('parseCategoryMapInput parses bulk maps', () => {
 		expect(parseCategoryMapInput('A-F=123456789012345678,G-M=987654321098765432')).toEqual({
 			'A-F': '123456789012345678',

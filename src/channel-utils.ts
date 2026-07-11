@@ -1,4 +1,5 @@
 import type { GuildConfig } from './types';
+import { latinizePlayerName } from './name-latinize';
 import {
 	letterInRange,
 	letterKeyForName,
@@ -24,12 +25,13 @@ export function categoryForPlayerName(config: GuildConfig, playerName: string): 
 	return undefined;
 }
 
-/** Slug a player name into a Discord channel name. */
+/** Slug a player name into a Discord channel name (Latin lookalikes folded first). */
 export function slugPersonalChannelName(playerName: string, userId: string): string {
 	return (
-		playerName
+		latinizePlayerName(playerName)
 			.toLowerCase()
 			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/-{2,}/g, '-')
 			.replace(/^-|-$/g, '')
 			.slice(0, 90) || `member-${userId}`
 	);

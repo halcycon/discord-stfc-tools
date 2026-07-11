@@ -1,3 +1,5 @@
+import { latinizePlayerName } from './name-latinize';
+
 /** Letter keys for personal-channel buckets: A–Z then # (non-alphabetic). */
 export const LETTER_KEYS = [
 	'A',
@@ -42,7 +44,8 @@ export function letterKeyIndex(key: LetterKey): number {
 
 /** First-letter bucket for a player/channel name. Non A–Z → `#`. */
 export function letterKeyForName(name: string): LetterKey {
-	const c = name.trim().charAt(0).toUpperCase();
+	const latin = latinizePlayerName(name).trim();
+	const c = latin.charAt(0).toUpperCase();
 	if (c >= 'A' && c <= 'Z') return c as LetterKey;
 	return '#';
 }

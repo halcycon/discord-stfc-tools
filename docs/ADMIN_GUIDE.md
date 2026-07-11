@@ -485,7 +485,7 @@ Pick a **text** (or announcement) channel — not a category. If linking fails b
 | `user` | Discord member (alternative to `player`) |
 | `apply_permissions` | Default `true` — rewrite perms for member + extra-roles. Set `false` to only store the link and leave existing permissions alone |
 
-Channel names always follow the **current in-game player name** (slugified). Create, link, rebalance, verify, and the **daily player sync** rename (and re-bucket) when the name no longer matches.
+Channel names always follow the **current in-game player name** (slugified). Create, link, rebalance, verify, and the **daily player sync** rename (and re-bucket) when the name no longer matches. Slugs fold common lookalikes first (e.g. `Ł`→`l`, `β`→`b`, accents stripped) before Discord-safe sanitizing.
 
 Examples for an existing framework:
 

@@ -85,6 +85,12 @@ describe('personal-channel-plan', () => {
 		expect(letterKeyForName('_x')).toBe('#');
 	});
 
+	it('letterKeyForName latinizes lookalikes', () => {
+		expect(letterKeyForName('Łukasz')).toBe('L');
+		expect(letterKeyForName('βeta')).toBe('B');
+		expect(letterKeyForName('ンZed')).toBe('N');
+	});
+
 	it('parseLetterRange supports N-#', () => {
 		expect(parseLetterRange('N-#')).toEqual({ start: 'N', end: '#' });
 		expect(parseLetterRange('A-M')).toEqual({ start: 'A', end: 'M' });
