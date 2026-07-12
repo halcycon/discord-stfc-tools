@@ -18,6 +18,7 @@ declare namespace Cloudflare {
 		/** Optional Workers AI binding — only used when DM AI is explicitly enabled. */
 		AI?: Ai;
 		DISCORD_GATEWAY?: DurableObjectNamespace<import('./src/discord-gateway/DiscordGateway').DiscordGateway>;
+		STFC_SESSION?: DurableObjectNamespace<import('./src/stfc-session/StfcSession').StfcSession>;
 	}
 }
 interface Env extends Cloudflare.Env {}

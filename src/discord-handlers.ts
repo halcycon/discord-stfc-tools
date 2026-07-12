@@ -286,7 +286,7 @@ async function handlePlayerCommand(
 		(async () => {
 			try {
 				const searchTerm = /^\d+$/.test(playerName) ? parseInt(playerName, 10) : playerName;
-				const player = await findPlayerByIdOrName(searchTerm, server, region);
+				const player = await findPlayerByIdOrName(env, searchTerm, server, region);
 				const content = player
 					? `🔍 **Player lookup**\n\n${formatPlayerSummary(player)}`
 					: `❌ No player found matching "${playerName}" on server ${server} (${region}).`;

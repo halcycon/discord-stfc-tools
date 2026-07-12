@@ -68,6 +68,7 @@ function localizedPlayerSummary(locale: string, player: PlayerData): string {
 }
 
 export async function lookupPlayerFromUrl(
+	env: Env,
 	url: string,
 	config: GuildConfig,
 	locale: string = DEFAULT_LOCALE,
@@ -88,7 +89,7 @@ export async function lookupPlayerFromUrl(
 		return { player: null, error: t(locale, 'verify.error.no_player_id') };
 	}
 
-	const player = await findPlayerByIdOrName(searchTerm, server, region);
+	const player = await findPlayerByIdOrName(env, searchTerm, server, region);
 	if (!player) {
 		return {
 			player: null,
@@ -169,7 +170,7 @@ export async function processVerification(
 		await recordScreenshot(env.STFC_DB, guildId, discordUserId, screenshotUrl, archivedR2Key);
 	}
 
-	const { player, error } = await lookupPlayerFromUrl(stfcProUrl, config, locale);
+	const { player, error } = await lookupPlayerFromUrl(env, stfcProUrl, config, locale);
 	if (!player || error) {
 		await upsertVerifiedPlayer(env.STFC_DB, {
 			guild_id: guildId,

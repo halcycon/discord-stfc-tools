@@ -230,6 +230,7 @@ export async function acceptAgreementAndGrantAccess(
 			accessNote = result.message;
 			if (refreshed.player_id && refreshed.player_name && opts.method === 'dm_button') {
 				const stfcPlayer = await findPlayerByIdOrName(
+					env,
 					refreshed.player_id,
 					config.stfc_server,
 					config.stfc_region,

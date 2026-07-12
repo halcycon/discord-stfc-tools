@@ -46,6 +46,7 @@ export async function runPendingVerificationPoll(env: Env): Promise<void> {
 
 			try {
 				const lookup = await lookupPlayerByIdOrName(
+					env,
 					record.player_id,
 					config.stfc_server,
 					config.stfc_region,
@@ -107,6 +108,7 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 
 			try {
 				const lookup = await lookupPlayerByIdOrName(
+					env,
 					record.player_id,
 					config.stfc_server,
 					config.stfc_region,

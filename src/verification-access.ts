@@ -583,7 +583,7 @@ export async function grantFullAccessForVerifiedPlayer(
 
 	let player: PlayerData | null = null;
 	if (!opts?.skipStfcLookup && record.player_id) {
-		player = await findPlayerByIdOrName(record.player_id, config.stfc_server, config.stfc_region);
+		player = await findPlayerByIdOrName(env, record.player_id, config.stfc_server, config.stfc_region);
 	}
 	const rank = player?.rank ?? record.alliance_rank ?? undefined;
 	const name = player?.name ?? record.player_name ?? 'Unknown';

@@ -1,18 +1,23 @@
 import { inflate } from 'pako';
 import type { PlayerData } from './types';
+import { getStfcAuthHeaders, invalidateStfcAuth } from './stfc-session';
 
 const STFC_HEADERS = {
 	'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-	'Referer': 'https://stfc.pro/',
-	'Accept': 'application/json',
+	Referer: 'https://stfc.pro/',
+	Origin: 'https://stfc.pro',
+	Accept: 'application/json',
 	'Sec-Fetch-Mode': 'cors',
 };
 
 const STFC_HTML_HEADERS = {
 	'User-Agent': STFC_HEADERS['User-Agent'],
-	'Referer': STFC_HEADERS['Referer'],
-	'Accept': 'text/html,application/xhtml+xml',
+	Referer: STFC_HEADERS.Referer,
+	Accept: 'text/html,application/xhtml+xml',
 };
+
+/** Cloudflare / datacenter egress is blocked on /api/players (403 forbidden). */
+const API_BLOCKED_ERRORS = new Set(['forbidden']);
 
 function shortDelay(): Promise<void> {
 	const ms = (Math.floor(Math.random() * 3) + 2) * 1000;
@@ -29,13 +34,56 @@ export function decompressStfcPayload(compressedData: string): unknown {
 	return JSON.parse(jsonStr);
 }
 
-function extractPlayerArray(data: unknown): Record<string, unknown>[] {
-	if (Array.isArray(data)) return data;
-	if (data && typeof data === 'object') {
-		const obj = data as Record<string, unknown>;
-		if (Array.isArray(obj.data)) return obj.data as Record<string, unknown>[];
-		if (Array.isArray(obj.players)) return obj.players as Record<string, unknown>[];
+/** Unwrap API player rows (legacy flat objects or `{ data: {...} }`). */
+export function unwrapPlayerRow(row: unknown): Record<string, unknown> | null {
+	if (!row || typeof row !== 'object') return null;
+	const obj = row as Record<string, unknown>;
+	if (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data)) {
+		return obj.data as Record<string, unknown>;
 	}
+	return obj;
+}
+
+/**
+ * Normalize /api/players JSON into a flat player object array.
+ * Supports:
+ * - New: `{ players: [{ data: {...} }, ...] }`
+ * - Legacy compressed: `{ data|players: "<base64+zlib>" }` → array / `{ data|players: [...] }`
+ * - Raw array
+ */
+export function extractPlayerArray(data: unknown): Record<string, unknown>[] {
+	if (Array.isArray(data)) {
+		return data.map(unwrapPlayerRow).filter((p): p is Record<string, unknown> => p != null);
+	}
+	if (!data || typeof data !== 'object') return [];
+
+	const obj = data as Record<string, unknown>;
+
+	// New uncompressed shape
+	if (Array.isArray(obj.players)) {
+		const first = obj.players[0];
+		if (typeof first === 'string') {
+			// unlikely, but treat as compressed string fallthrough below
+		} else {
+			return obj.players.map(unwrapPlayerRow).filter((p): p is Record<string, unknown> => p != null);
+		}
+	}
+
+	// Legacy: compressed string on data/players
+	const compressed = obj.data ?? obj.players;
+	if (typeof compressed === 'string' && compressed.length > 0) {
+		try {
+			const pageData = decompressStfcPayload(compressed);
+			return extractPlayerArray(pageData);
+		} catch {
+			return [];
+		}
+	}
+
+	if (Array.isArray(obj.data)) {
+		return obj.data.map(unwrapPlayerRow).filter((p): p is Record<string, unknown> => p != null);
+	}
+
 	return [];
 }
 
@@ -44,71 +92,30 @@ export function mapRawPlayer(player: any, server: number, region: string, allian
 	return {
 		playerId: player.playerid || player.player_id || player.playerId || 0,
 		name: player.owner || player.name || player.player_name || '',
-		rank: player.rank || player.alliance_rank || '',
+		rank: player.rank || player.alliance_rank || player.rankdesc || '',
 		level: player.level || player.player_level || 0,
-		helps: String(player.helps || player.daily_helps || ''),
-		rss: String(player.power || player.player_power || player.rss || ''),
+		helps: String(player.helps || player.ahelps || player.daily_helps || ''),
+		rss: String(player.rss || player.power || player.player_power || ''),
 		power: Number(player.power || player.player_power || 0),
 		max_power: Number(player.max_power || player.power || player.player_power || 0),
 		iso: String(player.iso || player.tritanium || ''),
-		joinDate: String(player.joinDate || player.join_date || ''),
-		allianceId: String(player.allianceId || player.alliance_id || ''),
+		joinDate: String(player.ajoined || player.joinDate || player.join_date || ''),
+		allianceId: String(player.allianceid || player.allianceId || player.alliance_id || ''),
 		allianceTag: allianceTag || player.tag || player.alliance_tag || '',
 		server,
 		region,
 	};
 }
 
-function extractJsonObjectFromHtml(html: string, key: string): unknown | null {
-	// Finds `"${key}":{...}` and returns the parsed JSON object.
-	const needle = `"${key}":`;
-	const startIdx = html.indexOf(needle);
-	if (startIdx === -1) return null;
-
-	const openBraceIdx = html.indexOf('{', startIdx + needle.length);
-	if (openBraceIdx === -1) return null;
-
-	let depth = 0;
-	let inString = false;
-	let escape = false;
-	for (let i = openBraceIdx; i < html.length; i++) {
-		const ch = html[i];
-		if (inString) {
-			if (escape) {
-				escape = false;
-				continue;
-			}
-			if (ch === '\\') {
-				escape = true;
-				continue;
-			}
-			if (ch === '"') inString = false;
-			continue;
-		}
-
-		if (ch === '"') {
-			inString = true;
-			continue;
-		}
-		if (ch === '{') depth++;
-		if (ch === '}') {
-			depth--;
-			if (depth === 0) {
-				const jsonStr = html.slice(openBraceIdx, i + 1);
-				try {
-					return JSON.parse(jsonStr);
-				} catch {
-					return null;
-				}
-			}
-		}
+export function coerceNumericPlayerId(playerIdOrName: string | number): number | null {
+	if (typeof playerIdOrName === 'number' && Number.isFinite(playerIdOrName) && playerIdOrName > 0) {
+		return playerIdOrName;
 	}
-
+	if (typeof playerIdOrName === 'string' && /^\d+$/.test(playerIdOrName.trim())) {
+		const n = Number(playerIdOrName.trim());
+		return Number.isFinite(n) && n > 0 ? n : null;
+	}
 	return null;
-}
-
-function stripTrailingBackslashes(value: string): string {
-	return value.replace(/\\+$/g, '').trim();
 }
 
 function extractStringNearKey(html: string, startIdx: number, key: string): string | null {
@@ -116,11 +123,9 @@ function extractStringNearKey(html: string, startIdx: number, key: string): stri
 	if (idx === -1) return null;
 	const snippet = html.slice(Math.max(0, idx - 80), Math.min(html.length, idx + 250));
 
-	// Handles both raw and escaped Next.js script-string forms.
-	// Captures until the next quote or backslash.
 	const re = new RegExp(`\\\\?\\\"?${key}\\\\?\\\"?[^:]*:\\s*(?:\\\\?\\\")?([^\\\\\\\",]+)`);
 	const m = snippet.match(re);
-	return m ? stripTrailingBackslashes(m[1]) : null;
+	return m ? m[1].replace(/\\+$/g, '').trim() : null;
 }
 
 function extractNumberNearKey(html: string, startIdx: number, key: string): number | null {
@@ -133,11 +138,74 @@ function extractNumberNearKey(html: string, startIdx: number, key: string): numb
 	return m ? Number(m[1]) : null;
 }
 
-function extractInitialPlayerFromHtml(
+/** Prefer parsing the embedded initialPlayer object (handles Next.js-escaped JSON). */
+export function extractInitialPlayerObject(html: string): Record<string, unknown> | null {
+	const marker = html.indexOf('initialPlayer');
+	if (marker === -1) return null;
+
+	const window = html.slice(marker, marker + 12_000);
+	const unescaped = window.replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
+	const brace = unescaped.indexOf('{');
+	if (brace === -1) return null;
+
+	let depth = 0;
+	let inString = false;
+	let escape = false;
+	for (let i = brace; i < unescaped.length; i++) {
+		const ch = unescaped[i];
+		if (inString) {
+			if (escape) {
+				escape = false;
+				continue;
+			}
+			if (ch === '\\') {
+				escape = true;
+				continue;
+			}
+			if (ch === '"') inString = false;
+			continue;
+		}
+		if (ch === '"') {
+			inString = true;
+			continue;
+		}
+		if (ch === '{') depth++;
+		if (ch === '}') {
+			depth--;
+			if (depth === 0) {
+				try {
+					const parsed = JSON.parse(unescaped.slice(brace, i + 1)) as unknown;
+					return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
+				} catch {
+					return null;
+				}
+			}
+		}
+	}
+	return null;
+}
+
+export function extractInitialPlayerFromHtml(
 	html: string,
 	fallbackServer: number,
 	fallbackRegion: string,
 ): PlayerData | null {
+	const obj = extractInitialPlayerObject(html);
+	if (obj) {
+		const mapped = mapRawPlayer(obj, fallbackServer, fallbackRegion, String(obj.tag || ''));
+		if (mapped.playerId) {
+			const server = Number(obj.server ?? mapped.server);
+			const region = String(obj.region ?? mapped.region).toUpperCase();
+			return {
+				...mapped,
+				rank: String(obj.rankdesc ?? mapped.rank ?? ''),
+				server: Number.isFinite(server) ? server : fallbackServer,
+				region: region || fallbackRegion,
+			};
+		}
+	}
+
+	// Fallback: near-key scrape (works on escaped flight payloads).
 	const start = html.indexOf('initialPlayer');
 	if (start === -1) return null;
 
@@ -159,7 +227,8 @@ function extractInitialPlayerFromHtml(
 	const iso = extractStringNearKey(html, start, 'iso') ?? extractStringNearKey(html, start, 'tritanium') ?? '';
 	const joinDate = extractStringNearKey(html, start, 'ajoined') ?? extractStringNearKey(html, start, 'joinDate') ?? '';
 
-	const allianceId = extractStringNearKey(html, start, 'allianceid') ?? extractStringNearKey(html, start, 'alliance_id') ?? '';
+	const allianceId =
+		extractStringNearKey(html, start, 'allianceid') ?? extractStringNearKey(html, start, 'alliance_id') ?? '';
 	const allianceTag = extractStringNearKey(html, start, 'tag') ?? extractStringNearKey(html, start, 'alliance_tag') ?? '';
 
 	const server = extractNumberNearKey(html, start, 'server') ?? fallbackServer;
@@ -183,56 +252,117 @@ function extractInitialPlayerFromHtml(
 	};
 }
 
-function mapInitialPlayerFromHtml(initialPlayer: any, fallbackServer: number, fallbackRegion: string): PlayerData | null {
-	if (!initialPlayer || typeof initialPlayer !== 'object') return null;
+async function fetchPlayerFromHtml(
+	playerId: number,
+	server: number,
+	region: string,
+): Promise<PlayerData | null> {
+	const upperRegion = region.toUpperCase();
+	const urls = [
+		`https://stfc.pro/players/${playerId}?region=${encodeURIComponent(upperRegion)}&server=${server}`,
+		`https://stfc.pro/players/${playerId}`,
+	];
 
-	const server = Number(initialPlayer.server ?? fallbackServer);
-	const region = String(initialPlayer.region ?? fallbackRegion).toUpperCase();
+	let lastStatus: number | null = null;
+	for (const playerUrl of urls) {
+		try {
+			const pageRes = await fetch(playerUrl, { headers: STFC_HTML_HEADERS });
+			lastStatus = pageRes.status;
+			if (!pageRes.ok) continue;
+			const html = await pageRes.text();
+			const mapped = extractInitialPlayerFromHtml(html, server, region);
+			if (mapped?.playerId) return mapped;
+		} catch {
+			/* try next URL */
+		}
+	}
 
-	return {
-		playerId: Number(initialPlayer.playerid ?? initialPlayer.player_id ?? initialPlayer.playerId ?? 0),
-		name: String(initialPlayer.owner ?? initialPlayer.name ?? initialPlayer.player_name ?? ''),
-		rank: String(initialPlayer.rankdesc ?? initialPlayer.rank ?? initialPlayer.alliance_rank ?? ''),
-		level: Number(initialPlayer.level ?? initialPlayer.player_level ?? 0),
-		helps: String(initialPlayer.helps ?? initialPlayer.ahelps ?? initialPlayer.daily_helps ?? ''),
-		rss: String(initialPlayer.rss ?? initialPlayer.player_rss ?? ''),
-		power: Number(initialPlayer.power ?? initialPlayer.player_power ?? 0),
-		max_power: Number(initialPlayer.max_power ?? initialPlayer.cur_max_power ?? initialPlayer.player_max_power ?? initialPlayer.power ?? 0),
-		iso: String(initialPlayer.iso ?? initialPlayer.tritanium ?? ''),
-		joinDate: String(initialPlayer.ajoined ?? initialPlayer.joinDate ?? initialPlayer.join_date ?? ''),
-		allianceId: String(initialPlayer.allianceid ?? initialPlayer.alliance_id ?? initialPlayer.allianceId ?? ''),
-		allianceTag: String(initialPlayer.tag ?? initialPlayer.alliance_tag ?? ''),
-		server: Number.isFinite(server) ? server : fallbackServer,
-		region,
-	};
+	if (lastStatus === 404) return null;
+	return null;
 }
 
-async function fetchPlayersPage(url: string): Promise<Record<string, unknown>[]> {
-	const result = await fetchPlayersPageResult(url);
+async function fetchPlayersPage(url: string, env: Env): Promise<Record<string, unknown>[]> {
+	const result = await fetchPlayersPageResult(url, env);
 	return result.ok ? result.players : [];
 }
 
 type FetchPageResult =
 	| { ok: true; players: Record<string, unknown>[] }
-	| { ok: false; error: string };
+	| { ok: false; error: string; blocked?: boolean };
 
-async function fetchPlayersPageResult(url: string): Promise<FetchPageResult> {
+async function readPlayersJson(response: Response): Promise<unknown> {
+	const buf = await response.arrayBuffer();
+	const bytes = new Uint8Array(buf);
+	// Some edges return gzip without auto-inflate; handle both.
+	if (bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) {
+		const ds = new DecompressionStream('gzip');
+		const stream = new Blob([bytes]).stream().pipeThrough(ds);
+		const text = await new Response(stream).text();
+		return JSON.parse(text);
+	}
+	const text = new TextDecoder().decode(bytes);
+	return JSON.parse(text);
+}
+
+async function fetchPlayersPageResult(url: string, env: Env, retried = false): Promise<FetchPageResult> {
 	try {
-		const response = await fetch(url, { headers: STFC_HEADERS });
+		const auth = await getStfcAuthHeaders(env);
+		const response = await fetch(url, {
+			headers: {
+				...STFC_HEADERS,
+				Cookie: auth.cookie,
+				'X-STFC-Token': auth.token,
+			},
+		});
+
 		if (response.status === 429) {
 			await new Promise((r) => setTimeout(r, 30_000));
-			return fetchPlayersPageResult(url);
+			return fetchPlayersPageResult(url, env, retried);
 		}
+
 		if (!response.ok) {
-			return { ok: false, error: `stfc.pro API HTTP ${response.status}` };
+			let errBody = '';
+			try {
+				errBody = await response.text();
+			} catch {
+				/* ignore */
+			}
+			let parsed: { error?: string } | null = null;
+			try {
+				parsed = JSON.parse(errBody) as { error?: string };
+			} catch {
+				/* ignore */
+			}
+			const code = parsed?.error;
+
+			// Datacenter / CF egress block — do not burn retries reminting auth.
+			if (code && API_BLOCKED_ERRORS.has(code)) {
+				return {
+					ok: false,
+					blocked: true,
+					error: `stfc.pro API HTTP ${response.status} (${code})`,
+				};
+			}
+
+			if (!retried && (code === 'no_session' || code === 'invalid_token')) {
+				await invalidateStfcAuth(env, code === 'no_session' ? 'session' : 'token');
+				await getStfcAuthHeaders(env, {
+					forceSession: code === 'no_session',
+					forceToken: true,
+				});
+				return fetchPlayersPageResult(url, env, true);
+			}
+
+			return {
+				ok: false,
+				error: code
+					? `stfc.pro API HTTP ${response.status} (${code})`
+					: `stfc.pro API HTTP ${response.status}`,
+			};
 		}
 
-		const data = (await response.json()) as { data?: string; players?: string };
-		const compressed = data.data || data.players;
-		if (!compressed) return { ok: true, players: [] };
-
-		const pageData = decompressStfcPayload(compressed);
-		return { ok: true, players: extractPlayerArray(pageData) };
+		const data = await readPlayersJson(response);
+		return { ok: true, players: extractPlayerArray(data) };
 	} catch (error) {
 		return {
 			ok: false,
@@ -242,6 +372,7 @@ async function fetchPlayersPageResult(url: string): Promise<FetchPageResult> {
 }
 
 export async function fetchAllianceByTag(
+	env: Env,
 	tag: string,
 	server: number,
 	region: string,
@@ -255,7 +386,7 @@ export async function fetchAllianceByTag(
 			`&region=${upperRegion}&server=${server}&tag=${encodeURIComponent(tag)}` +
 			`&sortBy=rank&sortOrder=asc&search=&searchMatch=false&rankMatch=false`;
 
-		const players = await fetchPlayersPage(url);
+		const players = await fetchPlayersPage(url, env);
 		if (players.length === 0) break;
 
 		allPlayers.push(...players.map((p) => mapRawPlayer(p, server, region, tag)));
@@ -273,33 +404,44 @@ export type StfcLookupResult =
 
 /**
  * Lookup with explicit not_found vs transport/API error (for demotion resilience).
+ *
+ * Numeric IDs: HTML profile page first (works from Cloudflare egress).
+ * Name search: /api/players (often blocked from CF — returns error).
  */
 export async function lookupPlayerByIdOrName(
+	env: Env,
 	playerIdOrName: string | number,
 	server: number,
 	region: string,
 ): Promise<StfcLookupResult> {
-	const asNumberId = typeof playerIdOrName === 'number' ? playerIdOrName : Number.NaN;
-	const searchTerm = Number.isFinite(asNumberId) ? String(asNumberId) : String(playerIdOrName);
+	const numericId = coerceNumericPlayerId(playerIdOrName);
 	const upperRegion = region.toUpperCase();
 
+	// Prefer HTML for numeric IDs — /api/players is blocked from CF datacenter IPs.
+	if (numericId != null) {
+		const htmlPlayer = await fetchPlayerFromHtml(numericId, server, upperRegion);
+		if (htmlPlayer) return { status: 'ok', player: htmlPlayer };
+	}
+
+	const searchTerm = numericId != null ? String(numericId) : String(playerIdOrName);
 	let apiError: string | null = null;
 	let apiSucceeded = false;
+	let apiBlocked = false;
 
 	const url =
 		`https://stfc.pro/api/players?type=player_data_power&page=1&pageCount=50` +
 		`&region=${upperRegion}&server=${server}&search=${encodeURIComponent(searchTerm)}` +
 		`&level=&searchMatch=true&tag=&sortBy=rank&sortOrder=asc&rankMatch=false`;
 
-	const api = await fetchPlayersPageResult(url);
+	const api = await fetchPlayersPageResult(url, env);
 	if (api.ok) {
 		apiSucceeded = true;
 		const players = api.players;
 		if (players.length > 0) {
-			if (Number.isFinite(asNumberId)) {
+			if (numericId != null) {
 				const exact = players.find((p) => {
 					const id = p.playerid || p.player_id || p.playerId;
-					return Number(id) === asNumberId;
+					return Number(id) === numericId;
 				});
 				if (exact) {
 					return {
@@ -310,7 +452,7 @@ export async function lookupPlayerByIdOrName(
 			}
 
 			const nameLower = typeof playerIdOrName === 'string' ? playerIdOrName.toLowerCase() : '';
-			if (nameLower) {
+			if (nameLower && numericId == null) {
 				const nameMatch = players.find((p) => {
 					const name = String(p.owner || p.name || p.player_name || '').toLowerCase();
 					return name === nameLower || name.includes(nameLower);
@@ -325,40 +467,23 @@ export async function lookupPlayerByIdOrName(
 		}
 	} else {
 		apiError = api.error;
+		apiBlocked = Boolean(api.blocked);
 	}
 
-	if (Number.isFinite(asNumberId)) {
-		try {
-			const playerUrl = `https://stfc.pro/players/${asNumberId}`;
-			const pageRes = await fetch(playerUrl, { headers: STFC_HTML_HEADERS });
-			if (pageRes.ok) {
-				const html = await pageRes.text();
-				const mapped = extractInitialPlayerFromHtml(html, server, region);
-				if (mapped && mapped.playerId) return { status: 'ok', player: mapped };
-				if (apiSucceeded) return { status: 'not_found' };
-			} else if (pageRes.status === 404 && apiSucceeded) {
-				return { status: 'not_found' };
-			} else if (!apiSucceeded) {
-				return {
-					status: 'error',
-					error: apiError
-						? `${apiError}; HTML HTTP ${pageRes.status}`
-						: `HTML HTTP ${pageRes.status}`,
-				};
-			}
-		} catch (error) {
-			const htmlErr = error instanceof Error ? error.message : 'HTML fetch failed';
-			if (!apiSucceeded) {
-				return {
-					status: 'error',
-					error: apiError ? `${apiError}; ${htmlErr}` : htmlErr,
-				};
-			}
-		}
+	// HTML already tried for numeric IDs above.
+	if (numericId != null) {
+		// HTML miss + API miss/block → not found (don't treat CF block as hard error for ID lookups).
+		if (apiBlocked || apiSucceeded) return { status: 'not_found' };
+		return { status: 'error', error: apiError ?? 'stfc.pro player page unavailable' };
 	}
 
-	if (!apiSucceeded && !Number.isFinite(asNumberId)) {
-		return { status: 'error', error: apiError ?? 'stfc.pro API unavailable' };
+	if (!apiSucceeded) {
+		return {
+			status: 'error',
+			error: apiBlocked
+				? 'stfc.pro player API blocked from this network; use a numeric player ID / profile URL'
+				: (apiError ?? 'stfc.pro API unavailable'),
+		};
 	}
 
 	return { status: 'not_found' };
@@ -366,11 +491,12 @@ export async function lookupPlayerByIdOrName(
 
 /** Convenience wrapper — null means not found or error (legacy callers). */
 export async function findPlayerByIdOrName(
+	env: Env,
 	playerIdOrName: string | number,
 	server: number,
 	region: string,
 ): Promise<PlayerData | null> {
-	const result = await lookupPlayerByIdOrName(playerIdOrName, server, region);
+	const result = await lookupPlayerByIdOrName(env, playerIdOrName, server, region);
 	return result.status === 'ok' ? result.player : null;
 }
 

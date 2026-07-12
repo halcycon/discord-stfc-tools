@@ -260,6 +260,7 @@ export async function runDemotionRecheck(env: Env): Promise<void> {
 			}
 
 			const lookup = await lookupPlayerByIdOrName(
+				env,
 				row.player_id,
 				config.stfc_server,
 				config.stfc_region,

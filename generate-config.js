@@ -46,6 +46,10 @@ function generateWranglerConfig() {
         {
           "name": "DISCORD_GATEWAY",
           "class_name": "DiscordGateway"
+        },
+        {
+          "name": "STFC_SESSION",
+          "class_name": "StfcSession"
         }
       ]
     },
@@ -53,6 +57,10 @@ function generateWranglerConfig() {
       {
         "tag": "v1",
         "new_classes": ["DiscordGateway"]
+      },
+      {
+        "tag": "v2",
+        "new_classes": ["StfcSession"]
       }
     ]
   };
