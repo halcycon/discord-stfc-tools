@@ -5,7 +5,8 @@ import {
 	interactionResponseWithComponents,
 	type DiscordActionRow,
 } from '../discord-api';
-import { getVerifiedPlayer, upsertVerifiedPlayer } from '../guild-db';
+import { getGuildConfig, getVerifiedPlayer, upsertVerifiedPlayer } from '../guild-db';
+import { shouldSkipOutboundDm } from '../deploy-mode';
 import {
 	DEFAULT_LOCALE,
 	LOCALE_NATIVE_LABELS,
@@ -151,6 +152,8 @@ export async function ensureLocaleAfterVerify(
 ): Promise<void> {
 	const token = env.DISCORD_BOT_TOKEN;
 	if (!token) return;
+	const config = await getGuildConfig(env.STFC_DB, guildId);
+	if (shouldSkipOutboundDm(config)) return;
 	const player = await getVerifiedPlayer(env.STFC_DB, guildId, userId);
 	if (player?.preferred_locale) return;
 	try {

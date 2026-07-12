@@ -15,7 +15,10 @@ import {
 	upsertVerifiedPlayer,
 } from './guild-db';
 import { lookupPlayerFromAllianceRoster } from './alliance-roster-sync';
-import { isDeployTesting } from './deploy-mode';
+import {
+	isDeployTesting,
+	shouldSkipOutboundDm,
+} from './deploy-mode';
 import { parseStfcProUrl, resolveSearchTerm } from './stfc-url';
 import { findPlayerByIdOrName } from './stfc-utils';
 import { postVerificationLog } from './verification-log';
@@ -46,7 +49,7 @@ import {
 import type { GuildConfig, PlayerData } from './types';
 
 export type DmResult =
-	| { ok: true }
+	| { ok: true; skippedTesting?: boolean }
 	| { ok: false; errorMessage: string; status?: number };
 
 async function playerLocale(env: Env, guildId: string, discordUserId: string): Promise<string> {
@@ -147,7 +150,7 @@ export async function processVerification(
 	}
 
 	const existingPlayer = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
-	if (needsDataConsent(config, existingPlayer)) {
+	if (needsDataConsent(config, existingPlayer) && !shouldSkipOutboundDm(config)) {
 		if (env.DISCORD_BOT_TOKEN) {
 			try {
 				await sendDataConsentDm(env.DISCORD_BOT_TOKEN, discordUserId, config, locale);
@@ -256,7 +259,11 @@ export async function processVerification(
 				notes.push(formatRoleChangeNote(roleChanges));
 				notes.push(t(locale, 'verify.note.agreement_pending'));
 				try {
-					await sendAgreementDm(token, discordUserId, config, locale);
+					if (!shouldSkipOutboundDm(config)) {
+						await sendAgreementDm(token, discordUserId, config, locale);
+					} else {
+						auditNotes.push('Agreement DM skipped (deploy_mode=testing)');
+					}
 				} catch (err) {
 					console.error('Agreement DM (after verify) failed:', err);
 				}
@@ -371,8 +378,12 @@ export async function processVerification(
 		const guestRecord = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
 		if (config.agreement_enabled && !playerHasAcceptedAgreement(config, guestRecord)) {
 			try {
-				await sendAgreementDm(token, discordUserId, config, locale);
-				auditNotes.push('Agreement DM sent');
+				if (!shouldSkipOutboundDm(config)) {
+					await sendAgreementDm(token, discordUserId, config, locale);
+					auditNotes.push('Agreement DM sent');
+				} else {
+					auditNotes.push('Agreement DM skipped (deploy_mode=testing)');
+				}
 			} catch (err) {
 				console.error('Agreement DM (guest) failed:', err);
 			}
@@ -439,6 +450,15 @@ export async function inviteNewMember(
 		await recordGuildMember(env.STFC_DB, guildId, userId, username);
 		await markMemberInvited(env.STFC_DB, guildId, userId);
 		return { ok: true };
+	}
+
+	if (shouldSkipOutboundDm(config)) {
+		await recordGuildMember(env.STFC_DB, guildId, userId, username);
+		// Do not mark invited — after go-live, member poll / test-invite can send for real.
+		console.log(
+			`inviteNewMember skipped (testing) guild=${guildId} user=${userId} (${username})`,
+		);
+		return { ok: true, skippedTesting: true };
 	}
 
 	// Older invite bug reset status to pending_* while leaving player_id / verified_at.

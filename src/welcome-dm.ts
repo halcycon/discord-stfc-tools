@@ -9,6 +9,7 @@ import {
 } from './discord-api';
 import { getVerifiedPlayer, upsertVerifiedPlayer } from './guild-db';
 import { resolveLocale, t } from './i18n';
+import { shouldSkipOutboundDm } from './deploy-mode';
 import type { GuildConfig } from './types';
 
 const DISCORD_MESSAGE_LIMIT = 2000;
@@ -108,6 +109,9 @@ export async function sendWelcomeDmIfNeeded(
 ): Promise<{ sent: boolean; note?: string }> {
 	if (!welcomeDmConfigured(config)) {
 		return { sent: false };
+	}
+	if (shouldSkipOutboundDm(config)) {
+		return { sent: false, note: 'welcome DM skipped (deploy_mode=testing)' };
 	}
 	const token = env.DISCORD_BOT_TOKEN;
 	if (!token) {

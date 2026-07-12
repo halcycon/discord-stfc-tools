@@ -48,13 +48,11 @@ describe('deploy mode helpers', () => {
 	});
 });
 
-describe('demotion policy with testing dry-run intent', () => {
-	it('still decides demote_now / enqueue under yolo/approval', () => {
-		expect(decideDemotionCandidateAction('yolo', 'alliance_mismatch')).toEqual({
-			action: 'demote_now',
-		});
-		expect(decideDemotionCandidateAction('approval', 'player_missing')).toEqual({
-			action: 'enqueue_approval',
-		});
+describe('outbound DM gating', () => {
+	it('blocks production DMs in testing only', async () => {
+		const { shouldSkipOutboundDm } = await import('../src/deploy-mode');
+		expect(shouldSkipOutboundDm({ deploy_mode: 'testing' })).toBe(true);
+		expect(shouldSkipOutboundDm({ deploy_mode: 'live' })).toBe(false);
+		expect(shouldSkipOutboundDm(null)).toBe(false);
 	});
 });

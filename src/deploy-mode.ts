@@ -52,12 +52,23 @@ export async function withDeployModeContext<T>(
 export function formatDeployModeLine(config: Pick<GuildConfig, 'deploy_mode'>): string {
 	if (isDeployTesting(config)) {
 		return (
-			`• Deploy mode: **testing** — slash replies are prefixed; automated demotions / leave queues are dry-run only.\n` +
+			`• Deploy mode: **testing** — slash replies are prefixed; automated demotions / leave queues are dry-run only; ` +
+			`outbound DMs are off (use \`/test-dm\`).\n` +
 			`  Go live: \`/server deploy mode:live\``
 		);
 	}
 	return `• Deploy mode: **live**`;
 }
+
+/** Production DMs (invites, welcome, CoC, etc.) are blocked in testing — use `/test-dm`. */
+export function shouldSkipOutboundDm(
+	config: Pick<GuildConfig, 'deploy_mode'> | null | undefined,
+): boolean {
+	return isDeployTesting(config);
+}
+
+export const TESTING_OUTBOUND_DM_SKIP =
+	'deploy_mode=testing — outbound DMs disabled (use `/test-dm` to preview)';
 
 /** Human line for cron “would have …” digests. */
 export function formatWouldHaveDemotionLine(opts: {

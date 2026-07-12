@@ -16,6 +16,7 @@ import { postVerificationLog } from './verification-log';
 import type { GuildConfig, VerifiedPlayer } from './types';
 import { findPlayerByIdOrName } from './stfc-utils';
 import { grantFullAccessForVerifiedPlayer } from './verification-access';
+import { shouldSkipOutboundDm, TESTING_OUTBOUND_DM_SKIP } from './deploy-mode';
 import {
 	editInteractionResponse,
 	loadBotManageContext,
@@ -114,6 +115,9 @@ export async function sendAgreementDm(
 	config: GuildConfig,
 	locale: string,
 ): Promise<void> {
+	if (shouldSkipOutboundDm(config)) {
+		throw new Error(TESTING_OUTBOUND_DM_SKIP);
+	}
 	const channelResponse = await fetch('https://discord.com/api/v10/users/@me/channels', {
 		method: 'POST',
 		headers: {
@@ -657,6 +661,7 @@ export async function promptAgreementIfNeeded(
 	if (!token) return false;
 	const config = await getGuildConfig(env.STFC_DB, guildId);
 	if (!config?.agreement_enabled) return false;
+	if (shouldSkipOutboundDm(config)) return false;
 	const player = await getVerifiedPlayer(env.STFC_DB, guildId, userId);
 	if (playerHasAcceptedAgreement(config, player)) return false;
 	const locale = resolveLocale(player?.preferred_locale);

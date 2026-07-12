@@ -12,6 +12,7 @@ import {
 import { getGuildConfig, getVerifiedPlayer, upsertVerifiedPlayer } from './guild-db';
 import { resolveLocale, t } from './i18n';
 import { AuditColor, postAuditLog } from './audit-log';
+import { shouldSkipOutboundDm, TESTING_OUTBOUND_DM_SKIP } from './deploy-mode';
 import type { GuildConfig, VerifiedPlayer } from './types';
 
 export const CONSENT_YES_PREFIX = 'consent:yes:';
@@ -102,6 +103,9 @@ export async function sendDataConsentDm(
 	config: GuildConfig,
 	locale: string,
 ): Promise<void> {
+	if (shouldSkipOutboundDm(config)) {
+		throw new Error(TESTING_OUTBOUND_DM_SKIP);
+	}
 	const channelId = await openUserDmChannel(token, userId);
 	await sendMessageWithComponents(token, channelId, {
 		content: dataConsentDmContent(config, locale),
@@ -118,6 +122,7 @@ export async function promptDataConsentIfNeeded(
 	if (!token) return false;
 	const config = await getGuildConfig(env.STFC_DB, guildId);
 	if (!config?.data_consent_enabled) return false;
+	if (shouldSkipOutboundDm(config)) return false;
 	const player = await getVerifiedPlayer(env.STFC_DB, guildId, userId);
 	if (playerHasDataConsent(config, player)) return false;
 	const locale = resolveLocale(player?.preferred_locale);
@@ -201,10 +206,13 @@ export async function handleDataConsentComponent(
 	}
 
 	if (env.DISCORD_BOT_TOKEN) {
-		try {
-			await sendDirectMessage(env.DISCORD_BOT_TOKEN, userId, t(locale, 'verify.invite.welcome'));
-		} catch (err) {
-			console.error('Post-consent verify invite DM failed:', err);
+		const configForDm = await getGuildConfig(env.STFC_DB, guildId);
+		if (!shouldSkipOutboundDm(configForDm)) {
+			try {
+				await sendDirectMessage(env.DISCORD_BOT_TOKEN, userId, t(locale, 'verify.invite.welcome'));
+			} catch (err) {
+				console.error('Post-consent verify invite DM failed:', err);
+			}
 		}
 	}
 

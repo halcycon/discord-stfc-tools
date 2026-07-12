@@ -32,7 +32,7 @@ import { inviteNewMember, processVerification } from './verification';
 import { handleRosterCommand } from './roster-handlers';
 import { requireGuildAdmin, resolveTargetUserId, resolveRequiredUserOption } from './discord-admin';
 import { AuditColor, createAuditLogChannel, postAuditLog } from './audit-log';
-import { withDeployModeContext } from './deploy-mode';
+import { withDeployModeContext, shouldSkipOutboundDm } from './deploy-mode';
 import type { DeployMode, GuildConfig, GuildMode, StfcRegion } from './types';
 import { createUrgentNotifyChannel, postUrgentNotify } from './urgent-notify';
 import { getDiscordGatewayStatus } from './discord-gateway/wake';
@@ -574,6 +574,7 @@ async function handleServerDeployCommand(
 					`✅ Deploy mode: **testing**\n` +
 						`• Slash command replies are prefixed with \`[TESTING]\`\n` +
 						`• Automated demotions / leave queues are dry-run only (morning cron still reports + lists would-have actions)\n` +
+						`• Outbound DMs are off — use \`/test-dm\` to preview to yourself or a nominated user\n` +
 						`• Manual \`/roster set-guest\` is blocked until you go live\n\n` +
 						`When ready: \`/server deploy mode:live\``,
 					true,
@@ -581,7 +582,7 @@ async function handleServerDeployCommand(
 			}
 			return interactionResponse(
 				`✅ Deploy mode: **live**\n` +
-					`Full automation is on (demotions follow your leave-detection policy).`,
+					`Full automation is on (demotions follow your leave-detection policy; invite/welcome DMs resume).`,
 				true,
 			);
 		});
@@ -591,6 +592,7 @@ async function handleServerDeployCommand(
 		`🚀 **Deploy mode:** **${config.deploy_mode}**\n` +
 			(config.deploy_mode === 'testing'
 				? `• Safe setup: no automated demotions; replies prefixed \`[TESTING]\`\n` +
+					`• Outbound DMs off — preview with \`/test-dm\`\n` +
 					`• Morning cron still syncs/reports and lists actions it **would** take\n`
 				: `• Full automation enabled\n`) +
 			`\nSet: \`/server deploy mode:testing\` or \`mode:live\``,
@@ -1295,6 +1297,19 @@ async function handleServerTestInviteCommand(
 	if (adminError) return adminError;
 
 	const guildId = interaction.guild_id!;
+	const config = await getGuildConfig(env.STFC_DB, guildId);
+	if (!config) {
+		return interactionResponse('❌ Server not configured. Run `/server setup` first.', true);
+	}
+	if (shouldSkipOutboundDm(config)) {
+		return interactionResponse(
+			`[TESTING] Live invite DMs are disabled in **testing** mode.\n` +
+				`Preview with \`/test-dm kind:invite user:@Them\` (defaults to you).\n` +
+				`Go live when ready: \`/server deploy mode:live\``,
+			true,
+		);
+	}
+
 	const userId = resolveTargetUserId(interaction as any, sub.options);
 	if (!userId) return interactionResponse('❌ Could not resolve target user.', true);
 

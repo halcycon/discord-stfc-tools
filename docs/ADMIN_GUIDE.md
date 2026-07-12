@@ -346,8 +346,8 @@ New guilds start in **testing** after `/server setup`. Existing guilds stay **li
 
 | Mode | Behavior |
 |------|----------|
-| **testing** | Slash replies prefixed `[TESTING]`. Automated demotions / leave queues are **dry-run** (morning cron still posts roster + sync reports, plus a list of actions it *would* have taken). Manual `/roster set-guest` is blocked. |
-| **live** | Full automation (demotions follow `/server demotion` policy). |
+| **testing** | Slash replies prefixed `[TESTING]`. Automated demotions / leave queues are **dry-run**. **No outbound DMs** (invites, welcome, CoC, etc.) — preview only via `/test-dm` to yourself or a nominated user. Manual `/roster set-guest` blocked. |
+| **live** | Full automation (demotions follow `/server demotion` policy; invite/welcome DMs resume). |
 
 ```
 /server deploy                 # show current mode

@@ -2,6 +2,7 @@ import { sendChannelMessage, sendMessageWithComponents } from '../discord-api';
 import { getGuildConfig, getPendingVerificationsForUser, getVerifiedPlayer, upsertVerifiedPlayer } from '../guild-db';
 import { processVerification } from '../verification';
 import { resolveLocale, t } from '../i18n';
+import { shouldSkipOutboundDm } from '../deploy-mode';
 import {
 	buildLanguagePickerComponents,
 	languagePickerPrompt,
@@ -146,5 +147,7 @@ export async function promptLocaleIfMissing(
 ): Promise<void> {
 	const player = await getVerifiedPlayer(env.STFC_DB, guildId, userId);
 	if (player?.preferred_locale || !env.DISCORD_BOT_TOKEN) return;
+	const config = await getGuildConfig(env.STFC_DB, guildId);
+	if (shouldSkipOutboundDm(config)) return;
 	await sendLanguagePickerDm(env.DISCORD_BOT_TOKEN, userId, guildId);
 }

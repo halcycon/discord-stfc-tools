@@ -26,7 +26,7 @@ import { AuditColor, postAuditLog } from './audit-log';
 import { opsLevelToGrade } from './grade-utils';
 import type { GuildConfig, PlayerData, VerifiedPlayer } from './types';
 import { findPlayerByIdOrName } from './stfc-utils';
-import { isDeployTesting } from './deploy-mode';
+import { isDeployTesting, shouldSkipOutboundDm } from './deploy-mode';
 
 export type DemoteReason = 'alliance_mismatch' | 'player_missing' | 'admin' | 'unverified_bulk';
 
@@ -259,6 +259,10 @@ export async function sendGuestDemotionDm(
 	reason: DemoteReason,
 	opts?: { preview?: boolean },
 ): Promise<void> {
+	// Production demotion DMs blocked in testing; `/test-dm` uses preview: true.
+	if (shouldSkipOutboundDm(config) && !opts?.preview) {
+		return;
+	}
 	const locale = resolveLocale(existing?.preferred_locale);
 	const tag = (config.alliance_tag ?? '').trim() || '—';
 	const body =

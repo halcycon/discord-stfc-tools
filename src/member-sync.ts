@@ -8,6 +8,7 @@ import {
 	recordGuildMember,
 } from './guild-db';
 import { inviteNewMember } from './verification';
+import { shouldSkipOutboundDm } from './deploy-mode';
 
 export async function syncGuildMembers(env: Env): Promise<void> {
 	if (!env.DISCORD_BOT_TOKEN) {
@@ -20,6 +21,30 @@ export async function syncGuildMembers(env: Env): Promise<void> {
 
 	for (const config of guilds) {
 		if (!config.verification_enabled) continue;
+
+		if (shouldSkipOutboundDm(config)) {
+			console.log(
+				`Member sync: skipping invite DMs for guild ${config.guild_id} (deploy_mode=testing)`,
+			);
+			// Still record new members so go-live can invite them, but do not DM.
+			try {
+				const knownIds = await getKnownMemberIds(env.STFC_DB, config.guild_id);
+				const members = await listAllGuildMembers(token, config.guild_id);
+				const excludedIds = await getExcludedUserIds(env.STFC_DB, config.guild_id);
+				for (const member of members) {
+					const userId = member.user.id;
+					const username = member.user.username;
+					if (knownIds.has(userId)) continue;
+					await recordGuildMember(env.STFC_DB, config.guild_id, userId, username);
+					if (member.user.bot || excludedIds.has(userId)) {
+						await markMemberInvited(env.STFC_DB, config.guild_id, userId);
+					}
+				}
+			} catch (error) {
+				console.error(`Member sync (testing record-only) failed for guild ${config.guild_id}:`, error);
+			}
+			continue;
+		}
 
 		try {
 			const excludedIds = await getExcludedUserIds(env.STFC_DB, config.guild_id);
