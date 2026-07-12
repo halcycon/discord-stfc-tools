@@ -2,6 +2,8 @@
 
 How to configure the bot **inside Discord** after it is deployed. For Cloudflare/Worker install steps, see [SETUP.md](../SETUP.md).
 
+Release versions (MAJOR.MINOR.INCREMENTAL) are listed in [VERSION_HISTORY.md](../VERSION_HISTORY.md). `/server status` shows the running bot version.
+
 You need the **Administrator** permission in the Discord server for `/server` commands.
 
 ---

@@ -7,6 +7,8 @@ Cloudflare Worker Discord bot for **Star Trek Fleet Command (STFC)**:
 - **Coordinate lookup** — parse in-game share links
 - **Tables** — ASCII tables from CSV
 
+**Version:** see **[VERSION_HISTORY.md](./VERSION_HISTORY.md)** (MAJOR.MINOR.INCREMENTAL). Current release is shown in `/server status`.
+
 **Setup:** see **[SETUP.md](./SETUP.md)** for fresh install and migration from older versions.
 
 **Discord admins:** see **[docs/ADMIN_GUIDE.md](./docs/ADMIN_GUIDE.md)** for in-server configuration (roles, nicknames, channels, verification log, **daily alliance roster**).

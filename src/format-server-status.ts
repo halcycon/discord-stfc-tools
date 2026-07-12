@@ -3,11 +3,12 @@ import { formatCategoryMap, personalChannelsEnabled } from './channel-utils';
 import { diplomacyChannelsEnabled, formatDiplomacyChannelMap } from './diplomacy-channels';
 import { defaultNicknameTemplate } from './nickname-utils';
 import { formatDeployModeLine } from './deploy-mode';
+import { BOT_VERSION } from './version';
 
 /** Shared server config summary for `/server status` and DM wizard. */
 export function formatServerStatus(config: GuildConfig): string {
 	return (
-		`📋 **Server configuration**\n` +
+		`📋 **Server configuration** (bot v${BOT_VERSION})\n` +
 		`• Mode: ${config.mode}\n` +
 		`• STFC server: ${config.stfc_server} (${config.stfc_region})\n` +
 		`• Alliance tag: ${config.alliance_tag ?? '—'}` +

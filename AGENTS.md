@@ -190,6 +190,7 @@ src/
   systemData.ts            # Bundled systems (generated — do not hand-edit)
   tableUtils.ts            # CSV tables
   cron.ts                  # Scheduled jobs
+  version.ts               # BOT_VERSION (MAJOR.MINOR.INCREMENTAL)
 
 migrations/
   001_guild_schema.sql     # Guild/player tables
@@ -264,7 +265,7 @@ Legacy officer tables may still exist in this D1 database from earlier work; the
 ## Known technical debt
 
 1. **KV migration incomplete** — `SYSTEM_DATA` binding exists; worker reads bundled `systemData.ts` instead.
-2. **Stale root docs** — `README.md`, `CHANGES_SUMMARY.md` may not reflect current scope.
+2. **Stale root docs** — `CHANGES_SUMMARY.md` is legacy (Aug 2025 utilities); prefer `VERSION_HISTORY.md`.
 3. **No CI/CD** — no GitHub Actions.
 4. **Member poll fallback** — REST member list poll every 5 min when Gateway disconnected.
 5. **stfc.pro `/api/players` blocked from CF egress** — returns `403 forbidden` even with valid anonymous session + `X-STFC-Token`. Worker uses HTML scrapes (`/players/{id}`, `/alliances/{id}`) instead. Residential IPs still get API `200`.
@@ -639,6 +640,7 @@ npm test
 7. **Configurable behavior** — Feature flags in `guild_configs`, not hardcoded guild IDs.
 8. **No new storage systems** unless requested — D1 + R2 + existing KV/assets are sufficient.
 9. **Update this file** when architecture or roadmap changes materially.
+10. **Bump version** for shipped features — update `VERSION_HISTORY.md`, `package.json`, and `src/version.ts` together (see version history checklist).
 
 ---
 
@@ -664,6 +666,7 @@ Mock Discord REST and stfc.pro in Worker tests; use D1 local binding for integra
 
 | File | Status |
 |------|--------|
+| `VERSION_HISTORY.md` | **Release versions** (MAJOR.MINOR.INCREMENTAL) + changelog |
 | `SETUP.md` | **Fresh install and migration guide** (cron, diagnostic endpoints) |
 | `docs/ADMIN_GUIDE.md` | **Discord admin configuration** (roles, nicks, channels, log, **daily alliance roster**) |
 | `AGENTS.md` | Architecture, alliance roster sync, roadmap, coding guidelines |
