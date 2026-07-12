@@ -389,6 +389,18 @@ const commands = [
 						description: 'Clear linked channel / message ID',
 						required: false,
 					},
+					{
+						type: 5,
+						name: 'backfill',
+						description: 'Mark all verified members as CoC-accepted + restore roles',
+						required: false,
+					},
+					{
+						type: 6,
+						name: 'user',
+						description: 'Mark one member as CoC-accepted + restore their roles',
+						required: false,
+					},
 				],
 			},
 			{

@@ -826,6 +826,15 @@ Two separate gates:
 /server agreement enabled:true timing:after_verify channel:#code-of-conduct version:2026-07
 ```
 
+**Existing / manually verified members stuck as guest until CoC** (e.g. DMs blocked): mark accepted and restore member roles without them tapping Agree:
+
+```
+/server agreement backfill:true
+/server agreement user:@Player
+```
+
+Records `agreement_method: admin_backfill`, stamps the current CoC version, then runs the same role/nick/channel grant as the Agree button. Alliance guests stay on guest role.
+
 **Onboarding order when data consent is on:** language (if needed) → consent Yes/No → verification instructions → screenshot + link → (optional CoC) → welcome DM.
 
 Bump `version` on either gate to re-prompt after policy changes.

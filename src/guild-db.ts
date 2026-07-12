@@ -896,6 +896,42 @@ export async function listActiveVerifiedPlayers(db: D1Database, guildId: string)
 }
 
 /**
+ * Verified players who still need CoC acceptance for the current agreement_version
+ * (or any version if guild has no version set — only those with null agreement_accepted_at).
+ */
+export async function listPlayersMissingAgreement(
+	db: D1Database,
+	guildId: string,
+	requiredVersion: string | null | undefined,
+): Promise<VerifiedPlayer[]> {
+	const required = requiredVersion?.trim() || null;
+	const { results } = await db
+		.prepare(
+			required
+				? `SELECT * FROM verified_players
+				   WHERE guild_id = ?
+				     AND verification_status IN ('verified', 'active', 'guest')
+				     AND player_id IS NOT NULL
+				     AND (
+				       agreement_accepted_at IS NULL
+				       OR agreement_version IS NULL
+				       OR TRIM(agreement_version) = ''
+				       OR agreement_version != ?
+				     )
+				   ORDER BY LOWER(COALESCE(player_name, ''))`
+				: `SELECT * FROM verified_players
+				   WHERE guild_id = ?
+				     AND verification_status IN ('verified', 'active', 'guest')
+				     AND player_id IS NOT NULL
+				     AND agreement_accepted_at IS NULL
+				   ORDER BY LOWER(COALESCE(player_name, ''))`,
+		)
+		.bind(...(required ? [guildId, required] : [guildId]))
+		.all();
+	return (results ?? []).map(mapVerifiedPlayer);
+}
+
+/**
  * Verified members used for personal-channel planning/rebalance.
  * Includes active/verified (and guests with a linked channel).
  */

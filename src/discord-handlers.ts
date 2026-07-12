@@ -718,7 +718,14 @@ async function handleServerConsentCommand(
 
 async function handleServerAgreementCommand(
 	env: Env,
-	interaction: { guild_id?: string; member?: { permissions?: string } },
+	ctx: ExecutionContext,
+	interaction: {
+		guild_id?: string;
+		application_id?: string;
+		token?: string;
+		member?: { permissions?: string; user?: { id?: string } };
+		user?: { id?: string };
+	},
 	sub: { options?: Array<{ name: string; value?: unknown }> },
 ): Promise<Response> {
 	const adminError = requireGuildAdmin(interaction);
@@ -737,8 +744,10 @@ async function handleServerAgreementCommand(
 	const messageIdRaw = getOptionValue(sub.options, 'message_id') as string | undefined;
 	const versionRaw = getOptionValue(sub.options, 'version') as string | undefined;
 	const clearChannel = getOptionValue(sub.options, 'clear_channel') === true;
+	const backfill = getOptionValue(sub.options, 'backfill') === true;
+	const grantUserRaw = getOptionValue(sub.options, 'user');
 
-	const anyOpt =
+	const anyConfigOpt =
 		enabledRaw !== undefined ||
 		timingRaw !== undefined ||
 		modeRaw !== undefined ||
@@ -747,7 +756,7 @@ async function handleServerAgreementCommand(
 		versionRaw !== undefined ||
 		clearChannel;
 
-	if (!anyOpt) {
+	if (!anyConfigOpt && !backfill && grantUserRaw == null) {
 		return interactionResponse(
 			`📜 **Code of conduct / Discord agreement** (after verify)\n` +
 				`• Enabled: ${config.agreement_enabled ? 'yes' : 'no'}\n` +
@@ -756,54 +765,140 @@ async function handleServerAgreementCommand(
 				`• Channel: ${config.agreement_channel_id ? `<#${config.agreement_channel_id}>` : 'not set'}\n` +
 				`• Message ID: ${config.agreement_message_id ?? '—'}\n` +
 				`• Version: ${config.agreement_version ?? '—'}\n\n` +
-				`Example:\n\`/server agreement enabled:true timing:after_verify channel:#code-of-conduct version:2026-07\``,
+				`Config: \`/server agreement enabled:true timing:after_verify channel:#code-of-conduct version:2026-07\`\n` +
+				`Existing members stuck as guest until CoC: \`/server agreement backfill:true\` or \`user:@Them\``,
 			true,
 		);
 	}
 
-	const patch: Partial<GuildConfig> & { guild_id: string } = { guild_id: guildId };
-	if (enabledRaw === true || enabledRaw === 'true') patch.agreement_enabled = true;
-	if (enabledRaw === false || enabledRaw === 'false') patch.agreement_enabled = false;
-	if (timingRaw === 'before_verify' || timingRaw === 'after_verify') {
-		patch.agreement_timing = timingRaw;
-	}
-	if (modeRaw === 'dm_button' || modeRaw === 'channel_react') {
-		patch.agreement_mode = modeRaw;
-	}
-	if (clearChannel) {
-		patch.agreement_channel_id = null;
-		patch.agreement_message_id = null;
-	} else if (channelRaw != null && channelRaw !== '') {
-		patch.agreement_channel_id = String(channelRaw);
-	}
-	if (messageIdRaw !== undefined) {
-		const mid = String(messageIdRaw).trim();
-		patch.agreement_message_id = mid || null;
-	}
-	if (versionRaw !== undefined) {
-		patch.agreement_version = String(versionRaw).trim() || null;
+	let refreshed = config;
+	if (anyConfigOpt) {
+		const patch: Partial<GuildConfig> & { guild_id: string } = { guild_id: guildId };
+		if (enabledRaw === true || enabledRaw === 'true') patch.agreement_enabled = true;
+		if (enabledRaw === false || enabledRaw === 'false') patch.agreement_enabled = false;
+		if (timingRaw === 'before_verify' || timingRaw === 'after_verify') {
+			patch.agreement_timing = timingRaw;
+		}
+		if (modeRaw === 'dm_button' || modeRaw === 'channel_react') {
+			patch.agreement_mode = modeRaw;
+		}
+		if (clearChannel) {
+			patch.agreement_channel_id = null;
+			patch.agreement_message_id = null;
+		} else if (channelRaw != null && channelRaw !== '') {
+			patch.agreement_channel_id = String(channelRaw);
+		}
+		if (messageIdRaw !== undefined) {
+			const mid = String(messageIdRaw).trim();
+			patch.agreement_message_id = mid || null;
+		}
+		if (versionRaw !== undefined) {
+			patch.agreement_version = String(versionRaw).trim() || null;
+		}
+
+		await upsertGuildConfig(env.STFC_DB, patch);
+		refreshed = (await getGuildConfig(env.STFC_DB, guildId)) ?? config;
+		await postAuditLog(env, refreshed, {
+			title: 'Agreement settings updated',
+			description:
+				`Enabled: **${refreshed.agreement_enabled ? 'yes' : 'no'}** · ` +
+				`Timing: \`${refreshed.agreement_timing}\` · Mode: \`${refreshed.agreement_mode}\``,
+			source: 'admin',
+			color: AuditColor.info,
+		});
 	}
 
-	await upsertGuildConfig(env.STFC_DB, patch);
-	const refreshed = await getGuildConfig(env.STFC_DB, guildId);
-	await postAuditLog(env, refreshed, {
-		title: 'Agreement settings updated',
-		description:
-			`Enabled: **${refreshed?.agreement_enabled ? 'yes' : 'no'}** · ` +
-			`Timing: \`${refreshed?.agreement_timing}\` · Mode: \`${refreshed?.agreement_mode}\``,
-		source: 'admin',
-		color: AuditColor.info,
-	});
+	if (!backfill && grantUserRaw == null) {
+		return interactionResponse(
+			`✅ Agreement settings updated.\n` +
+				`• Enabled: ${refreshed.agreement_enabled ? 'yes' : 'no'}\n` +
+				`• Timing: \`${refreshed.agreement_timing}\`\n` +
+				`• Mode: \`${refreshed.agreement_mode}\`\n` +
+				`• Channel: ${refreshed.agreement_channel_id ? `<#${refreshed.agreement_channel_id}>` : '—'}\n` +
+				`• Version: ${refreshed.agreement_version ?? '—'}`,
+			true,
+		);
+	}
 
-	return interactionResponse(
-		`✅ Agreement settings updated.\n` +
-			`• Enabled: ${refreshed?.agreement_enabled ? 'yes' : 'no'}\n` +
-			`• Timing: \`${refreshed?.agreement_timing}\`\n` +
-			`• Mode: \`${refreshed?.agreement_mode}\`\n` +
-			`• Channel: ${refreshed?.agreement_channel_id ? `<#${refreshed.agreement_channel_id}>` : '—'}\n` +
-			`• Version: ${refreshed?.agreement_version ?? '—'}`,
-		true,
+	const actorId = interaction.member?.user?.id ?? interaction.user?.id;
+	const appId = interaction.application_id ?? env.DISCORD_APPLICATION_ID;
+	if (!appId || !interaction.token) {
+		return interactionResponse('❌ Missing application id / interaction token for deferred backfill.', true);
+	}
+	if (!env.DISCORD_BOT_TOKEN) {
+		return interactionResponse('❌ DISCORD_BOT_TOKEN is not configured.', true);
+	}
+
+	const grantUserId =
+		grantUserRaw != null && String(grantUserRaw).trim() !== ''
+			? String(grantUserRaw).trim()
+			: undefined;
+
+	const deferred = deferredResponse();
+	const configSnapshot = refreshed;
+	ctx.waitUntil(
+		(async () => {
+			try {
+				const { runAgreementBackfill } = await import('./agreement');
+				const result = await runAgreementBackfill(env, configSnapshot, guildId, {
+					actorId,
+					userId: grantUserId,
+					onProgress: async (done, total, ok, failed) => {
+						await editInteractionResponse(
+							appId,
+							interaction.token!,
+							`⏳ Agreement backfill ${done}/${total} (ok ${ok}, failed ${failed})…`,
+							true,
+						);
+					},
+				});
+
+				await postAuditLog(env, configSnapshot, {
+					title: grantUserId ? 'Agreement granted (admin)' : 'Agreement backfill',
+					description:
+						(grantUserId
+							? `Marked CoC accepted for <@${grantUserId}>`
+							: `Marked CoC accepted for **${result.ok}** verified member(s)`) +
+						(result.failed ? ` · **${result.failed}** failed` : '') +
+						(result.skipped ? ` · **${result.skipped}** already accepted` : '') +
+						(configSnapshot.agreement_version
+							? ` · v${configSnapshot.agreement_version}`
+							: ''),
+					actorId,
+					source: 'admin',
+					color: result.failed ? AuditColor.warn : AuditColor.success,
+				});
+
+				const errBlock =
+					result.errors.length > 0 ? `\n\nErrors:\n${result.errors.join('\n')}` : '';
+				const configNote = anyConfigOpt ? 'Settings saved. ' : '';
+				await editInteractionResponse(
+					appId,
+					interaction.token!,
+					`✅ ${configNote}Agreement backfill complete.\n` +
+						`• Processed: **${result.total}**\n` +
+						`• Accepted + access restored: **${result.ok}**\n` +
+						`• Already accepted: **${result.skipped}**\n` +
+						`• Failed: **${result.failed}**` +
+						(result.total === 0 && result.errors.length === 0
+							? '\n\nNo verified players were missing the current CoC version.'
+							: '') +
+						errBlock,
+					true,
+				);
+			} catch (err) {
+				console.error('Agreement backfill aborted:', err);
+				const msg = err instanceof Error ? err.message : 'unknown error';
+				await editInteractionResponse(
+					appId,
+					interaction.token!,
+					`❌ Agreement backfill failed: ${msg.slice(0, 400)}`,
+					true,
+				);
+			}
+		})(),
 	);
+	return deferred;
 }
 
 async function handleServerWelcomeCommand(
@@ -2999,7 +3094,7 @@ export async function handleDiscordInteraction(
 				return handleServerConsentCommand(env, interaction as any, sub);
 			}
 			if (sub?.name === 'agreement') {
-				return handleServerAgreementCommand(env, interaction as any, sub);
+				return handleServerAgreementCommand(env, ctx, interaction as any, sub);
 			}
 			if (sub?.name === 'welcome') {
 				return handleServerWelcomeCommand(env, interaction as any, sub);
