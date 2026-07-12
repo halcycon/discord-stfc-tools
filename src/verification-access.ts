@@ -4,6 +4,7 @@
  */
 import {
 	addGuildMemberRole,
+	botCanManageMember,
 	DiscordApiError,
 	getGuildChannel,
 	getGuildMember,
@@ -410,14 +411,23 @@ export async function applyMemberRoles(
 			unchanged.push(roleId);
 			continue;
 		}
-		await addGuildMemberRole(token, guildId, userId, roleId);
-		added.push(roleId);
-		current.add(roleId);
+		try {
+			await addGuildMemberRole(token, guildId, userId, roleId);
+			added.push(roleId);
+			current.add(roleId);
+		} catch (err) {
+			// Hierarchy / owner / missing Manage Roles — keep going (bulk backfill must not stall).
+			console.warn(`Failed to add role ${roleId} to ${userId}:`, err);
+		}
 	}
 
 	if (config.guest_role_id && /^\d{15,20}$/.test(config.guest_role_id) && current.has(config.guest_role_id)) {
-		await removeGuildMemberRole(token, guildId, userId, config.guest_role_id);
-		removed.push(config.guest_role_id);
+		try {
+			await removeGuildMemberRole(token, guildId, userId, config.guest_role_id);
+			removed.push(config.guest_role_id);
+		} catch (err) {
+			console.warn(`Failed to remove guest role from ${userId}:`, err);
+		}
 	}
 
 	return { added, removed, unchanged };
@@ -575,8 +585,45 @@ export async function grantFullAccessForVerifiedPlayer(
 	const name = player?.name ?? record.player_name ?? 'Unknown';
 	const allianceTag = player?.allianceTag ?? record.alliance_tag ?? '';
 
-	const roleChanges = await applyMemberRoles(token, config, guildId, discordUserId, rank);
-	auditNotes.push(formatRoleChangeNote(roleChanges));
+	const manage = await botCanManageMember(token, guildId, discordUserId);
+	if (!manage.manageable) {
+		auditNotes.push(`Discord roles/nick skipped (${manage.reason}) — stamp CoC only`);
+		// Still ensure personal channel when possible (does not require managing the member).
+		const existing = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
+		const existingChannelId = existing?.personal_channel_id ?? record.personal_channel_id ?? null;
+		if (!(opts?.skipPersonalChannelIfExists && existingChannelId)) {
+			const channelResult = await applyPersonalChannelForMember(
+				token,
+				config,
+				guildId,
+				discordUserId,
+				name,
+				existingChannelId,
+			);
+			if (channelResult) {
+				await upsertVerifiedPlayer(env.STFC_DB, {
+					guild_id: guildId,
+					discord_user_id: discordUserId,
+					personal_channel_id: channelResult.channelId,
+				});
+				auditNotes.push(`Channel <#${channelResult.channelId}>`);
+			}
+		} else if (existingChannelId) {
+			auditNotes.push(`Channel <#${existingChannelId}> (kept)`);
+		}
+		return {
+			message: t(locale, 'agree.result.access_granted', { name }) + ` _(roles skipped: ${manage.reason})_`,
+			auditNotes,
+		};
+	}
+
+	try {
+		const roleChanges = await applyMemberRoles(token, config, guildId, discordUserId, rank);
+		auditNotes.push(formatRoleChangeNote(roleChanges));
+	} catch (err) {
+		console.error('Member roles after agreement failed:', err);
+		auditNotes.push(`Roles failed: ${formatDiscordApiFailure(err)}`);
+	}
 
 	try {
 		const nickSource: PlayerData =
@@ -601,7 +648,7 @@ export async function grantFullAccessForVerifiedPlayer(
 		auditNotes.push(`Nick: ${nick}`);
 	} catch (err) {
 		console.error('Nickname after agreement failed:', err);
-		auditNotes.push('Nick failed');
+		auditNotes.push('Nick failed (hierarchy/owner?)');
 	}
 
 	const existing = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
@@ -630,8 +677,13 @@ export async function grantFullAccessForVerifiedPlayer(
 	}
 
 	if (allianceTag) {
-		const diplomacyId = await applyDiplomacyForAlliance(env, token, config, guildId, allianceTag);
-		if (diplomacyId) auditNotes.push(`Diplomacy <#${diplomacyId}>`);
+		try {
+			const diplomacyId = await applyDiplomacyForAlliance(env, token, config, guildId, allianceTag);
+			if (diplomacyId) auditNotes.push(`Diplomacy <#${diplomacyId}>`);
+		} catch (err) {
+			console.error('Diplomacy after agreement failed:', err);
+			auditNotes.push('Diplomacy failed');
+		}
 	}
 
 	const personalChannelId =
