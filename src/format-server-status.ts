@@ -9,7 +9,9 @@ export function formatServerStatus(config: GuildConfig): string {
 		`📋 **Server configuration**\n` +
 		`• Mode: ${config.mode}\n` +
 		`• STFC server: ${config.stfc_server} (${config.stfc_region})\n` +
-		`• Alliance tag: ${config.alliance_tag ?? '—'}\n` +
+		`• Alliance tag: ${config.alliance_tag ?? '—'}` +
+		(config.stfc_alliance_id ? ` (id \`${config.stfc_alliance_id}\`)` : '') +
+		`\n` +
 		`• Nickname template: \`${config.nickname_template?.trim() || defaultNicknameTemplate(config.mode)}\`` +
 		`${config.nickname_template?.trim() ? '' : ' (default)'}\n` +
 		`• Verification log: ${config.verification_log_channel_id ? `<#${config.verification_log_channel_id}>` : 'not set'}\n` +

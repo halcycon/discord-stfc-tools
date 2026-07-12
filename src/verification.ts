@@ -14,6 +14,7 @@ import {
 	recordScreenshot,
 	upsertVerifiedPlayer,
 } from './guild-db';
+import { lookupPlayerFromAllianceRoster } from './alliance-roster-sync';
 import { parseStfcProUrl, resolveSearchTerm } from './stfc-url';
 import { findPlayerByIdOrName } from './stfc-utils';
 import { postVerificationLog } from './verification-log';
@@ -89,7 +90,9 @@ export async function lookupPlayerFromUrl(
 		return { player: null, error: t(locale, 'verify.error.no_player_id') };
 	}
 
-	const player = await findPlayerByIdOrName(env, searchTerm, server, region);
+	// Prefer today's alliance roster when the player is already on it (skips stfc.pro).
+	const fromRoster = await lookupPlayerFromAllianceRoster(env, config, searchTerm);
+	const player = fromRoster ?? (await findPlayerByIdOrName(env, searchTerm, server, region));
 	if (!player) {
 		return {
 			player: null,

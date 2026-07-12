@@ -281,6 +281,11 @@ export async function handleSetupButton(
 			verification_enabled: true,
 		});
 
+		if (mode === 'multi_alliance') {
+			const { clearGuildAllianceRosterCache } = await import('../alliance-roster-sync');
+			await clearGuildAllianceRosterCache(env, guildId);
+		}
+
 		const config = await getGuildConfig(env.STFC_DB, guildId);
 		await postAuditLog(env, config, {
 			title: 'Server setup (DM wizard)',

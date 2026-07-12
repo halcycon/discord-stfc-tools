@@ -57,6 +57,8 @@ export interface GuildConfig {
 	stfc_server: number;
 	stfc_region: StfcRegion;
 	alliance_tag: string | null;
+	/** stfc.pro alliance id for /alliances/{id} HTML roster scrape (single_alliance). */
+	stfc_alliance_id: string | null;
 	guest_role_id: string | null;
 	member_role_ids: string[];
 	operative_role_ids: string[];

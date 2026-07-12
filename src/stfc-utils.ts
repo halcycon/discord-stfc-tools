@@ -510,3 +510,172 @@ export function formatPlayerSummary(player: PlayerData): string {
 		`Server: ${player.server} (${player.region})`,
 	].join('\n');
 }
+
+export type AllianceRosterScrape = {
+	allianceId: string;
+	allianceTag: string;
+	allianceName: string;
+	server: number;
+	region: string;
+	players: PlayerData[];
+};
+
+/** Extract a JSON value after `"key":` from Next.js-escaped (or raw) HTML. */
+function extractJsonAfterKey(html: string, key: string): unknown | null {
+	const markers = [
+		`\\"${key}\\"`, // \"key\"
+		`"${key}"`, // "key"
+		`${key}\\"`, // key\"  (inside an already-quoted RSC string)
+		`${key}"`, // key"
+	];
+
+	const tryParseAt = (markerIdx: number, escaped: boolean): unknown | null => {
+		const window = html.slice(markerIdx, markerIdx + 900_000);
+		const text = escaped
+			? window.replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\\\/g, '\\')
+			: window;
+
+		let keyAt = text.indexOf(`"${key}"`);
+		if (keyAt === -1) {
+			keyAt = text.indexOf(key);
+			if (keyAt === -1) return null;
+		}
+		let i = text.indexOf(':', keyAt);
+		if (i === -1) return null;
+		i++;
+		while (i < text.length && /\s/.test(text[i]!)) i++;
+		const startChar = text[i];
+		// Alliance pages also embed `"players": 87` (count) — prefer array/object payloads.
+		if (startChar !== '{' && startChar !== '[') return null;
+
+		const stack: string[] = [];
+		let inString = false;
+		let escape = false;
+		for (let j = i; j < text.length; j++) {
+			const ch = text[j]!;
+			if (inString) {
+				if (escape) {
+					escape = false;
+					continue;
+				}
+				if (ch === '\\') {
+					escape = true;
+					continue;
+				}
+				if (ch === '"') inString = false;
+				continue;
+			}
+			if (ch === '"') {
+				inString = true;
+				continue;
+			}
+			if (ch === '{' || ch === '[') stack.push(ch);
+			else if (ch === '}' || ch === ']') {
+				const open = stack.pop();
+				if ((ch === '}' && open !== '{') || (ch === ']' && open !== '[')) return null;
+				if (stack.length === 0) {
+					try {
+						return JSON.parse(text.slice(i, j + 1));
+					} catch {
+						return null;
+					}
+				}
+			}
+		}
+		return null;
+	};
+
+	for (const m of markers) {
+		const escaped = m.includes('\\');
+		let from = 0;
+		while (from < html.length) {
+			const idx = html.indexOf(m, from);
+			if (idx === -1) break;
+			const parsed = tryParseAt(idx, escaped);
+			if (parsed != null) return parsed;
+			from = idx + m.length;
+		}
+	}
+	return null;
+}
+
+export function extractAllianceRosterFromHtml(
+	html: string,
+	fallbackServer: number,
+	fallbackRegion: string,
+): AllianceRosterScrape | null {
+	const playersRaw = extractJsonAfterKey(html, 'players');
+	if (!Array.isArray(playersRaw) || playersRaw.length === 0) return null;
+
+	const first = playersRaw[0] as Record<string, unknown>;
+	let allianceId = String(first.allianceid ?? first.allianceId ?? first.alliance_id ?? '');
+	let allianceTag = String(first.tag ?? first.alliance_tag ?? '');
+	// Alliance roster rows use `name` for the alliance name and `owner` for the player.
+	const allianceName = String(first.name ?? '');
+	const server = Number(first.server ?? fallbackServer) || fallbackServer;
+	const region = String(first.region ?? fallbackRegion).toUpperCase() || fallbackRegion;
+
+	if (!allianceId) {
+		const m = html.match(/allianceid\\":(\d+)/) || html.match(/"allianceid":(\d+)/);
+		if (m) allianceId = m[1]!;
+	}
+
+	const players: PlayerData[] = [];
+	for (const row of playersRaw) {
+		if (!row || typeof row !== 'object') continue;
+		const obj = row as Record<string, unknown>;
+		const mapped = mapRawPlayer(obj, server, region, allianceTag);
+		if (!mapped.playerId || !mapped.name) continue;
+		const rowServer = Number(obj.server ?? server);
+		const rowRegion = String(obj.region ?? region).toUpperCase() || region;
+		players.push({
+			...mapped,
+			name: String(obj.owner ?? mapped.name),
+			rank: String(obj.rankdesc ?? mapped.rank ?? ''),
+			allianceId: String(obj.allianceid ?? obj.allianceId ?? allianceId),
+			allianceTag: String(obj.tag ?? allianceTag),
+			server: Number.isFinite(rowServer) ? rowServer : server,
+			region: rowRegion,
+		});
+	}
+	if (players.length === 0) return null;
+
+	return {
+		allianceId,
+		allianceTag,
+		allianceName,
+		server,
+		region,
+		players,
+	};
+}
+
+export async function scrapeAllianceById(
+	allianceId: string | number,
+	server: number,
+	region: string,
+): Promise<AllianceRosterScrape | null> {
+	const id = String(allianceId).trim();
+	if (!id) return null;
+	const upperRegion = region.toUpperCase();
+	const urls = [
+		`https://stfc.pro/alliances/${id}?region=${encodeURIComponent(upperRegion)}&server=${server}`,
+		`https://stfc.pro/alliances/${id}`,
+	];
+
+	for (const url of urls) {
+		try {
+			const res = await fetch(url, { headers: STFC_HTML_HEADERS });
+			if (!res.ok) continue;
+			const html = await res.text();
+			const scraped = extractAllianceRosterFromHtml(html, server, upperRegion);
+			if (scraped && scraped.players.length > 0) {
+				if (!scraped.allianceId) scraped.allianceId = id;
+				return scraped;
+			}
+		} catch {
+			/* try next */
+		}
+	}
+	return null;
+}

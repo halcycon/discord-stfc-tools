@@ -15,6 +15,13 @@ import {
 import { syncGuildMembers } from './member-sync';
 import { wakeDiscordGateway } from './discord-gateway/wake';
 import { AuditColor, postAuditLog } from './audit-log';
+import {
+	loadRosterPlayerMap,
+	lookupPlayerFromAllianceRoster,
+	shouldUseAllianceRoster,
+	syncGuildAllianceRoster,
+} from './alliance-roster-sync';
+import type { PlayerData } from './types';
 
 export async function runMemberPoll(env: Env): Promise<void> {
 	console.log('Cron: member poll starting');
@@ -45,21 +52,27 @@ export async function runPendingVerificationPoll(env: Env): Promise<void> {
 			if (record.verification_status !== 'guest' || !record.player_id) continue;
 
 			try {
-				const lookup = await lookupPlayerByIdOrName(
-					env,
-					record.player_id,
-					config.stfc_server,
-					config.stfc_region,
-				);
-				if (lookup.status !== 'ok') continue;
+				const fromRoster = await lookupPlayerFromAllianceRoster(env, config, record.player_id);
+				const player =
+					fromRoster ??
+					(await (async () => {
+						const lookup = await lookupPlayerByIdOrName(
+							env,
+							record.player_id!,
+							config.stfc_server,
+							config.stfc_region,
+						);
+						return lookup.status === 'ok' ? lookup.player : null;
+					})());
+				if (!player) continue;
 
-				if (playerMatchesGuildAlliance(config, lookup.player.allianceTag)) {
+				if (playerMatchesGuildAlliance(config, player.allianceTag)) {
 					await syncVerifiedPlayer(
 						env,
 						config,
 						config.guild_id,
 						record.discord_user_id,
-						lookup.player,
+						player,
 						{ autoDemoteOnMismatch: false },
 					);
 					await cancelDemotionQueueEntry(
@@ -102,31 +115,78 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 		let unavailable = 0;
 		let missing = 0;
 		let tagChanges = 0;
+		let rosterHits = 0;
+		let liveLookups = 0;
+
+		let rosterMap: Map<number, PlayerData> | null = null;
+		let rosterOk = false;
+
+		if (shouldUseAllianceRoster(config)) {
+			const rosterResult = await syncGuildAllianceRoster(env, config);
+			if (rosterResult.ok) {
+				rosterOk = true;
+				rosterMap = await loadRosterPlayerMap(env, config);
+				await postAuditLog(env, config, {
+					title: 'Alliance roster scraped',
+					description:
+						`Cached **${rosterResult.scrape.players.length}** members` +
+						` for **${rosterResult.scrape.allianceTag || config.alliance_tag}**` +
+						` (id \`${config.stfc_alliance_id ?? rosterResult.scrape.allianceId}\`).`,
+					source: 'cron',
+					color: AuditColor.info,
+				});
+			} else {
+				console.warn(
+					`Alliance roster scrape failed for guild ${config.guild_id}: ${rosterResult.reason} — falling back to per-player lookups`,
+				);
+			}
+		}
 
 		for (const record of players) {
 			if (!record.player_id) continue;
 
 			try {
-				const lookup = await lookupPlayerByIdOrName(
-					env,
-					record.player_id,
-					config.stfc_server,
-					config.stfc_region,
-				);
+				let player: PlayerData | null = null;
+				let notFound = false;
+				let error = false;
 
-				if (lookup.status === 'error') {
-					unavailable++;
-					continue;
+				if (rosterMap) {
+					player = rosterMap.get(record.player_id) ?? null;
+					if (player) {
+						rosterHits++;
+					} else if (rosterOk && config.mode === 'single_alliance') {
+						// Fresh scrape succeeded and player is not on the alliance page → left / wrong tag.
+						notFound = true;
+					}
 				}
 
-				if (lookup.status === 'not_found') {
+				if (!player && !notFound) {
+					liveLookups++;
+					const lookup = await lookupPlayerByIdOrName(
+						env,
+						record.player_id,
+						config.stfc_server,
+						config.stfc_region,
+					);
+					if (lookup.status === 'error') {
+						unavailable++;
+						continue;
+					}
+					if (lookup.status === 'not_found') {
+						notFound = true;
+					} else {
+						player = lookup.player;
+					}
+				}
+
+				if (notFound || !player) {
 					missing++;
 					if (config.mode === 'single_alliance') {
 						const result = await handleAutomatedDemotionCandidate(
 							env,
 							config,
 							record,
-							'player_missing',
+							rosterOk ? 'alliance_mismatch' : 'player_missing',
 							null,
 						);
 						if (result === 'demoted') demoted++;
@@ -135,7 +195,6 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 					continue;
 				}
 
-				const player = lookup.player;
 				const prevTag = record.alliance_tag;
 				const tagChanged = prevTag && player.allianceTag && prevTag !== player.allianceTag;
 				const matches = playerMatchesGuildAlliance(config, player.allianceTag);
@@ -190,15 +249,25 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 
 		await postDemotionApprovalDigest(env, config);
 
-		if (synced > 0 || failed > 0 || demoted > 0 || queued > 0 || unavailable > 0 || missing > 0) {
+		if (
+			synced > 0 ||
+			failed > 0 ||
+			demoted > 0 ||
+			queued > 0 ||
+			unavailable > 0 ||
+			missing > 0 ||
+			rosterHits > 0
+		) {
 			await postAuditLog(env, config, {
 				title: 'Daily player sync complete',
 				description:
 					`Synced **${synced}**` +
+					(rosterHits ? ` · **${rosterHits}** from alliance roster` : '') +
+					(liveLookups ? ` · **${liveLookups}** live stfc.pro` : '') +
 					(failed ? ` · **${failed}** failed` : '') +
 					(demoted ? ` · **${demoted}** demoted` : '') +
 					(queued ? ` · **${queued}** queued for demotion` : '') +
-					(missing ? ` · **${missing}** missing` : '') +
+					(missing ? ` · **${missing}** missing / left alliance` : '') +
 					(unavailable ? ` · **${unavailable}** stfc.pro unavailable (skipped)` : '') +
 					(tagChanges ? ` · **${tagChanges}** alliance change(s)` : '') +
 					` · policy **${config.demotion_policy}**`,

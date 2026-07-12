@@ -457,7 +457,7 @@ async function handleServerSetupCommand(
 			mode,
 			stfc_server: server,
 			stfc_region: region,
-			alliance_tag: allianceTag ?? null,
+			alliance_tag: mode === 'single_alliance' ? (allianceTag ?? null) : null,
 			guest_role_id: guestRoleId,
 			member_role_ids: memberRoleIds,
 			operative_role_ids: operativeRoleIds,
@@ -470,6 +470,11 @@ async function handleServerSetupCommand(
 				? { nickname_template: String(nicknameTemplateRaw).trim() || null }
 				: {}),
 		});
+
+		if (mode === 'multi_alliance') {
+			const { clearGuildAllianceRosterCache } = await import('./alliance-roster-sync');
+			await clearGuildAllianceRosterCache(env, guildId);
+		}
 
 		const effectiveNick =
 			nicknameTemplateProvided

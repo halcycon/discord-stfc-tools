@@ -4,8 +4,9 @@ import { parseCSV, autoGenerateColumns, generateAsciiTable } from './tableUtils'
 import { handleScheduledEvent } from './cron';
 import { wakeDiscordGateway, getDiscordGatewayStatus } from './discord-gateway/wake';
 import { getStfcSessionStatus } from './stfc-session';
-import { findPlayerByIdOrName } from './stfc-utils';
-import { listConfiguredGuilds } from './guild-db';
+import { findPlayerByIdOrName, scrapeAllianceById } from './stfc-utils';
+import { getGuildConfig, listConfiguredGuilds } from './guild-db';
+import { syncGuildAllianceRoster } from './alliance-roster-sync';
 import { handleAgreementBackfillContinue } from './agreement';
 
 export { DiscordGateway } from './discord-gateway/DiscordGateway';
@@ -134,6 +135,96 @@ export default {
 			}
 		}
 
+		// Diagnostic: scrape alliance HTML roster (optionally persist to D1 for a guild).
+		if (url.pathname === '/alliance-roster/ping' && request.method === 'GET') {
+			try {
+				const guildId = url.searchParams.get('guild_id') || undefined;
+				const persist = url.searchParams.get('persist') === '1';
+				const config = guildId ? await getGuildConfig(env.STFC_DB, guildId) : null;
+				const guilds = config ? [config] : await listConfiguredGuilds(env.STFC_DB);
+				const guild = guilds.find((g) => g.mode === 'single_alliance' && g.alliance_tag) ?? guilds[0];
+
+				if (persist) {
+					if (!guild) {
+						return Response.json({ ok: false, error: 'No configured guild' }, { status: 400 });
+					}
+					if (guild.mode !== 'single_alliance' || !guild.alliance_tag) {
+						return Response.json(
+							{
+								ok: false,
+								error: 'Alliance roster persist is only for single_alliance guilds',
+								guild_id: guild.guild_id,
+								mode: guild.mode,
+							},
+							{ status: 400 },
+						);
+					}
+					const started = Date.now();
+					const result = await syncGuildAllianceRoster(env, guild);
+					return Response.json(
+						{
+							ok: result.ok,
+							persist: true,
+							ms: Date.now() - started,
+							guild_id: guild.guild_id,
+							...(result.ok
+								? {
+										allianceId: result.scrape.allianceId,
+										allianceTag: result.scrape.allianceTag,
+										playerCount: result.scrape.players.length,
+										sample: result.scrape.players.slice(0, 3).map((p) => ({
+											playerId: p.playerId,
+											name: p.name,
+											rank: p.rank,
+											level: p.level,
+											power: p.power,
+										})),
+									}
+								: { reason: result.reason }),
+						},
+						{ headers: { 'Cache-Control': 'no-store' } },
+					);
+				}
+
+				const allianceId =
+					url.searchParams.get('alliance_id') ||
+					guild?.stfc_alliance_id ||
+					'2990767785';
+				const server = Number(url.searchParams.get('server') || guild?.stfc_server || 108);
+				const region = (url.searchParams.get('region') || guild?.stfc_region || 'EU').toUpperCase();
+				const started = Date.now();
+				const scrape = await scrapeAllianceById(allianceId, server, region);
+				return Response.json(
+					{
+						ok: Boolean(scrape?.players.length),
+						ms: Date.now() - started,
+						query: { allianceId, server, region },
+						scrape: scrape
+							? {
+									allianceId: scrape.allianceId,
+									allianceTag: scrape.allianceTag,
+									allianceName: scrape.allianceName,
+									playerCount: scrape.players.length,
+									sample: scrape.players.slice(0, 3).map((p) => ({
+										playerId: p.playerId,
+										name: p.name,
+										rank: p.rank,
+										level: p.level,
+										power: p.power,
+									})),
+								}
+							: null,
+					},
+					{ headers: { 'Cache-Control': 'no-store' } },
+				);
+			} catch (error) {
+				return Response.json(
+					{ ok: false, error: error instanceof Error ? error.message : String(error) },
+					{ status: 500, headers: { 'Cache-Control': 'no-store' } },
+				);
+			}
+		}
+
 		if (url.pathname === '/systems' && request.method === 'GET') {
 			try {
 				const systems = loadSystemData();
@@ -155,6 +246,7 @@ Endpoints:
 - POST /gateway/wake — Force Gateway reconnect
 - GET /stfc-session/status — Anonymous stfc.pro session / token cache status
 - GET /stfc-session/ping — HTML player lookup smoke test
+- GET /alliance-roster/ping — Alliance HTML roster scrape smoke test (?persist=1&guild_id=…)
 
 Discord commands:
 - /lookup, /table, /tablehelp — coordinate lookup and tables

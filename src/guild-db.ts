@@ -69,6 +69,7 @@ function mapGuildConfig(row: any): GuildConfig {
 		stfc_server: row.stfc_server,
 		stfc_region: row.stfc_region as StfcRegion,
 		alliance_tag: row.alliance_tag ?? null,
+		stfc_alliance_id: row.stfc_alliance_id != null ? String(row.stfc_alliance_id) : null,
 		guest_role_id: row.guest_role_id ?? null,
 		member_role_ids: parseJsonArray(row.member_role_ids),
 		operative_role_ids: parseJsonArray(row.operative_role_ids),
@@ -1629,4 +1630,215 @@ export async function setDemotionQueueUrgentMessage(
 		)
 		.bind(messageId, guildId)
 		.run();
+}
+
+export async function setGuildStfcAllianceId(
+	db: D1Database,
+	guildId: string,
+	allianceId: string | null,
+): Promise<void> {
+	await db
+		.prepare(
+			`UPDATE guild_configs SET stfc_alliance_id = ?, updated_at = datetime('now') WHERE guild_id = ?`,
+		)
+		.bind(allianceId, guildId)
+		.run();
+}
+
+/** Drop cached alliance roster rows (e.g. when switching to multi_alliance). */
+export async function clearAllianceRoster(db: D1Database, guildId: string): Promise<void> {
+	await db.batch([
+		db.prepare(`DELETE FROM alliance_roster_members WHERE guild_id = ?`).bind(guildId),
+		db.prepare(`DELETE FROM alliance_roster_meta WHERE guild_id = ?`).bind(guildId),
+	]);
+}
+
+
+export interface AllianceRosterMemberRow {
+	guild_id: string;
+	player_id: number;
+	player_name: string | null;
+	alliance_tag: string | null;
+	alliance_id: string | null;
+	alliance_rank: string | null;
+	ops_level: number | null;
+	power: number | null;
+	grade: number | null;
+	join_date: string | null;
+	fetched_at: string;
+}
+
+export interface AllianceRosterMetaRow {
+	guild_id: string;
+	alliance_id: string;
+	alliance_tag: string | null;
+	alliance_name: string | null;
+	player_count: number;
+	fetched_at: string;
+}
+
+export async function getAllianceRosterMeta(
+	db: D1Database,
+	guildId: string,
+): Promise<AllianceRosterMetaRow | null> {
+	const row = await db
+		.prepare(`SELECT * FROM alliance_roster_meta WHERE guild_id = ?`)
+		.bind(guildId)
+		.first();
+	if (!row) return null;
+	const r = row as Record<string, unknown>;
+	return {
+		guild_id: String(r.guild_id),
+		alliance_id: String(r.alliance_id),
+		alliance_tag: r.alliance_tag != null ? String(r.alliance_tag) : null,
+		alliance_name: r.alliance_name != null ? String(r.alliance_name) : null,
+		player_count: Number(r.player_count ?? 0),
+		fetched_at: String(r.fetched_at),
+	};
+}
+
+function mapAllianceRosterMemberRow(row: Record<string, unknown>): AllianceRosterMemberRow {
+	return {
+		guild_id: String(row.guild_id),
+		player_id: Number(row.player_id),
+		player_name: row.player_name != null ? String(row.player_name) : null,
+		alliance_tag: row.alliance_tag != null ? String(row.alliance_tag) : null,
+		alliance_id: row.alliance_id != null ? String(row.alliance_id) : null,
+		alliance_rank: row.alliance_rank != null ? String(row.alliance_rank) : null,
+		ops_level: row.ops_level != null ? Number(row.ops_level) : null,
+		power: row.power != null ? Number(row.power) : null,
+		grade: row.grade != null ? Number(row.grade) : null,
+		join_date: row.join_date != null ? String(row.join_date) : null,
+		fetched_at: String(row.fetched_at),
+	};
+}
+
+export async function getAllianceRosterMember(
+	db: D1Database,
+	guildId: string,
+	playerId: number,
+): Promise<AllianceRosterMemberRow | null> {
+	const row = await db
+		.prepare(`SELECT * FROM alliance_roster_members WHERE guild_id = ? AND player_id = ?`)
+		.bind(guildId, playerId)
+		.first();
+	if (!row) return null;
+	return mapAllianceRosterMemberRow(row as Record<string, unknown>);
+}
+
+export async function getAllianceRosterMemberByName(
+	db: D1Database,
+	guildId: string,
+	playerName: string,
+): Promise<AllianceRosterMemberRow | null> {
+	const row = await db
+		.prepare(
+			`SELECT * FROM alliance_roster_members
+			 WHERE guild_id = ? AND LOWER(player_name) = LOWER(?)
+			 LIMIT 1`,
+		)
+		.bind(guildId, playerName.trim())
+		.first();
+	if (!row) return null;
+	return mapAllianceRosterMemberRow(row as Record<string, unknown>);
+}
+
+export async function listAllianceRosterMembers(
+	db: D1Database,
+	guildId: string,
+): Promise<AllianceRosterMemberRow[]> {
+	const { results } = await db
+		.prepare(`SELECT * FROM alliance_roster_members WHERE guild_id = ?`)
+		.bind(guildId)
+		.all();
+	return (results ?? []).map((row) => {
+		const r = row as Record<string, unknown>;
+		return {
+			guild_id: String(r.guild_id),
+			player_id: Number(r.player_id),
+			player_name: r.player_name != null ? String(r.player_name) : null,
+			alliance_tag: r.alliance_tag != null ? String(r.alliance_tag) : null,
+			alliance_id: r.alliance_id != null ? String(r.alliance_id) : null,
+			alliance_rank: r.alliance_rank != null ? String(r.alliance_rank) : null,
+			ops_level: r.ops_level != null ? Number(r.ops_level) : null,
+			power: r.power != null ? Number(r.power) : null,
+			grade: r.grade != null ? Number(r.grade) : null,
+			join_date: r.join_date != null ? String(r.join_date) : null,
+			fetched_at: String(r.fetched_at),
+		};
+	});
+}
+
+/** Replace guild roster cache with a fresh scrape. */
+export async function replaceAllianceRoster(
+	db: D1Database,
+	opts: {
+		guildId: string;
+		allianceId: string;
+		allianceTag: string | null;
+		allianceName: string | null;
+		fetchedAt: string;
+		members: Array<{
+			playerId: number;
+			playerName: string;
+			allianceTag: string;
+			allianceId: string;
+			allianceRank: string;
+			opsLevel: number;
+			power: number;
+			grade: number | null;
+			joinDate: string;
+		}>;
+	},
+): Promise<void> {
+	const stmts: D1PreparedStatement[] = [
+		db.prepare(`DELETE FROM alliance_roster_members WHERE guild_id = ?`).bind(opts.guildId),
+		db
+			.prepare(
+				`INSERT INTO alliance_roster_meta
+				 (guild_id, alliance_id, alliance_tag, alliance_name, player_count, fetched_at)
+				 VALUES (?, ?, ?, ?, ?, ?)
+				 ON CONFLICT(guild_id) DO UPDATE SET
+				   alliance_id = excluded.alliance_id,
+				   alliance_tag = excluded.alliance_tag,
+				   alliance_name = excluded.alliance_name,
+				   player_count = excluded.player_count,
+				   fetched_at = excluded.fetched_at`,
+			)
+			.bind(
+				opts.guildId,
+				opts.allianceId,
+				opts.allianceTag,
+				opts.allianceName,
+				opts.members.length,
+				opts.fetchedAt,
+			),
+	];
+
+	for (const m of opts.members) {
+		stmts.push(
+			db
+				.prepare(
+					`INSERT INTO alliance_roster_members
+					 (guild_id, player_id, player_name, alliance_tag, alliance_id, alliance_rank,
+					  ops_level, power, grade, join_date, fetched_at)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				)
+				.bind(
+					opts.guildId,
+					m.playerId,
+					m.playerName,
+					m.allianceTag,
+					m.allianceId,
+					m.allianceRank,
+					m.opsLevel,
+					m.power,
+					m.grade,
+					m.joinDate,
+					opts.fetchedAt,
+				),
+		);
+	}
+
+	await db.batch(stmts);
 }
