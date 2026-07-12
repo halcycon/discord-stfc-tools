@@ -70,6 +70,9 @@ export async function resolveSurveyTargets(
 						welcome_dm_sent_at: null,
 						verified_at: null,
 						last_synced_at: null,
+						activity_streak: null,
+						days_inactive: 0,
+						activity_updated_at: null,
 					} satisfies VerifiedPlayer),
 			);
 			break;

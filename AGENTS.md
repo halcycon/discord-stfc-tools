@@ -133,7 +133,8 @@ Morning job scrapes stfc.pro **HTML** (API `/api/players` is 403 from Worker egr
 - `/survey` — button polls (role/rank/level/grade/user targeting); private log channel; ASCII result tables
 - `/exchange` — cross-alliance resource donors/recipients (hub or category layout, Help/Ignore claim DMs)
 - `/language` — player preferred language for bot DMs (en/de/fr/es/pt/nl/pl/it/ru/tr/hu)
-- `/roster` — grades / ops / **in-game ranks** / unverified Discord members / **alliance members missing verify** (admin or assistant roles)
+- `/roster` — grades / ops / **in-game ranks** / **inactive** (days without login streak) / unverified Discord members / **alliance members missing verify** (admin or assistant roles)
+- **Player activity** — morning sync stores stfc.pro `consecutive_days_active` as streak; when 0, increments `days_inactive`. Admin: `/roster set-streak` / `set-inactive`. Audit: **Player activity — streak / inactive**. Docs: `docs/ADMIN_GUIDE.md` § Player activity.
 - `/server exclude-add|exclude-remove|exclude-list` — skip Discord users from invites and unverified stats (other bots, etc.; Discord bots auto-skipped)
 - **DM assistant** — HAL refusal for unknown asks; Badgey voice + admin menu wizards; roster Q&A gated by `/server assistant`
 - **Discord agreement** — optional CoC gate (`/server agreement`); DM Agree button; timing before/after verify; channel react planned
@@ -183,6 +184,7 @@ src/
   stfc-session/            # Anonymous session DO for /api/players (often 403 from CF)
   dm-assistant/            # DM HAL/Badgey router, admin wizards, roster Q&A
   roster-handlers.ts       # /roster slash commands
+  activity-utils.ts        # streak / days_inactive from consecutive_days_active
   urgent-notify.ts         # Optional high-signal staff alerts
   systemUtils.ts           # Coordinate lookup
   systemData.ts            # Bundled systems (generated — do not hand-edit)
@@ -197,6 +199,7 @@ migrations/
   019_personal_channel_perm_template.sql
   024_alliance_roster.sql  # stfc_alliance_id + alliance_roster_meta/members
   026_deploy_mode.sql  # testing | live (new guilds start testing)
+  027_player_activity.sql  # activity_streak + days_inactive
 
 archive/officers/          # REMOVED officer feature (scripts, SQL, assets, docs)
 

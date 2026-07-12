@@ -249,6 +249,9 @@ export async function sendSurveyTest(
 		welcome_dm_sent_at: null,
 		verified_at: null,
 		last_synced_at: null,
+		activity_streak: null,
+		days_inactive: 0,
+		activity_updated_at: null,
 	};
 	await deliverSurveyMessage(
 		env.DISCORD_BOT_TOKEN,

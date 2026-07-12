@@ -340,7 +340,48 @@ Urgent posts use a short Badgey-style message so they stand out from routine aud
 
 ---
 
-## Deploy mode (testing → live)
+## Player activity (streak + days inactive)
+
+stfc.pro exposes **`consecutive_days_active`** on alliance/player pages:
+
+| Value | Meaning |
+|-------|---------|
+| `> 0` | Current login streak (days) |
+| `0` | No current streak (hasn’t logged in within the game’s “active day” window) |
+
+Each morning sync (`0 6 * * *`), for every verified player we successfully look up:
+
+1. Store **activity streak** = that value.
+2. If streak `> 0` → set **days inactive** = `0`.
+3. If streak `=== 0` → increment **days inactive** by 1 (or set to 1 on the first zero day).
+
+We **do not** change counters when a scrape/lookup fails or omits the field.
+
+### Commands
+
+```
+/roster inactive min_days:3     # list verified players inactive ≥ N days (default 1)
+/roster activity user:@Name     # show streak + days inactive
+/roster set-streak user:@Name value:12   # admin: set streak (value>0 clears inactive)
+/roster set-inactive user:@Name value:5  # admin: set days inactive (value>0 clears streak)
+```
+
+Roster list lines (ops/grade/rank/inactive) also show `streak N` / `inactive Nd` when known.
+
+### Audit reports
+
+Morning cron posts **Player activity — streak / inactive** when anyone:
+
+- **Became inactive** (streak hit 0)
+- **Returned active** (streak returned after inactive days)
+- **Still inactive ≥3d** (ongoing)
+
+### Storage
+
+`verified_players.activity_streak`, `days_inactive`, `activity_updated_at`  
+Cached on `alliance_roster_members.activity_streak` for roster-driven sync.
+
+---
 
 New guilds start in **testing** after `/server setup`. Existing guilds stay **live** unless you switch.
 
@@ -348,6 +389,8 @@ New guilds start in **testing** after `/server setup`. Existing guilds stay **li
 |------|----------|
 | **testing** | Slash replies prefixed `[TESTING]`. Automated demotions / leave queues are **dry-run**. **No outbound DMs** (invites, welcome, CoC, etc.) — preview only via `/test-dm` to yourself or a nominated user. Manual `/roster set-guest` blocked. |
 | **live** | Full automation (demotions follow `/server demotion` policy; invite/welcome DMs resume). |
+
+Activity streak / days inactive still update in testing (non-destructive counters) so you can validate the morning report before go-live.
 
 ```
 /server deploy                 # show current mode

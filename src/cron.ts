@@ -3,6 +3,7 @@ import {
 	listActiveVerifiedPlayers,
 	recordPlayerStats,
 	cancelDemotionQueueEntry,
+	setVerifiedPlayerActivity,
 } from './guild-db';
 import { lookupPlayerByIdOrName } from './stfc-utils';
 import { syncVerifiedPlayer } from './verification';
@@ -31,6 +32,7 @@ import {
 	formatWouldHaveDemotionLine,
 	isDeployTesting,
 } from './deploy-mode';
+import { applyActivityObservation } from './activity-utils';
 import type { PlayerData } from './types';
 
 export async function runMemberPoll(env: Env): Promise<void> {
@@ -131,6 +133,9 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 		let liveLookups = 0;
 		const verifiedAllianceMoves: string[] = [];
 		const verifiedRoleNotes: string[] = [];
+		const becameInactiveLines: string[] = [];
+		const returnedActiveLines: string[] = [];
+		const stillInactiveLines: string[] = [];
 		const wouldHaveActions: string[] = [];
 		const testing = isDeployTesting(config);
 		const testingTitle = (title: string) => (testing ? `[TESTING] ${title}` : title);
@@ -267,6 +272,34 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 				const matches = playerMatchesGuildAlliance(config, player.allianceTag);
 
 				if (!matches && config.mode === 'single_alliance') {
+					if (
+						player.consecutiveDaysActive != null &&
+						Number.isFinite(player.consecutiveDaysActive)
+					) {
+						const act = applyActivityObservation(
+							record.activity_streak,
+							record.days_inactive,
+							player.consecutiveDaysActive,
+						);
+						await setVerifiedPlayerActivity(
+							env.STFC_DB,
+							config.guild_id,
+							record.discord_user_id,
+							{
+								activity_streak: act.activityStreak,
+								days_inactive: act.daysInactive,
+							},
+						);
+						const label =
+							`• <@${record.discord_user_id}> **${player.name}**` +
+							(player.allianceTag ? ` [${player.allianceTag}]` : '') +
+							` — streak **${act.activityStreak}** · inactive **${act.daysInactive}d**`;
+						if (act.becameInactive) becameInactiveLines.push(label);
+						else if (act.returnedActive) returnedActiveLines.push(label);
+						else if (act.inactiveDayAdded && act.daysInactive >= 3) {
+							stillInactiveLines.push(label);
+						}
+					}
 					const result = await handleAutomatedDemotionCandidate(
 						env,
 						config,
@@ -340,6 +373,19 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 						);
 					}
 				}
+
+				const act = syncResult.activity;
+				if (act) {
+					const label =
+						`• <@${record.discord_user_id}> **${player.name}**` +
+						(player.allianceTag ? ` [${player.allianceTag}]` : '') +
+						` — streak **${act.activityStreak}** · inactive **${act.daysInactive}d**`;
+					if (act.becameInactive) becameInactiveLines.push(label);
+					else if (act.returnedActive) returnedActiveLines.push(label);
+					else if (act.inactiveDayAdded && act.daysInactive >= 3) {
+						stillInactiveLines.push(label);
+					}
+				}
 			} catch (error) {
 				failed++;
 				console.error(`Daily sync failed for player ${record.player_id}:`, error);
@@ -365,6 +411,54 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 				description,
 				source: 'cron',
 				color: AuditColor.warn,
+			});
+		}
+
+		if (
+			becameInactiveLines.length ||
+			returnedActiveLines.length ||
+			stillInactiveLines.length
+		) {
+			const sections: string[] = [];
+			if (becameInactiveLines.length) {
+				sections.push(
+					`**Became inactive (${becameInactiveLines.length})**`,
+					becameInactiveLines.slice(0, 25).join('\n') +
+						(becameInactiveLines.length > 25
+							? `\n_…and ${becameInactiveLines.length - 25} more_`
+							: ''),
+				);
+			}
+			if (returnedActiveLines.length) {
+				sections.push(
+					`**Returned active (${returnedActiveLines.length})**`,
+					returnedActiveLines.slice(0, 25).join('\n') +
+						(returnedActiveLines.length > 25
+							? `\n_…and ${returnedActiveLines.length - 25} more_`
+							: ''),
+				);
+			}
+			if (stillInactiveLines.length) {
+				sections.push(
+					`**Still inactive ≥3d (${stillInactiveLines.length})**`,
+					stillInactiveLines.slice(0, 25).join('\n') +
+						(stillInactiveLines.length > 25
+							? `\n_…and ${stillInactiveLines.length - 25} more_`
+							: ''),
+				);
+			}
+			let description = sections.join('\n\n');
+			if (description.length > 3900) {
+				description = description.slice(0, 3890) + '\n_…truncated_';
+			}
+			await postAuditLog(env, config, {
+				title: testingTitle('Player activity — streak / inactive'),
+				description,
+				source: 'cron',
+				color:
+					becameInactiveLines.length || stillInactiveLines.length
+						? AuditColor.warn
+						: AuditColor.info,
 			});
 		}
 

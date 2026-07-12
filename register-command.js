@@ -109,6 +109,76 @@ const commands = [
 			},
 			{
 				type: 1,
+				name: 'inactive',
+				description: 'List verified players by days inactive (from stfc.pro login streak)',
+				options: [
+					{
+						type: 4,
+						name: 'min_days',
+						description: 'Minimum days inactive (default 1)',
+						required: false,
+						min_value: 0,
+						max_value: 3650,
+					},
+				],
+			},
+			{
+				type: 1,
+				name: 'activity',
+				description: 'Show streak + days inactive for a verified player',
+				options: [
+					{
+						type: 6,
+						name: 'user',
+						description: 'Discord member (defaults to you)',
+						required: false,
+					},
+				],
+			},
+			{
+				type: 1,
+				name: 'set-streak',
+				description: 'Admin: manually set activity streak (stfc.pro consecutive days)',
+				options: [
+					{
+						type: 6,
+						name: 'user',
+						description: 'Verified Discord member',
+						required: true,
+					},
+					{
+						type: 4,
+						name: 'value',
+						description: 'Streak days (≥0). Setting >0 clears days inactive.',
+						required: true,
+						min_value: 0,
+						max_value: 3650,
+					},
+				],
+			},
+			{
+				type: 1,
+				name: 'set-inactive',
+				description: 'Admin: manually set days inactive',
+				options: [
+					{
+						type: 6,
+						name: 'user',
+						description: 'Verified Discord member',
+						required: true,
+					},
+					{
+						type: 4,
+						name: 'value',
+						description: 'Days inactive (≥0). Setting >0 clears streak.',
+						required: true,
+						min_value: 0,
+						max_value: 3650,
+					},
+				],
+			},
+			{
+				type: 1,
 				name: 'ranks',
 				description: 'Count verified players by in-game alliance rank',
 			},

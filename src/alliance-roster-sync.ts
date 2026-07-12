@@ -84,6 +84,7 @@ export function rosterMemberToPlayerData(
 		allianceTag: member.alliance_tag ?? config.alliance_tag ?? '',
 		server: config.stfc_server,
 		region: config.stfc_region,
+		consecutiveDaysActive: member.activity_streak,
 	};
 }
 
@@ -145,6 +146,7 @@ function membersFromScrape(
 	power: number;
 	grade: number | null;
 	joinDate: string;
+	activityStreak: number | null;
 }> {
 	return scrape.players.map((p) => ({
 		playerId: p.playerId,
@@ -156,6 +158,8 @@ function membersFromScrape(
 		power: p.power,
 		grade: opsLevelToGrade(p.level),
 		joinDate: p.joinDate || '',
+		activityStreak:
+			p.consecutiveDaysActive == null ? null : Math.max(0, Math.floor(p.consecutiveDaysActive)),
 	}));
 }
 

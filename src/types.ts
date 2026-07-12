@@ -44,6 +44,12 @@ export interface PlayerData {
 	allianceTag: string;
 	server: number;
 	region: string;
+	/**
+	 * stfc.pro `consecutive_days_active` when known.
+	 * null/undefined = not present in this scrape (do not update inactivity).
+	 * 0 = no current login streak.
+	 */
+	consecutiveDaysActive?: number | null;
 }
 
 export interface OverlayBucket {
@@ -221,6 +227,11 @@ export interface VerifiedPlayer {
 	agreement_method: string | null;
 	/** When the hybrid welcome DM was successfully sent (once per member). */
 	welcome_dm_sent_at: string | null;
+	/** stfc.pro consecutive_days_active (0 = no streak). */
+	activity_streak: number | null;
+	/** Days observed with streak 0 since last active streak (morning sync). */
+	days_inactive: number;
+	activity_updated_at: string | null;
 	verified_at: string | null;
 	last_synced_at: string | null;
 }

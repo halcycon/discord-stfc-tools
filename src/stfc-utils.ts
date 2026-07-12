@@ -89,6 +89,17 @@ export function extractPlayerArray(data: unknown): Record<string, unknown>[] {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mapRawPlayer(player: any, server: number, region: string, allianceTag = ''): PlayerData {
+	const streakRaw =
+		player.consecutive_days_active ??
+		player.consecutiveDaysActive ??
+		player.consecutive_days ??
+		null;
+	const consecutiveDaysActive =
+		streakRaw == null || streakRaw === ''
+			? null
+			: Number.isFinite(Number(streakRaw))
+				? Math.max(0, Math.floor(Number(streakRaw)))
+				: null;
 	return {
 		playerId: player.playerid || player.player_id || player.playerId || 0,
 		name: player.owner || player.name || player.player_name || '',
@@ -104,6 +115,7 @@ export function mapRawPlayer(player: any, server: number, region: string, allian
 		allianceTag: allianceTag || player.tag || player.alliance_tag || '',
 		server,
 		region,
+		consecutiveDaysActive,
 	};
 }
 
@@ -226,6 +238,7 @@ export function extractInitialPlayerFromHtml(
 	const max_power = extractNumberNearKey(html, start, 'max_power') ?? power;
 	const iso = extractStringNearKey(html, start, 'iso') ?? extractStringNearKey(html, start, 'tritanium') ?? '';
 	const joinDate = extractStringNearKey(html, start, 'ajoined') ?? extractStringNearKey(html, start, 'joinDate') ?? '';
+	const streakNear = extractNumberNearKey(html, start, 'consecutive_days_active');
 
 	const allianceId =
 		extractStringNearKey(html, start, 'allianceid') ?? extractStringNearKey(html, start, 'alliance_id') ?? '';
@@ -249,6 +262,7 @@ export function extractInitialPlayerFromHtml(
 		allianceTag,
 		server,
 		region,
+		consecutiveDaysActive: streakNear != null ? Math.max(0, Math.floor(streakNear)) : null,
 	};
 }
 

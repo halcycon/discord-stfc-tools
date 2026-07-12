@@ -164,6 +164,9 @@ function mapVerifiedPlayer(row: any): VerifiedPlayer {
 		agreement_version: row.agreement_version ?? null,
 		agreement_method: row.agreement_method ?? null,
 		welcome_dm_sent_at: row.welcome_dm_sent_at ?? null,
+		activity_streak: row.activity_streak != null ? Number(row.activity_streak) : null,
+		days_inactive: Number(row.days_inactive ?? 0) || 0,
+		activity_updated_at: row.activity_updated_at ?? null,
 		verified_at: row.verified_at ?? null,
 		last_synced_at: row.last_synced_at ?? null,
 	};
@@ -868,6 +871,47 @@ export async function upsertVerifiedPlayer(
 		.run();
 }
 
+/** Set activity streak / days inactive (sync or admin adjust). */
+export async function setVerifiedPlayerActivity(
+	db: D1Database,
+	guildId: string,
+	discordUserId: string,
+	opts: {
+		activity_streak?: number | null;
+		days_inactive?: number;
+		activity_updated_at?: string | null;
+	},
+): Promise<void> {
+	const streakProvided = Object.prototype.hasOwnProperty.call(opts, 'activity_streak');
+	const inactiveProvided = Object.prototype.hasOwnProperty.call(opts, 'days_inactive');
+	if (!streakProvided && !inactiveProvided) return;
+
+	const now = opts.activity_updated_at ?? new Date().toISOString();
+	await db
+		.prepare(
+			`UPDATE verified_players SET
+			 activity_streak = CASE WHEN ? = 1 THEN ? ELSE activity_streak END,
+			 days_inactive = CASE WHEN ? = 1 THEN ? ELSE days_inactive END,
+			 activity_updated_at = ?,
+			 updated_at = datetime('now')
+			 WHERE guild_id = ? AND discord_user_id = ?`,
+		)
+		.bind(
+			streakProvided ? 1 : 0,
+			streakProvided
+				? opts.activity_streak == null
+					? null
+					: Math.max(0, Math.floor(Number(opts.activity_streak) || 0))
+				: null,
+			inactiveProvided ? 1 : 0,
+			inactiveProvided ? Math.max(0, Math.floor(Number(opts.days_inactive) || 0)) : null,
+			now,
+			guildId,
+			discordUserId,
+		)
+		.run();
+}
+
 export async function resetVerification(
 	db: D1Database,
 	guildId: string,
@@ -1382,6 +1426,7 @@ export async function listRosterPlayers(
 		opsMax?: number;
 		allianceRank?: string;
 		status?: VerificationStatus;
+		daysInactiveMin?: number;
 		limit?: number;
 	},
 ): Promise<VerifiedPlayer[]> {
@@ -1411,15 +1456,24 @@ export async function listRosterPlayers(
 		clauses.push(`verification_status = ?`);
 		binds.push(filters.status);
 	}
+	if (filters?.daysInactiveMin != null) {
+		clauses.push(`days_inactive >= ?`);
+		binds.push(filters.daysInactiveMin);
+	}
 
 	const limit = Math.min(Math.max(filters?.limit ?? 50, 1), 100);
 	binds.push(limit);
+
+	const orderBy =
+		filters?.daysInactiveMin != null
+			? `days_inactive DESC, (ops_level IS NULL), ops_level DESC, player_name COLLATE NOCASE`
+			: `(ops_level IS NULL), ops_level DESC, player_name COLLATE NOCASE`;
 
 	const { results } = await db
 		.prepare(
 			`SELECT * FROM verified_players
 			 WHERE ${clauses.join(' AND ')}
-			 ORDER BY (ops_level IS NULL), ops_level DESC, player_name COLLATE NOCASE
+			 ORDER BY ${orderBy}
 			 LIMIT ?`,
 		)
 		.bind(...binds)
@@ -1770,6 +1824,7 @@ export interface AllianceRosterMemberRow {
 	power: number | null;
 	grade: number | null;
 	join_date: string | null;
+	activity_streak: number | null;
 	fetched_at: string;
 }
 
@@ -1856,6 +1911,7 @@ function mapAllianceRosterMemberRow(row: Record<string, unknown>): AllianceRoste
 		power: row.power != null ? Number(row.power) : null,
 		grade: row.grade != null ? Number(row.grade) : null,
 		join_date: row.join_date != null ? String(row.join_date) : null,
+		activity_streak: row.activity_streak != null ? Number(row.activity_streak) : null,
 		fetched_at: String(row.fetched_at),
 	};
 }
@@ -1898,22 +1954,7 @@ export async function listAllianceRosterMembers(
 		.prepare(`SELECT * FROM alliance_roster_members WHERE guild_id = ?`)
 		.bind(guildId)
 		.all();
-	return (results ?? []).map((row) => {
-		const r = row as Record<string, unknown>;
-		return {
-			guild_id: String(r.guild_id),
-			player_id: Number(r.player_id),
-			player_name: r.player_name != null ? String(r.player_name) : null,
-			alliance_tag: r.alliance_tag != null ? String(r.alliance_tag) : null,
-			alliance_id: r.alliance_id != null ? String(r.alliance_id) : null,
-			alliance_rank: r.alliance_rank != null ? String(r.alliance_rank) : null,
-			ops_level: r.ops_level != null ? Number(r.ops_level) : null,
-			power: r.power != null ? Number(r.power) : null,
-			grade: r.grade != null ? Number(r.grade) : null,
-			join_date: r.join_date != null ? String(r.join_date) : null,
-			fetched_at: String(r.fetched_at),
-		};
-	});
+	return (results ?? []).map((row) => mapAllianceRosterMemberRow(row as Record<string, unknown>));
 }
 
 /**
@@ -1940,6 +1981,7 @@ export async function replaceAllianceRoster(
 			power: number;
 			grade: number | null;
 			joinDate: string;
+			activityStreak?: number | null;
 		}>;
 	},
 ): Promise<void> {
@@ -1985,8 +2027,8 @@ export async function replaceAllianceRoster(
 				.prepare(
 					`INSERT INTO alliance_roster_members
 					 (guild_id, player_id, player_name, alliance_tag, alliance_id, alliance_rank,
-					  ops_level, power, grade, join_date, fetched_at)
-					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					  ops_level, power, grade, join_date, activity_streak, fetched_at)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 					 ON CONFLICT(guild_id, player_id) DO UPDATE SET
 					   player_name = excluded.player_name,
 					   alliance_tag = excluded.alliance_tag,
@@ -1996,6 +2038,7 @@ export async function replaceAllianceRoster(
 					   power = excluded.power,
 					   grade = excluded.grade,
 					   join_date = excluded.join_date,
+					   activity_streak = excluded.activity_streak,
 					   fetched_at = excluded.fetched_at`,
 				)
 				.bind(
@@ -2009,6 +2052,7 @@ export async function replaceAllianceRoster(
 					m.power,
 					m.grade,
 					m.joinDate,
+					m.activityStreak ?? null,
 					opts.fetchedAt,
 				),
 		);

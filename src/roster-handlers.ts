@@ -13,13 +13,17 @@ import {
 	getExcludedUserIds,
 	getGuildConfig,
 	getVerifiedDiscordUserIds,
+	getVerifiedPlayer,
 	listAllianceMembersMissingVerify,
 	listAllianceRosterMeta,
 	listRosterPlayers,
+	setVerifiedPlayerActivity,
 } from './guild-db';
 import { shouldUseAllianceRoster, isMultiAllianceGuild } from './alliance-roster-sync';
-import { isGuildAdministrator } from './discord-admin';
+import { formatActivityBits } from './activity-utils';
+import { isGuildAdministrator, resolveTargetUserId } from './discord-admin';
 import { demotePlayerToGuest } from './verification-access';
+import { AuditColor, postAuditLog } from './audit-log';
 import type { GuildConfig, VerifiedPlayer } from './types';
 
 const LIST_CAP = 40;
@@ -41,7 +45,14 @@ function formatPlayerLine(p: VerifiedPlayer): string {
 	const ops = p.ops_level != null ? `Ops ${p.ops_level}` : 'Ops —';
 	const grade = p.grade != null ? `G${p.grade}` : 'G—';
 	const status = p.verification_status;
-	return `• <@${p.discord_user_id}> **${name}** ${tag} · ${ops} · ${grade} · ${status}`;
+	const activity = formatActivityBits({
+		activityStreak: p.activity_streak,
+		daysInactive: p.days_inactive,
+	});
+	return (
+		`• <@${p.discord_user_id}> **${name}** ${tag} · ${ops} · ${grade} · ${status}` +
+		(activity ? ` · ${activity}` : '')
+	);
 }
 
 function truncateLines(lines: string[], cap = LIST_CAP): string {
@@ -99,7 +110,7 @@ export async function handleRosterCommand(
 	const sub = data.options?.[0];
 	if (!sub) {
 		return interactionResponse(
-			'Use `/roster grades`, `/roster grade`, `/roster ranks`, `/roster rank`, `/roster ops`, `/roster unverified`, `/roster missing-verify`, `/roster set-guest`, `/roster status`, or `/roster alliances`.',
+			'Use `/roster grades`, `/roster grade`, `/roster ranks`, `/roster rank`, `/roster ops`, `/roster inactive`, `/roster activity`, `/roster set-streak`, `/roster set-inactive`, `/roster unverified`, `/roster missing-verify`, `/roster set-guest`, `/roster status`, or `/roster alliances`.',
 			true,
 		);
 	}
@@ -264,6 +275,131 @@ export async function handleRosterCommand(
 			const lines = rows.slice(0, 40).map((r) => `• **[${r.alliance_tag}]**: ${r.count}`);
 			const extra = rows.length > 40 ? `\n…and ${rows.length - 40} more alliances` : '';
 			return interactionResponse(`📊 **Alliance breakdown**\n${lines.join('\n')}${extra}`, true);
+		}
+		case 'inactive': {
+			const minRaw = getOptionValue(opts, 'min_days');
+			const minDays = minRaw != null && minRaw !== '' ? Number(minRaw) : 1;
+			if (!Number.isFinite(minDays) || minDays < 0) {
+				return interactionResponse('❌ `min_days` must be a non-negative number.', true);
+			}
+			const players = await listRosterPlayers(env.STFC_DB, guildId, {
+				daysInactiveMin: minDays,
+				limit: 80,
+			});
+			if (players.length === 0) {
+				return interactionResponse(
+					`No verified players with **≥ ${minDays}** day(s) inactive.`,
+					true,
+				);
+			}
+			return interactionResponse(
+				`😴 **Inactive ≥ ${minDays}d** (${players.length}${players.length >= 80 ? '+' : ''})\n` +
+					`_From morning sync of stfc.pro \`consecutive_days_active\` (0 = no streak)._\n` +
+					truncateLines(players.map(formatPlayerLine)),
+				true,
+			);
+		}
+		case 'activity': {
+			const userId = resolveTargetUserId(interaction as any, opts);
+			if (!userId) {
+				return interactionResponse('❌ Provide `user:` (or run without user to see yourself).', true);
+			}
+			const player = await getVerifiedPlayer(env.STFC_DB, guildId, userId);
+			if (!player) {
+				return interactionResponse(`❌ <@${userId}> is not on the verified roster.`, true);
+			}
+			const bits = formatActivityBits({
+				activityStreak: player.activity_streak,
+				daysInactive: player.days_inactive,
+			});
+			const updated = player.activity_updated_at
+				? ` · updated <t:${Math.floor(Date.parse(player.activity_updated_at) / 1000)}:R>`
+				: '';
+			return interactionResponse(
+				`📈 **Activity** — <@${userId}> **${player.player_name ?? '—'}**` +
+					(player.alliance_tag ? ` [${player.alliance_tag}]` : '') +
+					`\n• Streak: **${player.activity_streak ?? '—'}** (stfc.pro consecutive days active)` +
+					`\n• Days inactive: **${player.days_inactive}**` +
+					(bits ? `\n• Summary: ${bits}` : '') +
+					updated +
+					`\n\nAdjust: \`/roster set-streak\` · \`/roster set-inactive\``,
+				true,
+			);
+		}
+		case 'set-streak': {
+			if (!isGuildAdministrator(interaction.member?.permissions)) {
+				return interactionResponse('❌ `/roster set-streak` requires Administrator.', true);
+			}
+			const userId = resolveTargetUserId(interaction as any, opts);
+			if (!userId) {
+				return interactionResponse('❌ Provide `user:`.', true);
+			}
+			const valueRaw = getOptionValue(opts, 'value');
+			const value = Number(valueRaw);
+			if (!Number.isFinite(value) || value < 0) {
+				return interactionResponse('❌ Provide `value:` ≥ 0 (stfc.pro consecutive days active).', true);
+			}
+			const player = await getVerifiedPlayer(env.STFC_DB, guildId, userId);
+			if (!player) {
+				return interactionResponse(`❌ <@${userId}> is not on the verified roster.`, true);
+			}
+			const streak = Math.floor(value);
+			const daysInactive = streak > 0 ? 0 : player.days_inactive;
+			await setVerifiedPlayerActivity(env.STFC_DB, guildId, userId, {
+				activity_streak: streak,
+				days_inactive: daysInactive,
+			});
+			await postAuditLog(env, config, {
+				title: 'Activity streak adjusted',
+				description:
+					`<@${userId}> **${player.player_name ?? '—'}** streak **${player.activity_streak ?? '—'}** → **${streak}**` +
+					(streak > 0 ? ' (days inactive cleared)' : ''),
+				actorId,
+				source: 'admin',
+				color: AuditColor.info,
+			});
+			return interactionResponse(
+				`✅ <@${userId}> streak set to **${streak}**` +
+					(streak > 0 ? ' · days inactive reset to **0**' : ` · days inactive left at **${daysInactive}**`),
+				true,
+			);
+		}
+		case 'set-inactive': {
+			if (!isGuildAdministrator(interaction.member?.permissions)) {
+				return interactionResponse('❌ `/roster set-inactive` requires Administrator.', true);
+			}
+			const userId = resolveTargetUserId(interaction as any, opts);
+			if (!userId) {
+				return interactionResponse('❌ Provide `user:`.', true);
+			}
+			const valueRaw = getOptionValue(opts, 'value');
+			const value = Number(valueRaw);
+			if (!Number.isFinite(value) || value < 0) {
+				return interactionResponse('❌ Provide `value:` ≥ 0 (days inactive).', true);
+			}
+			const player = await getVerifiedPlayer(env.STFC_DB, guildId, userId);
+			if (!player) {
+				return interactionResponse(`❌ <@${userId}> is not on the verified roster.`, true);
+			}
+			const days = Math.floor(value);
+			await setVerifiedPlayerActivity(env.STFC_DB, guildId, userId, {
+				days_inactive: days,
+				activity_streak: days > 0 ? 0 : player.activity_streak,
+			});
+			await postAuditLog(env, config, {
+				title: 'Days inactive adjusted',
+				description:
+					`<@${userId}> **${player.player_name ?? '—'}** days inactive **${player.days_inactive}** → **${days}**` +
+					(days > 0 ? ' (streak set to 0)' : ''),
+				actorId,
+				source: 'admin',
+				color: AuditColor.info,
+			});
+			return interactionResponse(
+				`✅ <@${userId}> days inactive set to **${days}**` +
+					(days > 0 ? ' · streak set to **0**' : ''),
+				true,
+			);
 		}
 		case 'set-guest': {
 			if (!isGuildAdministrator(interaction.member?.permissions)) {

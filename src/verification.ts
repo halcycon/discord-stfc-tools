@@ -4,6 +4,7 @@ import {
 	setGuildMemberNickname,
 } from './discord-api';
 import { opsLevelToGrade } from './grade-utils';
+import { applyActivityObservation, formatActivityBits } from './activity-utils';
 import {
 	getGuildConfig,
 	getVerifiedPlayer,
@@ -12,6 +13,7 @@ import {
 	recordGuildMember,
 	recordPlayerStats,
 	recordScreenshot,
+	setVerifiedPlayerActivity,
 	upsertVerifiedPlayer,
 } from './guild-db';
 import { lookupPlayerFromAllianceRoster } from './alliance-roster-sync';
@@ -208,6 +210,15 @@ export async function processVerification(
 		verified_at: now,
 		last_synced_at: now,
 	});
+
+	if (player.consecutiveDaysActive != null && Number.isFinite(player.consecutiveDaysActive)) {
+		const snap = applyActivityObservation(null, 0, player.consecutiveDaysActive);
+		await setVerifiedPlayerActivity(env.STFC_DB, guildId, discordUserId, {
+			activity_streak: snap.activityStreak,
+			days_inactive: snap.daysInactive,
+			activity_updated_at: now,
+		});
+	}
 
 	// Stop cron invite retries (manual verify often left verification_invited_at NULL).
 	await recordGuildMember(env.STFC_DB, guildId, discordUserId, null);
@@ -570,6 +581,7 @@ export async function syncVerifiedPlayer(
 ): Promise<{
 	outcome: 'synced' | 'demoted' | 'mismatch_deferred';
 	changeSummary?: string[];
+	activity?: ReturnType<typeof applyActivityObservation>;
 }> {
 	if (!env.DISCORD_BOT_TOKEN) return { outcome: 'synced' };
 
@@ -582,6 +594,25 @@ export async function syncVerifiedPlayer(
 	const grade = opsLevelToGrade(player.level);
 	const now = new Date().toISOString();
 	const nextStatus = tagMatches ? 'active' : 'guest';
+
+	const applyObservedActivity = async (): Promise<
+		ReturnType<typeof applyActivityObservation> | undefined
+	> => {
+		if (player.consecutiveDaysActive == null || !Number.isFinite(player.consecutiveDaysActive)) {
+			return undefined;
+		}
+		const snap = applyActivityObservation(
+			previous?.activity_streak,
+			previous?.days_inactive,
+			player.consecutiveDaysActive,
+		);
+		await setVerifiedPlayerActivity(env.STFC_DB, guildId, discordUserId, {
+			activity_streak: snap.activityStreak,
+			days_inactive: snap.daysInactive,
+			activity_updated_at: now,
+		});
+		return snap;
+	};
 
 	if (!tagMatches) {
 		if (!autoDemote || isDeployTesting(config)) {
@@ -596,7 +627,8 @@ export async function syncVerifiedPlayer(
 				grade,
 				last_synced_at: now,
 			});
-			return { outcome: 'mismatch_deferred' };
+			const activity = await applyObservedActivity();
+			return { outcome: 'mismatch_deferred', activity };
 		}
 
 		const demote = await demotePlayerToGuest(env, config, guildId, discordUserId, {
@@ -605,9 +637,17 @@ export async function syncVerifiedPlayer(
 			source: 'cron',
 			skipAudit: true,
 		});
+		const activity = await applyObservedActivity();
 		const changes: string[] = [...demote.notes];
 		if (previous?.verification_status && previous.verification_status !== 'guest') {
 			changes.unshift(`status ${previous.verification_status} → guest`);
+		}
+		if (activity) {
+			const bits = formatActivityBits({
+				activityStreak: activity.activityStreak,
+				daysInactive: activity.daysInactive,
+			});
+			if (bits) changes.push(bits);
 		}
 		if (changes.length > 0) {
 			await postAuditLog(env, config, {
@@ -618,7 +658,7 @@ export async function syncVerifiedPlayer(
 				fields: [{ name: 'Changes', value: changes.join('\n').slice(0, 1000), inline: false }],
 			});
 		}
-		return { outcome: 'demoted' };
+		return { outcome: 'demoted', activity };
 	}
 
 	await upsertVerifiedPlayer(env.STFC_DB, {
@@ -633,6 +673,8 @@ export async function syncVerifiedPlayer(
 		last_synced_at: now,
 		verification_status: nextStatus,
 	});
+
+	const activity = await applyObservedActivity();
 
 	const changes: string[] = [];
 	if (previous?.verification_status && previous.verification_status !== nextStatus) {
@@ -712,16 +754,29 @@ export async function syncVerifiedPlayer(
 		if (welcome.note) changes.push(welcome.note);
 	}
 
+	if (activity) {
+		const bits = formatActivityBits({
+			activityStreak: activity.activityStreak,
+			daysInactive: activity.daysInactive,
+		});
+		if (activity.becameInactive) changes.push(`became inactive (${bits || 'streak 0'})`);
+		else if (activity.returnedActive) changes.push(`returned active (${bits || 'streak'})`);
+		else if (activity.inactiveDayAdded) changes.push(`still inactive (${bits})`);
+		else if (bits && previous?.activity_streak !== activity.activityStreak) {
+			changes.push(bits);
+		}
+	}
+
 	if (changes.length > 0) {
 		await postAuditLog(env, config, {
 			title: 'Player sync update',
 			description: `<@${discordUserId}> **${player.name}**`,
 			source: 'cron',
-			color: changes.some((c) => c.startsWith('status') || c.startsWith('alliance'))
+			color: changes.some((c) => c.startsWith('status') || c.startsWith('alliance') || c.includes('inactive'))
 				? AuditColor.warn
 				: AuditColor.info,
 			fields: [{ name: 'Changes', value: changes.join('\n'), inline: false }],
 		});
 	}
-	return { outcome: 'synced', changeSummary: changes };
+	return { outcome: 'synced', changeSummary: changes, activity };
 }
