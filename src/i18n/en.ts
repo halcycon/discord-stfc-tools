@@ -75,7 +75,8 @@ export const en = {
 	'exchange.btn.completed': 'Completed',
 	'exchange.btn.ask_again': 'Ask again',
 
-	'survey.delivery.body': '**Survey #{id}**\n{question}\n\nTap a button to respond:',
+	'survey.default_title': 'Survey #{id}',
+	'survey.delivery.body': '**{title}**\n{question}\n\nTap a button to respond:',
 	'survey.delivery.test_prefix': '🧪 **Test delivery** (only you — votes while draft are not counted)\n\n',
 	'survey.delivery.cta': 'Tap a button to respond:',
 

@@ -6,6 +6,8 @@ export interface SurveyRecord {
 	id: number;
 	guild_id: string;
 	created_by: string;
+	/** Optional player-facing title; null → localized "Survey #{id}". */
+	title: string | null;
 	question: string;
 	button_type: string;
 	options: string[];

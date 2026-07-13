@@ -77,7 +77,8 @@ export const hu: MessageCatalog = {
 	'exchange.btn.completed': 'Completed',
 	'exchange.btn.ask_again': 'Ask again',
 
-	'survey.delivery.body': '**Felmérés #{id}**\n{question}\n\nNyomj egy gombot a válaszhoz:',
+	'survey.default_title': 'Felmérés #{id}',
+	'survey.delivery.body': '**{title}**\n{question}\n\nNyomj egy gombot a válaszhoz:',
 	'survey.delivery.test_prefix':
 		'🧪 **Tesztküldés** (csak neked — a piszkozatban adott szavazatok nem számítanak)\n\n',
 	'survey.delivery.cta': 'Nyomj egy gombot a válaszhoz:',

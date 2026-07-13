@@ -40,7 +40,8 @@ export const it: MessageCatalog = {
 	'exchange.btn.ignore': 'Ignora',
 	'exchange.btn.completed': 'Completato',
 	'exchange.btn.ask_again': 'Chiedi di nuovo',
-	'survey.delivery.body': '**Sondaggio #{id}**\n{question}\n\nTocca un pulsante per rispondere:',
+	'survey.default_title': 'Sondaggio #{id}',
+	'survey.delivery.body': '**{title}**\n{question}\n\nTocca un pulsante per rispondere:',
 	'survey.delivery.test_prefix': '🧪 **Invio di prova** (solo tu — i voti in bozza non vengono conteggiati)\n\n',
 	'survey.delivery.cta': 'Tocca un pulsante per rispondere:',
 

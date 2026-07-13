@@ -40,7 +40,8 @@ export const pl: MessageCatalog = {
 	'exchange.btn.ignore': 'Ignoruj',
 	'exchange.btn.completed': 'Ukończono',
 	'exchange.btn.ask_again': 'Zapytaj ponownie',
-	'survey.delivery.body': '**Ankieta #{id}**\n{question}\n\nKliknij przycisk, aby odpowiedzieć:',
+	'survey.default_title': 'Ankieta #{id}',
+	'survey.delivery.body': '**{title}**\n{question}\n\nKliknij przycisk, aby odpowiedzieć:',
 	'survey.delivery.test_prefix': '🧪 **Wysyłka testowa** (tylko Ty — głosy w wersji roboczej nie są liczone)\n\n',
 	'survey.delivery.cta': 'Kliknij przycisk, aby odpowiedzieć:',
 

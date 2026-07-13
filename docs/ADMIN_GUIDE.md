@@ -874,13 +874,14 @@ Empty `log_name` resets to `survey-{id}`.
 ### Create → test → send
 
 ```
-/survey create question:"Ready for the event?" options:Yes|No|Maybe target:grade grades:5,6
+/survey create title:"Ops readiness" question:"Ready for the event?" options:Yes|No|Maybe target:grade grades:5,6
 ```
 
 | Option | Purpose |
 |--------|---------|
 | `question` | Shown to players |
 | `options` | `A\|B\|C` — **2–5** answers (Discord button limit) |
+| `title` | Player-facing heading in DM / personal channel (default: localized `Survey #id`) |
 | `target` | `all` · `role` · `rank` · `level` · `grade` · `users` |
 | `delivery` | `dm` (default) or `personal_channel` (falls back to DM) |
 | `grades` / `ranks` / `roles` / `users` / `ops_min` / `ops_max` | Filters for the chosen `target` |

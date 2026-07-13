@@ -40,7 +40,8 @@ export const nl: MessageCatalog = {
 	'exchange.btn.ignore': 'Negeren',
 	'exchange.btn.completed': 'Voltooid',
 	'exchange.btn.ask_again': 'Opnieuw vragen',
-	'survey.delivery.body': '**Enquête #{id}**\n{question}\n\nTik op een knop om te antwoorden:',
+	'survey.default_title': 'Enquête #{id}',
+	'survey.delivery.body': '**{title}**\n{question}\n\nTik op een knop om te antwoorden:',
 	'survey.delivery.test_prefix': '🧪 **Testverzending** (alleen jij — stemmen tijdens de conceptfase tellen niet)\n\n',
 	'survey.delivery.cta': 'Tik op een knop om te antwoorden:',
 

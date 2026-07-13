@@ -206,6 +206,7 @@ migrations/
   028_roster_list_sessions.sql  # /roster Prev/Next button sessions
   029_alliance_roster_days_inactive.sql  # days_inactive on alliance cache
   030_welcome_dm_attempts.sql  # welcome DM auto-retry cap
+  031_survey_title.sql  # optional survey delivery title
 
 archive/officers/          # REMOVED officer feature (scripts, SQL, assets, docs)
 

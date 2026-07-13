@@ -22,6 +22,7 @@ function mapSurvey(row: any): SurveyRecord {
 		id: row.id,
 		guild_id: row.guild_id,
 		created_by: row.created_by,
+		title: row.title != null && String(row.title).trim() ? String(row.title).trim() : null,
 		question: row.question,
 		button_type: row.button_type ?? 'multi_choice',
 		options: parseJsonArray(row.options),
@@ -61,6 +62,7 @@ export async function createSurvey(
 	data: {
 		guild_id: string;
 		created_by: string;
+		title?: string | null;
 		question: string;
 		options: string[];
 		delivery: SurveyDelivery;
@@ -76,18 +78,20 @@ export async function createSurvey(
 		log_category_id?: string | null;
 	},
 ): Promise<SurveyRecord> {
+	const title = data.title?.trim() || null;
 	const result = await db
 		.prepare(
 			`INSERT INTO surveys
-			 (guild_id, created_by, question, button_type, options, status, delivery, target_type,
+			 (guild_id, created_by, title, question, button_type, options, status, delivery, target_type,
 			  target_grades, target_alliance_tags, target_role_ids, target_ranks,
 			  target_ops_min, target_ops_max, target_user_ids, viewer_role_ids, log_category_id)
-			 VALUES (?, ?, ?, 'multi_choice', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 VALUES (?, ?, ?, ?, 'multi_choice', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 RETURNING *`,
 		)
 		.bind(
 			data.guild_id,
 			data.created_by,
+			title,
 			data.question,
 			JSON.stringify(data.options),
 			data.delivery,

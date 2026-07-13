@@ -40,7 +40,8 @@ export const ru: MessageCatalog = {
 	'exchange.btn.ignore': 'Игнорировать',
 	'exchange.btn.completed': 'Готово',
 	'exchange.btn.ask_again': 'Спросить снова',
-	'survey.delivery.body': '**Опрос #{id}**\n{question}\n\nНажмите кнопку, чтобы ответить:',
+	'survey.default_title': 'Опрос #{id}',
+	'survey.delivery.body': '**{title}**\n{question}\n\nНажмите кнопку, чтобы ответить:',
 	'survey.delivery.test_prefix': '🧪 **Тестовая отправка** (только вы — голоса в черновике не учитываются)\n\n',
 	'survey.delivery.cta': 'Нажмите кнопку, чтобы ответить:',
 

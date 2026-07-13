@@ -76,7 +76,8 @@ export const de: MessageCatalog = {
 	'exchange.btn.completed': 'Completed',
 	'exchange.btn.ask_again': 'Ask again',
 
-	'survey.delivery.body': '**Umfrage #{id}**\n{question}\n\nTippe einen Button zum Antworten:',
+	'survey.default_title': 'Umfrage #{id}',
+	'survey.delivery.body': '**{title}**\n{question}\n\nTippe einen Button zum Antworten:',
 	'survey.delivery.test_prefix':
 		'🧪 **Testzustellung** (nur du — Stimmen im Entwurf zählen nicht)\n\n',
 	'survey.delivery.cta': 'Tippe einen Button zum Antworten:',

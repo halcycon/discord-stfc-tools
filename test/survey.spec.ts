@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { canCreateSurvey, canViewSurveyResults } from '../src/survey-handlers';
 import {
 	buildSurveyVoteComponents,
+	formatSurveyDeliveryTitle,
 	formatSurveyResultsTable,
 	parseSurveyOptions,
 	resolveSurveyLogChannelName,
@@ -79,6 +80,7 @@ function sampleSurvey(overrides: Partial<SurveyRecord> = {}): SurveyRecord {
 		id: 7,
 		guild_id: '1',
 		created_by: 'creator1',
+		title: null,
 		question: 'Ready for G5?',
 		button_type: 'multi_choice',
 		options: ['Yes', 'No', 'Maybe'],
@@ -114,6 +116,13 @@ describe('survey helpers', () => {
 		expect(resolveSurveyLogChannelName('poll-{id}', 12)).toBe('poll-12');
 		expect(resolveSurveyLogChannelName('Event Feedback', 3)).toBe('event-feedback-3');
 		expect(resolveSurveyLogChannelName('  ', 7)).toBe('survey-7');
+	});
+
+	it('formatSurveyDeliveryTitle uses custom title or default', () => {
+		expect(formatSurveyDeliveryTitle(sampleSurvey({ title: null }), 'en')).toBe('Survey #7');
+		expect(formatSurveyDeliveryTitle(sampleSurvey({ title: 'Ops readiness' }), 'en')).toBe(
+			'Ops readiness',
+		);
 	});
 
 	it('buildSurveyVoteComponents uses one row of buttons (not table cells)', () => {

@@ -60,6 +60,16 @@ export function resolveSurveyLogChannelName(
 	return name;
 }
 
+/** Player-facing survey heading (DM / personal channel). */
+export function formatSurveyDeliveryTitle(
+	survey: Pick<SurveyRecord, 'id' | 'title'>,
+	locale: string,
+): string {
+	const custom = survey.title?.trim();
+	if (custom) return custom.slice(0, 120);
+	return t(locale, 'survey.default_title', { id: survey.id });
+}
+
 export function parseSurveyOptions(raw: string): string[] {
 	return raw
 		.split('|')
@@ -111,8 +121,9 @@ export function buildSurveyAdminComponents(surveyId: number): DiscordActionRow[]
 }
 
 export function surveyPreviewEmbed(survey: SurveyRecord, targetCount: number): DiscordEmbed {
+	const title = formatSurveyDeliveryTitle(survey, 'en');
 	return {
-		title: `📋 Survey #${survey.id} (draft)`,
+		title: `📋 ${title} (draft)`,
 		description: survey.question,
 		color: 0x5865f2,
 		fields: [
@@ -131,6 +142,9 @@ export function surveyPreviewEmbed(survey: SurveyRecord, targetCount: number): D
 					: 'server default',
 				inline: true,
 			},
+			...(survey.title
+				? [{ name: 'Title', value: survey.title, inline: true }]
+				: [{ name: 'Title', value: `default (Survey #${survey.id})`, inline: true }]),
 		],
 		footer: { text: 'Test to yourself first, then Approve & send' },
 	};
@@ -142,6 +156,7 @@ export async function createSurveyDraft(
 	opts: {
 		guildId: string;
 		createdBy: string;
+		title?: string | null;
 		question: string;
 		optionsRaw: string;
 		delivery: SurveyDelivery;
@@ -164,6 +179,7 @@ export async function createSurveyDraft(
 	const survey = await createSurvey(env.STFC_DB, {
 		guild_id: opts.guildId,
 		created_by: opts.createdBy,
+		title: opts.title,
 		question: opts.question,
 		options,
 		delivery: opts.delivery,
@@ -192,14 +208,18 @@ async function deliverSurveyMessage(
 	prefix?: string,
 ): Promise<void> {
 	const locale = resolveLocale(player.preferred_locale);
+	const title = formatSurveyDeliveryTitle(survey, locale);
 	const body = t(locale, 'survey.delivery.body', {
 		id: survey.id,
+		title,
 		question: survey.question,
 	});
-	const content = (prefix ? `${prefix}\n\n` : '') + body;
+	let content = (prefix ? `${prefix}\n\n` : '') + body;
 	const components = buildSurveyVoteComponents(survey.id, survey.options);
 
 	if (delivery === 'personal_channel' && player.personal_channel_id) {
+		// Mention so the member gets a highlight/notification in their channel.
+		content = `<@${player.discord_user_id}>\n${content}`;
 		await sendMessageWithComponents(token, player.personal_channel_id, { content, components });
 		return;
 	}
@@ -345,7 +365,7 @@ async function ensureSurveyLogChannel(
 	const parentId = survey.log_category_id || config.survey_log_category_id || undefined;
 	const channel = await createGuildTextChannel(token, guildId, channelName, {
 		parentId,
-		topic: `Survey #${survey.id}: ${survey.question.slice(0, 100)}`,
+		topic: `${formatSurveyDeliveryTitle(survey, 'en')}: ${survey.question.slice(0, 80)}`,
 		permissionOverwrites: overwrites,
 	});
 	await updateSurvey(db, survey.id, { log_channel_id: channel.id });

@@ -1371,6 +1371,12 @@ const commands = [
 					},
 					{
 						type: 3,
+						name: 'title',
+						description: 'Player-facing heading (default: Survey #id)',
+						required: false,
+					},
+					{
+						type: 3,
 						name: 'target',
 						description: 'Who receives it (default all verified)',
 						required: false,

@@ -245,6 +245,7 @@ export async function handleSurveyCommand(
 
 	if (sub.name === 'create') {
 		const question = getOptionValue(sub.options, 'question') as string | undefined;
+		const titleRaw = getOptionValue(sub.options, 'title') as string | undefined;
 		const optionsRaw = getOptionValue(sub.options, 'options') as string | undefined;
 		const delivery = ((getOptionValue(sub.options, 'delivery') as string) || 'dm') as SurveyDelivery;
 		const targetType = ((getOptionValue(sub.options, 'target') as string) || 'all') as SurveyTargetType;
@@ -277,6 +278,7 @@ export async function handleSurveyCommand(
 			const { survey, targetCount } = await createSurveyDraft(env, config, {
 				guildId,
 				createdBy,
+				title: titleRaw?.trim() || null,
 				question: question.trim(),
 				optionsRaw,
 				delivery: delivery === 'personal_channel' ? 'personal_channel' : 'dm',

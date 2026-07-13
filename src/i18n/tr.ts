@@ -40,7 +40,8 @@ export const tr: MessageCatalog = {
 	'exchange.btn.ignore': 'Yoksay',
 	'exchange.btn.completed': 'Tamamlandı',
 	'exchange.btn.ask_again': 'Tekrar iste',
-	'survey.delivery.body': '**Anket #{id}**\n{question}\n\nYanıtlamak için bir düğmeye basın:',
+	'survey.default_title': 'Anket #{id}',
+	'survey.delivery.body': '**{title}**\n{question}\n\nYanıtlamak için bir düğmeye basın:',
 	'survey.delivery.test_prefix': '🧪 **Test gönderimi** (yalnızca siz — taslaktaki oylar sayılmaz)\n\n',
 	'survey.delivery.cta': 'Yanıtlamak için bir düğmeye basın:',
 
