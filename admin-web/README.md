@@ -12,7 +12,7 @@ Cloudflare Pages app (Root directory: `admin-web`).
 | `/login` | Discord OAuth admin login |
 | `/app` | Guild picker / dashboard (auth required) |
 
-Edit operator contact via **Pages / local env** (`VITE_LEGAL_*` — see `.env.example`), not committed source.
+Edit operator contact via **Pages secrets** (`npm run admin-web:push-env`) or local deploy (`npm run admin-web:deploy`). See `.env.example` / root `ADMIN_WEB_PAGES_PROJECT`.
 
 ## Pages project
 

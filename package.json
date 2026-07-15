@@ -20,6 +20,8 @@
 		"db:migrate-local": "node scripts/db-migrate.js --local",
 		"admin-web:dev": "npm run dev --prefix admin-web",
 		"admin-web:build": "npm run build --prefix admin-web",
+		"admin-web:push-env": "node scripts/push-admin-web-env.js",
+		"admin-web:deploy": "node scripts/deploy-admin-web.js",
 		"kv:create": "wrangler kv namespace create SYSTEM_DATA",
 		"kv:create-preview": "wrangler kv namespace create SYSTEM_DATA --preview",
 		"kv:upload": "wrangler kv bulk put --binding SYSTEM_DATA --preview false kv-bulk-upload.json",

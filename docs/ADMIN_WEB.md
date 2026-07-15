@@ -23,7 +23,16 @@ Use these URLs for Discord Developer Portal verification and consent links:
 | Admin login | `/login` |
 | Authenticated console | `/app` |
 
-**Operator identity is not committed.** Set Cloudflare Pages environment variables (or `admin-web/.env` locally — gitignored):
+**Operator identity is not committed.** Keep values in `admin-web/.env` (gitignored), then push or deploy:
+
+```bash
+# root .env
+ADMIN_WEB_PAGES_PROJECT=your-pages-project-name
+
+npm run admin-web:push-env   # upload VITE_* to Pages as secrets (for Git builds)
+# then Retry deployment in the Pages dashboard — OR:
+npm run admin-web:deploy     # local Vite build (reads admin-web/.env) + wrangler pages deploy
+```
 
 | Variable | Used for |
 |----------|----------|
@@ -36,8 +45,9 @@ Use these URLs for Discord Developer Portal verification and consent links:
 | `VITE_LEGAL_LIABILITY_CAP` | Liability cap wording |
 | `VITE_LEGAL_EFFECTIVE_DATE` | Effective date |
 | `VITE_LEGAL_VERSION` | Policy version |
+| `VITE_API_BASE_URL` | Worker API origin |
 
-Vite bakes `VITE_*` into the static build — change them in Pages, then **redeploy** Pages. Fallbacks in code are placeholders only (`[OPERATOR LEGAL NAME]`, etc.). Markdown sources: `admin-web/src/legal/*.md`.
+`VITE_*` are baked into the static JS at **build** time. Git-connected Pages builds need those vars on the project (`admin-web:push-env`); a direct `admin-web:deploy` bakes from your local `.env` without waiting on Git. Fallbacks in code are placeholders only. Markdown sources: `admin-web/src/legal/*.md`.
 
 ## Setup
 
@@ -49,8 +59,9 @@ Vite bakes `VITE_*` into the static build — change them in Pages, then **redep
 4. Optional: `DISCORD_CLIENT_ID` if different from `DISCORD_APPLICATION_ID`
 5. `npm run push-env` then `npm run deploy`
 6. Apply migration `033_web_admin_roles.sql` (`npm run db:migrate`) if not already
-7. Create Pages project on this repo, root `admin-web`, env `VITE_API_BASE_URL=<WORKER_URL>`
-8. After Pages is live, paste `https://<pages>/privacy` and `https://<pages>/terms` into Discord’s verification / privacy fields
+7. Create Pages project on this repo, root `admin-web`
+8. Set `ADMIN_WEB_PAGES_PROJECT` in root `.env`, fill `admin-web/.env`, then `npm run admin-web:push-env` and retry the Pages deployment (or `npm run admin-web:deploy`)
+9. After Pages is live, paste `https://<pages>/privacy` and `https://<pages>/terms` into Discord’s verification / privacy fields
 
 ## Access control
 
