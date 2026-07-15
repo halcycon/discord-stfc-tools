@@ -69,6 +69,12 @@ npm run admin-web:deploy     # local Vite build (reads admin-web/.env) + wrangle
 - Optionally, members of roles listed in `guild_configs.web_admin_role_ids` (empty by default = **Administrators only** — not all guild members).
 - Guild dashboard: **List roles** loads Discord roles via the bot; tick roles to grant web access. **Suggest leadership** selects Premier/Commodore/Admiral roles already configured in `/server setup`.
 
+## Auth (Pages + Worker)
+
+OAuth callback runs on the **Worker**. The SPA lives on **Pages** (different origin). Session cookies on the Worker are third-party to the SPA, so mobile Safari often drops them and you bounce back to `/login`.
+
+Fix: after Discord OAuth, the Worker redirects to `/auth/callback?stfc_session=…` on Pages; the SPA stores the signed token in `sessionStorage` and sends `Authorization: Bearer …` on API calls (cookie still set as a best-effort fallback).
+
 ## Local
 
 ```bash

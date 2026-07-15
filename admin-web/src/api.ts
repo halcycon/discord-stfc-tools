@@ -1,17 +1,44 @@
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
+const SESSION_STORAGE_KEY = 'stfc_admin_session';
+
+export function getStoredSessionToken(): string | null {
+	try {
+		return sessionStorage.getItem(SESSION_STORAGE_KEY);
+	} catch {
+		return null;
+	}
+}
+
+export function setStoredSessionToken(token: string): void {
+	sessionStorage.setItem(SESSION_STORAGE_KEY, token);
+}
+
+export function clearStoredSessionToken(): void {
+	try {
+		sessionStorage.removeItem(SESSION_STORAGE_KEY);
+	} catch {
+		/* ignore */
+	}
+}
+
 export async function api<T>(
 	path: string,
 	init: RequestInit = {},
 ): Promise<{ data?: T; error?: string; status: number }> {
 	const url = `${API_BASE}${path}`;
+	const headers: Record<string, string> = {
+		...(init.body ? { 'Content-Type': 'application/json' } : {}),
+		...(init.headers as Record<string, string> | undefined),
+	};
+	const token = getStoredSessionToken();
+	if (token && !headers.Authorization && !headers.authorization) {
+		headers.Authorization = `Bearer ${token}`;
+	}
 	const res = await fetch(url, {
 		...init,
 		credentials: 'include',
-		headers: {
-			...(init.body ? { 'Content-Type': 'application/json' } : {}),
-			...init.headers,
-		},
+		headers,
 	});
 	let body: unknown = null;
 	const text = await res.text();

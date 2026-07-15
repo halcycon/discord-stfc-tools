@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, type GuildListItem, type MeResponse } from '../api';
+import { api, clearStoredSessionToken, type GuildListItem, type MeResponse } from '../api';
 import { LcarsFrame, LcarsPanel } from '../lcars/LcarsFrame';
 
 export function HomePage() {
@@ -14,6 +14,7 @@ export function HomePage() {
 		void (async () => {
 			const meRes = await api<MeResponse>('/api/admin/me');
 			if (meRes.status === 401) {
+				clearStoredSessionToken();
 				navigate('/login');
 				return;
 			}
@@ -34,6 +35,7 @@ export function HomePage() {
 	}, [navigate]);
 
 	async function logout() {
+		clearStoredSessionToken();
 		await api('/api/admin/auth/logout', { method: 'POST' });
 		navigate('/login');
 	}

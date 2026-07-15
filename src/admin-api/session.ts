@@ -118,6 +118,18 @@ export async function readSessionFromRequest(
 	secret: string | undefined,
 ): Promise<AdminSession | null> {
 	if (!secret) return null;
+
+	// Bearer token (SPA sessionStorage) — required for cross-origin Pages→Worker on mobile Safari,
+	// which blocks third-party cookies even when SameSite=None.
+	const auth = request.headers.get('Authorization');
+	if (auth?.toLowerCase().startsWith('bearer ')) {
+		const token = auth.slice(7).trim();
+		if (token) {
+			const fromBearer = await openSession(token, secret);
+			if (fromBearer) return fromBearer;
+		}
+	}
+
 	const cookies = parseCookies(request.headers.get('Cookie'));
 	const raw = cookies[COOKIE_NAME];
 	if (!raw) return null;

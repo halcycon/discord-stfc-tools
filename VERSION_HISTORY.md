@@ -8,7 +8,7 @@ Release log for the STFC Discord bot (Cloudflare Worker). Versions use **MAJOR.M
 | **MINOR** | New user-facing capability (new slash area, cron product, admin workflow) |
 | **INCREMENTAL** | Fixes, polish, docs, refactors, small command option tweaks |
 
-**Current version:** **1.8.18**
+**Current version:** **1.8.19**
 
 **Sources of truth**
 
@@ -27,6 +27,11 @@ Bump all three together when cutting a release. Prefer a short entry under the n
 Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. **1.0.0** marks the alliance-management product that was prepared for public use. Later **1.x** minors track feature areas shipped in Jul 2026 (git history + migrations `001`–`027`).
 
 ---
+
+## 1.8.19 — Mobile admin OAuth session (2026-07-15)
+
+- Fix: after Discord login on mobile, SPA bounced to `/login` because Worker session cookie is third-party to Pages (Safari ITP)
+- OAuth callback hands signed session to `/auth/callback`; SPA stores it and sends `Authorization: Bearer`
 
 ## 1.8.18 — Web admin role picker (2026-07-15)
 

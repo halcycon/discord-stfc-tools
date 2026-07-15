@@ -248,7 +248,11 @@ export async function handleAdminApi(
 			exp: newSessionExpiry(),
 		};
 		const sealed = await sealSession(session, env.ADMIN_SESSION_SECRET!);
-		const headers = new Headers({ Location: `${frontend}/app` });
+		// Hand session to the SPA via query (cookie alone fails on mobile Safari as third-party).
+		// AuthCallback stores it in sessionStorage and strips the URL.
+		const headers = new Headers({
+			Location: `${frontend}/auth/callback?stfc_session=${encodeURIComponent(sealed)}`,
+		});
 		headers.append('Set-Cookie', sessionCookieHeader(sealed));
 		headers.append(
 			'Set-Cookie',
