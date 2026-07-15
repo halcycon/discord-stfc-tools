@@ -3,7 +3,7 @@
 **Effective date:** 14 July 2026  
 **Version:** 1.0
 
-> **Not legal advice.** These terms are a starting template for operators of the STFC Tools Discord bot (“the Bot”). Have them reviewed for your jurisdiction before relying on them. Replace bracketed placeholders (or edit `admin-web/src/legal/operator.ts`) before publishing.
+> **Not legal advice.** These terms are a starting template for operators of the STFC Tools Discord bot (“the Bot”). Have them reviewed for your jurisdiction before relying on them. Set real operator details via Cloudflare Pages `VITE_LEGAL_*` env vars (see [ADMIN_WEB.md](./ADMIN_WEB.md)) — do not commit personal legal identity in the public repo.
 
 **Public URL (Cloudflare Pages):** `/terms` on the admin site — see [ADMIN_WEB.md](./ADMIN_WEB.md) and [BOT_MIGRATION.md](./BOT_MIGRATION.md).
 

@@ -3,7 +3,7 @@
 **Effective date:** 14 July 2026  
 **Version:** 1.0
 
-> **Not legal advice.** This policy describes how the STFC Tools Discord bot (“the Bot”) processes personal data in practice. Customise bracketed placeholders (or edit `admin-web/src/legal/operator.ts`), confirm your controller/processor roles with counsel, and publish a stable URL before linking it from Discord consent flows.
+> **Not legal advice.** This policy describes how the STFC Tools Discord bot (“the Bot”) processes personal data in practice. Set operator details via Cloudflare Pages `VITE_LEGAL_*` env vars (see [ADMIN_WEB.md](./ADMIN_WEB.md)), confirm controller/processor roles with counsel, and publish a stable URL before linking it from Discord consent flows.
 
 **Public URL (Cloudflare Pages):** `/privacy` on the admin site — see [ADMIN_WEB.md](./ADMIN_WEB.md) and [BOT_MIGRATION.md](./BOT_MIGRATION.md).
 

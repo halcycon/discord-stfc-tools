@@ -12,7 +12,7 @@ Cloudflare Pages app (Root directory: `admin-web`).
 | `/login` | Discord OAuth admin login |
 | `/app` | Guild picker / dashboard (auth required) |
 
-Edit operator contact in `src/legal/operator.ts` before publishing.
+Edit operator contact via **Pages / local env** (`VITE_LEGAL_*` — see `.env.example`), not committed source.
 
 ## Pages project
 

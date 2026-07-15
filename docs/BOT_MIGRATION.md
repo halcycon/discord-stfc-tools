@@ -125,7 +125,7 @@ You can deploy Pages before or after the Worker; both need matching URLs.
 1. Pages project → same Git repo → **Root directory:** `admin-web`
 2. Build: `npm ci && npm run build` · Output: `dist`
 3. Env: `VITE_API_BASE_URL=https://<new-worker>`
-4. Fill operator contact in [`admin-web/src/legal/operator.ts`](../admin-web/src/legal/operator.ts) **before** Discord app review
+4. Fill operator contact via **Pages env** `VITE_LEGAL_*` (see [ADMIN_WEB.md](./ADMIN_WEB.md)); do not commit real names/emails in the repo
 5. Public legal URLs (no login):
 
 | Page | Path |

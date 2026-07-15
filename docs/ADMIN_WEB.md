@@ -23,7 +23,21 @@ Use these URLs for Discord Developer Portal verification and consent links:
 | Admin login | `/login` |
 | Authenticated console | `/app` |
 
-Fill operator/contact details in [`admin-web/src/legal/operator.ts`](../admin-web/src/legal/operator.ts) before submitting the app for verification. Markdown sources live under `admin-web/src/legal/*.md` (synced from `docs/PRIVACY_POLICY.md` / `docs/TERMS_OF_SERVICE.md`).
+**Operator identity is not committed.** Set Cloudflare Pages environment variables (or `admin-web/.env` locally — gitignored):
+
+| Variable | Used for |
+|----------|----------|
+| `VITE_LEGAL_PRODUCT_NAME` | Product name in titles / body |
+| `VITE_LEGAL_LEGAL_NAME` | Operator legal / trading name |
+| `VITE_LEGAL_CONTACT` | Email or contact form URL |
+| `VITE_LEGAL_ADDRESS` | Optional postal address |
+| `VITE_LEGAL_GOVERNING_LAW` | Governing law |
+| `VITE_LEGAL_VENUE` | Venue |
+| `VITE_LEGAL_LIABILITY_CAP` | Liability cap wording |
+| `VITE_LEGAL_EFFECTIVE_DATE` | Effective date |
+| `VITE_LEGAL_VERSION` | Policy version |
+
+Vite bakes `VITE_*` into the static build — change them in Pages, then **redeploy** Pages. Fallbacks in code are placeholders only (`[OPERATOR LEGAL NAME]`, etc.). Markdown sources: `admin-web/src/legal/*.md`.
 
 ## Setup
 
