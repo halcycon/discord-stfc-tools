@@ -22,7 +22,6 @@ export function LoginPage() {
 
 	return (
 		<LcarsFrame
-			compact
 			title="Admin console"
 			eyebrow="STFC Tools · Access"
 			navTop={[
@@ -33,11 +32,6 @@ export function LoginPage() {
 				{ label: 'Terms', to: '/terms', color: 2 },
 				{ label: '02-4419', color: 3 },
 			]}
-			actions={
-				<button type="button" className="lcars-pill" onClick={startLogin}>
-					Discord login
-				</button>
-			}
 		>
 			<p className="muted">
 				Sign in with Discord. You will see guilds where you are an Administrator or hold a

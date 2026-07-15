@@ -16,7 +16,6 @@ export function LegalPage({ title, markdown }: Props) {
 
 	return (
 		<LcarsFrame
-			compact
 			title={title}
 			eyebrow={`${legalOperator.productName} · Effective ${legalOperator.effectiveDate} · v${legalOperator.version}`}
 			navTop={[

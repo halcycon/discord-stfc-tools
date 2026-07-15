@@ -16,7 +16,6 @@ type Props = {
 	actions?: ReactNode;
 	navTop?: LcarsNavItem[];
 	navBottom?: LcarsNavItem[];
-	compact?: boolean;
 	children: ReactNode;
 };
 
@@ -27,7 +26,9 @@ function Block({ item }: { item: LcarsNavItem }) {
 			: item.color
 				? `lcars-block--a${item.color}`
 				: 'lcars-block--a3';
-	const className = `lcars-block ${colorClass}${item.active ? ' lcars-block--active' : ''}`;
+	const className = `lcars-block ${colorClass}${item.active ? ' lcars-block--active' : ''}${
+		!(item.to || item.onClick) ? ' lcars-block--ghost' : ''
+	}`;
 
 	if (item.to) {
 		return (
@@ -43,7 +44,7 @@ function Block({ item }: { item: LcarsNavItem }) {
 			</button>
 		);
 	}
-	return <div className={`${className} lcars-block--ghost`}>{item.label}</div>;
+	return <div className={className}>{item.label}</div>;
 }
 
 function MobileNav({ items }: { items: LcarsNavItem[] }) {
@@ -52,7 +53,15 @@ function MobileNav({ items }: { items: LcarsNavItem[] }) {
 	return (
 		<nav className="lcars-mobile-nav" aria-label="Console navigation">
 			{interactive.map((item) => {
-				const className = `lcars-pill lcars-pill--sm${item.color === 8 ? ' lcars-pill--a8' : item.color === 6 ? ' lcars-pill--a6' : item.color === 1 ? ' lcars-pill--a1' : ''}`;
+				const className = `lcars-pill lcars-pill--sm${
+					item.color === 8
+						? ' lcars-pill--a8'
+						: item.color === 6
+							? ' lcars-pill--a6'
+							: item.color === 1
+								? ' lcars-pill--a1'
+								: ''
+				}`;
 				if (item.to) {
 					return (
 						<Link key={item.label} className={className} to={item.to}>
@@ -70,26 +79,44 @@ function MobileNav({ items }: { items: LcarsNavItem[] }) {
 	);
 }
 
-/** Full LCARS console frame with elbow rails (desktop) and pill nav (mobile). */
+/**
+ * Classic LCARS console frame (louh/lcars-style elbows):
+ * sidebar-top + title/divider, sidebar-bottom + main.
+ */
 export function LcarsFrame({
 	title,
 	eyebrow,
 	actions,
 	navTop = [],
 	navBottom = [],
-	compact = false,
 	children,
 }: Props) {
 	const allNav = [...navTop, ...navBottom];
+	const topBlocks =
+		navTop.length > 0
+			? navTop
+			: [
+					{ label: '01-220', color: 3 as const },
+					{ label: 'LCARS', color: 7 as const },
+				];
+	const botBlocks =
+		navBottom.length > 0
+			? navBottom
+			: [
+					{ label: '04-881', color: 2 as const },
+					{ label: '44-019', color: 4 as const },
+				];
 
 	return (
 		<div className="lcars-screen">
-			<div className={`lcars-frame${compact ? ' lcars-frame--compact' : ''}`}>
-				<aside className="lcars-rail-top" aria-hidden={navTop.length === 0}>
+			<div className="lcars-frame">
+				<aside className="lcars-rail-top">
 					<div className="lcars-rail-blocks">
-						{navTop.map((item) => (
+						{topBlocks.map((item) => (
 							<Block key={item.label} item={item} />
 						))}
+						{/* elbow filler — transparent so rail color shows through */}
+						<div className="lcars-block lcars-block--elbow" aria-hidden="true" />
 					</div>
 				</aside>
 
@@ -99,16 +126,15 @@ export function LcarsFrame({
 						<h1 className="lcars-title">{title}</h1>
 						{actions ? <div className="lcars-title-actions">{actions}</div> : null}
 					</div>
-					<div className="lcars-divider" aria-hidden="true">
-						<span />
-						<span />
-						<span />
-					</div>
 				</header>
 
-				<aside className="lcars-rail-bot" aria-hidden={navBottom.length === 0}>
+				<div className="lcars-bar-top" aria-hidden="true" />
+				<div className="lcars-bar-bot" aria-hidden="true" />
+
+				<aside className="lcars-rail-bot">
 					<div className="lcars-rail-blocks">
-						{navBottom.map((item) => (
+						<div className="lcars-block lcars-block--elbow" aria-hidden="true" />
+						{botBlocks.map((item) => (
 							<Block key={item.label} item={item} />
 						))}
 					</div>
