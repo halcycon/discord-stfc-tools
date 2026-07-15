@@ -22,9 +22,6 @@ function generateWranglerConfig() {
     "observability": {
       "enabled": true
     },
-    "limits": {
-      "cpu_ms": 300000
-    },
     "vars": {
       "ENVIRONMENT": "development"
     },
@@ -60,14 +57,23 @@ function generateWranglerConfig() {
     "migrations": [
       {
         "tag": "v1",
-        "new_classes": ["DiscordGateway"]
+        "new_sqlite_classes": ["DiscordGateway"]
       },
       {
         "tag": "v2",
-        "new_classes": ["StfcSession"]
+        "new_sqlite_classes": ["StfcSession"]
       }
     ]
   };
+
+  // Optional CPU limit (Paid Workers only)
+  const cpuMs = Number(process.env.CPU_MS);
+  
+  if (!Number.isNaN(cpuMs) && cpuMs > 0) {
+    configTemplate.limits = {
+      cpu_ms: cpuMs
+    };
+  }
 
   if (process.env.WORKER_URL) {
     configTemplate.vars.WORKER_URL = process.env.WORKER_URL;
