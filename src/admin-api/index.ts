@@ -4,10 +4,12 @@ import {
 	countPlayersByStatus,
 	getGuildConfig,
 	listConfiguredGuilds,
+	listRosterPlayers,
 	upsertGuildConfig,
 } from '../guild-db';
 import { getDiscordGatewayStatus } from '../discord-gateway/wake';
 import { AuditColor, postAuditLog } from '../audit-log';
+import { defaultNicknameTemplate } from '../nickname-utils';
 import { BOT_VERSION } from '../version';
 import type { GuildConfig } from '../types';
 import { corsHeaders, jsonCors, withCors } from './cors';
@@ -78,6 +80,8 @@ async function requireGuildAccess(
 }
 
 function publicConfig(config: GuildConfig) {
+	const storedNick = config.nickname_template?.trim() || null;
+	const nicknameDefault = defaultNicknameTemplate(config.mode);
 	return {
 		guild_id: config.guild_id,
 		mode: config.mode,
@@ -87,7 +91,9 @@ function publicConfig(config: GuildConfig) {
 		stfc_alliance_id: config.stfc_alliance_id,
 		guest_role_id: config.guest_role_id,
 		member_role_ids: config.member_role_ids,
-		nickname_template: config.nickname_template,
+		nickname_template: storedNick,
+		nickname_template_default: nicknameDefault,
+		nickname_template_effective: storedNick || nicknameDefault,
 		verification_enabled: config.verification_enabled,
 		poll_interval_hours: config.poll_interval_hours,
 		deploy_mode: config.deploy_mode,
@@ -103,6 +109,34 @@ function publicConfig(config: GuildConfig) {
 		urgent_notify_channel_id: config.urgent_notify_channel_id,
 		web_admin_role_ids: config.web_admin_role_ids,
 		dm_query_role_ids: config.dm_query_role_ids,
+	};
+}
+
+function publicRosterPlayer(p: {
+	player_name: string | null;
+	alliance_tag: string | null;
+	alliance_rank: string | null;
+	ops_level: number | null;
+	power: number | null;
+	grade: number | null;
+	activity_streak: number | null;
+	days_inactive: number;
+	verification_status: string;
+	discord_user_id: string;
+	player_id: number | null;
+}) {
+	return {
+		player_name: p.player_name,
+		alliance_tag: p.alliance_tag,
+		alliance_rank: p.alliance_rank,
+		ops_level: p.ops_level,
+		power: p.power,
+		grade: p.grade,
+		activity_streak: p.activity_streak,
+		days_inactive: p.days_inactive,
+		verification_status: p.verification_status,
+		discord_user_id: p.discord_user_id,
+		player_id: p.player_id,
 	};
 }
 
@@ -301,6 +335,31 @@ export async function handleAdminApi(
 					by_alliance: byAlliance,
 				},
 				gateway: gateway ?? null,
+			});
+		}
+
+		// GET .../players?grade=N
+		if (rest === '/players' && request.method === 'GET') {
+			const gradeRaw = url.searchParams.get('grade');
+			const grade = gradeRaw != null ? Number(gradeRaw) : NaN;
+			if (!Number.isInteger(grade) || grade < 3 || grade > 7) {
+				return jsonCors(
+					request,
+					env,
+					{ error: 'Query grade must be an integer 3–7' },
+					{ status: 400 },
+				);
+			}
+			const players = await listRosterPlayers(env.STFC_DB, guildId, {
+				grade,
+				limit: 200,
+				sort: 'ops',
+			});
+			return jsonCors(request, env, {
+				guild_id: guildId,
+				grade,
+				count: players.length,
+				players: players.map(publicRosterPlayer),
 			});
 		}
 

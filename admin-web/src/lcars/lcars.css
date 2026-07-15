@@ -814,3 +814,89 @@ code {
 		box-shadow: 0 0 0 0 transparent;
 	}
 }
+
+.field-hint {
+	display: block;
+	margin-top: 0.25rem;
+	font-size: 0.75rem;
+	letter-spacing: 0.03em;
+	text-transform: none;
+	color: var(--lcars-text-dim);
+	line-height: 1.35;
+}
+
+.grade-list li {
+	border-bottom: 0;
+	padding: 0.15rem 0;
+}
+
+.grade-link {
+	appearance: none;
+	width: 100%;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.35rem 0.55rem;
+	border: 0;
+	border-bottom: 1px solid color-mix(in srgb, var(--lcars-a3) 35%, transparent);
+	background: transparent;
+	color: var(--lcars-text);
+	font: inherit;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	cursor: pointer;
+	text-align: left;
+	transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.grade-link:hover {
+	background: color-mix(in srgb, var(--lcars-a2) 22%, transparent);
+	color: var(--lcars-a5);
+}
+
+.grade-link--active {
+	background: color-mix(in srgb, var(--lcars-a5) 28%, transparent);
+	color: var(--lcars-a5);
+	box-shadow: inset 0.25rem 0 0 var(--lcars-a5);
+}
+
+.grade-link strong {
+	color: inherit;
+}
+
+.roster-table-wrap {
+	overflow-x: auto;
+	margin-top: 0.35rem;
+}
+
+.roster-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.9rem;
+	letter-spacing: 0.02em;
+}
+
+.roster-table th,
+.roster-table td {
+	padding: 0.45rem 0.55rem;
+	text-align: left;
+	border-bottom: 1px solid color-mix(in srgb, var(--lcars-a3) 40%, transparent);
+	white-space: nowrap;
+}
+
+.roster-table th {
+	color: var(--lcars-a2);
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-size: 0.75rem;
+	font-weight: 700;
+}
+
+.roster-table tbody tr:hover td {
+	background: color-mix(in srgb, var(--lcars-a3) 14%, transparent);
+}
+
+.roster-table td:nth-child(n + 3):nth-child(-n + 6) {
+	font-variant-numeric: tabular-nums;
+}

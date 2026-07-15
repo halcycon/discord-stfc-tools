@@ -56,3 +56,24 @@ export type GuildStatus = {
 	};
 	gateway: { ready?: boolean; lastEventAt?: string | null } | null;
 };
+
+export type RosterPlayerRow = {
+	player_name: string | null;
+	alliance_tag: string | null;
+	alliance_rank: string | null;
+	ops_level: number | null;
+	power: number | null;
+	grade: number | null;
+	activity_streak: number | null;
+	days_inactive: number;
+	verification_status: string;
+	discord_user_id: string;
+	player_id: number | null;
+};
+
+export type GradePlayersResponse = {
+	guild_id: string;
+	grade: number;
+	count: number;
+	players: RosterPlayerRow[];
+};

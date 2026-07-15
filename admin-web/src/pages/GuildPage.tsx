@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, type GuildStatus } from '../api';
+import { api, type GradePlayersResponse, type GuildStatus, type RosterPlayerRow } from '../api';
 import { LcarsFrame, LcarsPanel } from '../lcars/LcarsFrame';
 
 type ConfigForm = {
@@ -18,9 +18,18 @@ type ConfigForm = {
 };
 
 function formFromConfig(c: Record<string, unknown>): ConfigForm {
+	const stored = c.nickname_template != null ? String(c.nickname_template).trim() : '';
+	const effective =
+		stored ||
+		(c.nickname_template_effective != null
+			? String(c.nickname_template_effective)
+			: c.nickname_template_default != null
+				? String(c.nickname_template_default)
+				: '');
 	return {
 		alliance_tag: String(c.alliance_tag ?? ''),
-		nickname_template: String(c.nickname_template ?? ''),
+		// Show effective pattern when DB is unset so the field matches /server status behaviour.
+		nickname_template: effective,
 		verification_enabled: Boolean(c.verification_enabled),
 		poll_interval_hours: Number(c.poll_interval_hours ?? 6),
 		deploy_mode: String(c.deploy_mode ?? 'testing'),
@@ -35,6 +44,11 @@ function formFromConfig(c: Record<string, unknown>): ConfigForm {
 	};
 }
 
+function fmtNum(n: number | null | undefined): string {
+	if (n == null || !Number.isFinite(n)) return '—';
+	return n.toLocaleString();
+}
+
 export function GuildPage() {
 	const { guildId } = useParams();
 	const navigate = useNavigate();
@@ -43,6 +57,10 @@ export function GuildPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [saved, setSaved] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
+	const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
+	const [gradePlayers, setGradePlayers] = useState<RosterPlayerRow[] | null>(null);
+	const [gradeLoading, setGradeLoading] = useState(false);
+	const [gradeError, setGradeError] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (!guildId) return;
@@ -61,15 +79,55 @@ export function GuildPage() {
 		})();
 	}, [guildId, navigate]);
 
+	useEffect(() => {
+		if (!guildId || selectedGrade == null) {
+			setGradePlayers(null);
+			setGradeError(null);
+			return;
+		}
+		let cancelled = false;
+		setGradeLoading(true);
+		setGradeError(null);
+		void (async () => {
+			const res = await api<GradePlayersResponse>(
+				`/api/admin/guilds/${guildId}/players?grade=${selectedGrade}`,
+			);
+			if (cancelled) return;
+			setGradeLoading(false);
+			if (res.status === 401) {
+				navigate('/login');
+				return;
+			}
+			if (res.error || !res.data) {
+				setGradePlayers(null);
+				setGradeError(res.error || 'Failed to load players');
+				return;
+			}
+			setGradePlayers(res.data.players);
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [guildId, selectedGrade, navigate]);
+
 	async function save(e: React.FormEvent) {
 		e.preventDefault();
-		if (!guildId || !form) return;
+		if (!guildId || !form || !status) return;
 		setSaving(true);
 		setSaved(null);
 		setError(null);
+		const nickTrim = form.nickname_template.trim();
+		const modeDefault = String(
+			status.config.nickname_template_default ??
+				status.config.nickname_template_effective ??
+				'',
+		).trim();
+		// Persist null when the field matches the mode default (same as leaving unset).
+		const nickname_template =
+			!nickTrim || nickTrim === modeDefault ? null : nickTrim;
 		const body = {
 			alliance_tag: form.alliance_tag.trim() || null,
-			nickname_template: form.nickname_template.trim() || null,
+			nickname_template,
 			verification_enabled: form.verification_enabled,
 			poll_interval_hours: form.poll_interval_hours,
 			deploy_mode: form.deploy_mode,
@@ -92,8 +150,13 @@ export function GuildPage() {
 			setError(res.error || 'Save failed');
 			return;
 		}
+		setStatus((prev) => (prev ? { ...prev, config: res.data!.config } : prev));
 		setForm(formFromConfig(res.data.config));
 		setSaved('Saved');
+	}
+
+	function toggleGrade(grade: number) {
+		setSelectedGrade((prev) => (prev === grade ? null : grade));
 	}
 
 	if (!status || !form) {
@@ -112,6 +175,7 @@ export function GuildPage() {
 	const cfg = status.config;
 	const tag = cfg.alliance_tag ? `[${String(cfg.alliance_tag)}] ` : '';
 	const gatewayOk = Boolean(status.gateway?.ready);
+	const nickIsDefault = !String(cfg.nickname_template ?? '').trim();
 
 	return (
 		<LcarsFrame
@@ -147,17 +211,34 @@ export function GuildPage() {
 					</ul>
 				</LcarsPanel>
 				<LcarsPanel label="By grade" cap="a2">
-					<ul className="plain">
+					<ul className="plain grade-list">
 						{status.stats.by_grade.length === 0 ? (
 							<li className="muted">No grade data</li>
 						) : (
 							status.stats.by_grade.map((r) => (
 								<li key={r.grade}>
-									G{r.grade}: <strong>{r.count}</strong>
+									<button
+										type="button"
+										className={`grade-link${selectedGrade === r.grade ? ' grade-link--active' : ''}`}
+										onClick={() => toggleGrade(r.grade)}
+										aria-pressed={selectedGrade === r.grade}
+									>
+										<span>G{r.grade}</span>
+										<strong>{r.count}</strong>
+									</button>
 								</li>
 							))
 						)}
 					</ul>
+					{selectedGrade != null ? (
+						<p className="muted tiny" style={{ marginTop: '0.65rem' }}>
+							Showing G{selectedGrade} below — click again to close
+						</p>
+					) : (
+						<p className="muted tiny" style={{ marginTop: '0.65rem' }}>
+							Click a grade for the player list
+						</p>
+					)}
 				</LcarsPanel>
 				<LcarsPanel label="Gateway" cap="a6">
 					<p className={gatewayOk ? 'lcars-status lcars-status--ok' : 'lcars-status lcars-status--warn'}>
@@ -178,6 +259,47 @@ export function GuildPage() {
 				</LcarsPanel>
 			</section>
 
+			{selectedGrade != null ? (
+				<LcarsPanel label={`Grade G${selectedGrade}`} cap="a5">
+					{gradeLoading ? <p className="lcars-status">Loading players…</p> : null}
+					{gradeError ? <p className="error">{gradeError}</p> : null}
+					{!gradeLoading && !gradeError && gradePlayers ? (
+						gradePlayers.length === 0 ? (
+							<p className="muted">No players in this grade.</p>
+						) : (
+							<div className="roster-table-wrap">
+								<table className="roster-table">
+									<thead>
+										<tr>
+											<th>Nickname</th>
+											<th>Rank</th>
+											<th>Ops</th>
+											<th>Power</th>
+											<th>Streak</th>
+											<th>Inactive</th>
+											<th>Status</th>
+										</tr>
+									</thead>
+									<tbody>
+										{gradePlayers.map((p) => (
+											<tr key={p.discord_user_id}>
+												<td>{p.player_name ?? '—'}</td>
+												<td>{p.alliance_rank ?? '—'}</td>
+												<td>{fmtNum(p.ops_level)}</td>
+												<td>{fmtNum(p.power)}</td>
+												<td>{fmtNum(p.activity_streak)}</td>
+												<td>{fmtNum(p.days_inactive)}</td>
+												<td>{p.verification_status}</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
+						)
+					) : null}
+				</LcarsPanel>
+			) : null}
+
 			<LcarsPanel label="Config" cap="a1">
 				<p className="muted tiny">
 					Subset of <code>/server</code> settings. Slash commands remain available in Discord.
@@ -195,8 +317,14 @@ export function GuildPage() {
 						<input
 							value={form.nickname_template}
 							onChange={(e) => setForm({ ...form, nickname_template: e.target.value })}
-							placeholder="{name}"
+							placeholder="{rank_prefix}{player_name}"
+							spellCheck={false}
 						/>
+						<span className="field-hint">
+							{nickIsDefault
+								? 'Using mode default (DB unset). Placeholders: {player_name} {alliance_tag} {rank} {rank_prefix} {rank_paren}'
+								: 'Custom template stored in DB. Clear or match default to revert. Placeholders: {player_name} {alliance_tag} {rank} {rank_prefix} {rank_paren}'}
+						</span>
 					</label>
 					<label>
 						Poll interval (hours)
