@@ -1,7 +1,7 @@
 # Privacy Policy — STFC Tools Discord Bot
 
-**Effective date:** 14 July 2026  
-**Version:** 1.0
+**Effective date:** 15 July 2026  
+**Version:** 1.1
 
 > **Not legal advice.** This policy describes how the STFC Tools Discord bot (“the Bot”) processes personal data in practice. Set operator details via Cloudflare Pages `VITE_LEGAL_*` env vars (see [ADMIN_WEB.md](./ADMIN_WEB.md)), confirm controller/processor roles with counsel, and publish a stable URL before linking it from Discord consent flows.
 
@@ -17,7 +17,7 @@ The Bot helps Discord servers for **Star Trek Fleet Command (STFC)** verify play
 - **[OPERATOR LEGAL NAME]** hosts the Bot (Cloudflare). Contact: **[CONTACT EMAIL OR FORM]**.
 - Where a Guild enables the data-consent gate (`/server consent`), you will be asked to agree **before** screenshot / stfc.pro verification proceeds.
 
-This Bot is **not** affiliated with Scopely, Paramount, Discord, or stfc.pro.
+This Bot is an **unofficial, fan-made** tool. It is **not** affiliated with, endorsed by, sponsored by, or approved by Paramount Global / CBS Studios, Scopely, Discord Inc., Cloudflare, Inc., or the operators of **stfc.pro** (or similar sites). **Star Trek**, **Star Trek Fleet Command**, **Discord**, **Cloudflare**, **stfc.pro**, and related names and logos are trademarks of their respective owners and are used here only for identification. See the [Terms of Service](./TERMS_OF_SERVICE.md) §9 for more detail.
 
 ---
 

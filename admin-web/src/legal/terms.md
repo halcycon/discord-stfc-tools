@@ -1,7 +1,7 @@
 # Terms of Service — STFC Tools Discord Bot
 
-**Effective date:** 14 July 2026  
-**Version:** 1.0
+**Effective date:** 15 July 2026  
+**Version:** 1.1
 
 > **Not legal advice.** These terms are a starting template for operators of the STFC Tools Discord bot (“the Bot”). Have them reviewed for your jurisdiction before relying on them. Set real operator details via Cloudflare Pages `VITE_LEGAL_*` env vars (see [ADMIN_WEB.md](./ADMIN_WEB.md)) — do not commit personal legal identity in the public repo.
 
@@ -21,7 +21,7 @@
 
 By inviting the Bot, configuring it, or using its commands / DMs / buttons, you agree to these Terms. If you do not agree, do not use the Bot (and ask Guild admins to remove it if you invited it).
 
-Discord’s [Terms of Service](https://discord.com/terms) and [Community Guidelines](https://discord.com/guidelines) also apply. Scopely / STFC game terms apply to in-game play; the Bot is not affiliated with Scopely, Paramount, or Discord.
+Discord’s [Terms of Service](https://discord.com/terms) and [Community Guidelines](https://discord.com/guidelines) also apply. In-game play is governed by Scopely’s and related game terms. See **§9** for trademarks and affiliation.
 
 ---
 
@@ -100,11 +100,36 @@ Nothing in these Terms excludes liability that cannot be excluded under applicab
 
 ---
 
-## 9. Intellectual property
+## 9. Intellectual property, trademarks, and affiliation
 
-- Bot software may be offered under an open-source licence in the project repository; that licence governs code use.
-- “Star Trek”, related marks, and STFC are owned by their respective rights holders. This project is fan-made and unofficial.
-- You retain rights in content you submit (e.g. screenshots); you grant us and the Guild a licence to store and use that content solely to operate the Bot’s features for that Guild.
+### 9.1 Our software
+
+Bot software may be offered under an open-source licence in the project repository; that licence governs use of **our** code. You retain rights in content you submit (e.g. screenshots); you grant us and the Guild a licence to store and use that content solely to operate the Bot’s features for that Guild.
+
+### 9.2 Third-party trademarks
+
+This project is an **unofficial, fan-made** tool. It is **not** affiliated with, endorsed by, sponsored by, or approved by the owners of the following (or their affiliates), except as those parties’ own terms may allow for ordinary use of their platforms:
+
+| Mark / name | Typical rights holder (informational) |
+|-------------|----------------------------------------|
+| **Star Trek**, related logos, characters, and settings | Paramount Global / CBS Studios (and related licensors) |
+| **Star Trek Fleet Command** (STFC) and related game assets | Scopely (publisher) and its licensors |
+| **Discord** name and logos | Discord Inc. |
+| **Cloudflare** name and logos | Cloudflare, Inc. |
+| **stfc.pro** and similar community / data sites | Their respective operators (independent of Scopely and of us) |
+
+All such names and marks are the property of their respective owners. Use of those names in this Bot, documentation, or marketing is for **identification and interoperability only** (e.g. describing the game the Bot helps manage, or the public data source used for verification).
+
+### 9.3 No official relationship
+
+- We do **not** claim any official partnership with Paramount, CBS, Scopely, Discord, Cloudflare, or stfc.pro.
+- The Bot is **not** an official Star Trek, STFC, Discord, or stfc.pro product.
+- Game data obtained via third-party sites (including stfc.pro) may be incomplete or inaccurate; those sites’ terms and availability are outside our control.
+- Nothing in these Terms grants you any licence to use third-party trademarks beyond what their owners already allow.
+
+### 9.4 Your content and Guild branding
+
+Alliance tags, Discord server names, and similar labels belong to the relevant communities or rights holders. We do not claim ownership of them.
 
 ---
 

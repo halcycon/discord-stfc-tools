@@ -27,8 +27,8 @@ export const legalOperator = {
 	venue: env('VITE_LEGAL_VENUE', '[VENUE]'),
 	/** Liability cap wording */
 	liabilityCap: env('VITE_LEGAL_LIABILITY_CAP', '[AMOUNT, e.g. £0 / USD 0]'),
-	effectiveDate: env('VITE_LEGAL_EFFECTIVE_DATE', '14 July 2026'),
-	version: env('VITE_LEGAL_VERSION', '1.0'),
+	effectiveDate: env('VITE_LEGAL_EFFECTIVE_DATE', '15 July 2026'),
+	version: env('VITE_LEGAL_VERSION', '1.1'),
 };
 
 /** Replace bracket placeholders used in the legal markdown. */

@@ -11,7 +11,9 @@ export function LandingPage() {
 				<h1>Discord bot for Star Trek Fleet Command alliances</h1>
 				<p className="muted">
 					Player verification, roles, channels, surveys, and roster tools for Discord servers.
-					Not affiliated with Scopely, Paramount, or Discord.
+					Unofficial fan-made software — not affiliated with or endorsed by Paramount, CBS,
+					Scopely, Discord, Cloudflare, or stfc.pro. See{' '}
+					<Link to="/terms">Terms</Link> (§ trademarks).
 				</p>
 				<div className="landing-actions">
 					<Link className="btn primary" to="/login">
