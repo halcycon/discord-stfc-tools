@@ -1,7 +1,17 @@
-/* LCARS design system — thelcars.com classic: full-width trunk + outer elbow */
+/* LCARS — thelcars.com classic two-wrap flex model */
 
 :root {
 	color-scheme: dark;
+
+	--african-violet: #cc99ff;
+	--almond: #ffaa90;
+	--bluey: #8899ff;
+	--butterscotch: #ff9966;
+	--golden-orange: #ff9900;
+	--orange: #ff8800;
+	--peach: #ff8866;
+	--sunflower: #ffcc99;
+	--tomato: #ff5555;
 
 	--lcars-a1: #ec943a;
 	--lcars-a2: #eb9870;
@@ -12,23 +22,32 @@
 	--lcars-a7: #9c698a;
 	--lcars-a8: #b6a5d1;
 	--lcars-a9: #8b72aa;
-	--lcars-alert: #cc4444;
+	--lcars-alert: #cf4f4f;
 	--lcars-ok: #99cc66;
 	--lcars-black: #000000;
-	--lcars-void: #050505;
 	--lcars-text: #ffcc99;
 	--lcars-text-dim: #c49a78;
+
+	/* thelcars tokens */
+	--lfw: 240px;
+	--bar-height: 28px;
+	--panel-border: 0.25rem solid #000;
+	--bar-border: 0.35rem solid #000;
+	--radius-top: 0 0 0 160px;
+	--radius-bottom: 160px 0 0 0;
+	--radius-content-top: 0 0 0 60px;
+	--radius-content-bottom: 60px 0 0 0;
+	--left-frame-top-color: var(--lcars-a6);
+	--left-frame-color: var(--lcars-a1);
+	--corner-color-top: var(--lcars-a6);
+	--corner-color-bottom: var(--lcars-a1);
+	--left-frame-padding: 0.75rem;
+
 	--lcars-gap: 0.35rem;
 	--lcars-radius-pill: 999px;
 
-	/* Match thelcars proportions: trunk width, bar height, large outer radius */
-	--lfw: 11rem;
-	--lcars-bar-h: 1.4rem;
-	--lcars-elbow-r: 6.5rem;
-	--lcars-inner-r: 2.75rem;
-
 	--bg: var(--lcars-black);
-	--panel: var(--lcars-void);
+	--panel: #050505;
 	--text: var(--lcars-text);
 	--muted: var(--lcars-text-dim);
 	--accent: var(--lcars-a5);
@@ -39,26 +58,43 @@
 
 	font-family: "Antonio", "Segoe UI", sans-serif;
 	line-height: 1.35;
-	background: var(--lcars-black);
+	background: #000;
 	color: var(--lcars-text);
 	min-height: 100%;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1500px) {
 	:root {
-		--lfw: 9.5rem;
-		--lcars-elbow-r: 5rem;
-		--lcars-bar-h: 1.2rem;
-		--lcars-inner-r: 2.25rem;
+		--lfw: 200px;
+		--radius-top: 0 0 0 130px;
+		--radius-bottom: 130px 0 0 0;
+		--bar-height: 24px;
 	}
 }
 
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
 	:root {
-		--lfw: 7.5rem;
-		--lcars-elbow-r: 3.5rem;
-		--lcars-bar-h: 1rem;
-		--lcars-inner-r: 1.75rem;
+		--lfw: 180px;
+		--radius-top: 0 0 0 100px;
+		--radius-bottom: 100px 0 0 0;
+		--radius-content-top: 0 0 0 40px;
+		--radius-content-bottom: 40px 0 0 0;
+		--bar-height: 20px;
+	}
+}
+
+@media (max-width: 950px) {
+	:root { --lfw: 150px; --bar-border: 0.25rem solid #000; }
+}
+
+@media (max-width: 750px) {
+	:root {
+		--lfw: 120px;
+		--radius-top: 0 0 0 80px;
+		--radius-bottom: 80px 0 0 0;
+		--radius-content-top: 0 0 0 28px;
+		--radius-content-bottom: 28px 0 0 0;
+		--bar-height: 16px;
 	}
 }
 
@@ -67,7 +103,7 @@
 html, body {
 	margin: 0;
 	min-height: 100%;
-	background: var(--lcars-black);
+	background: #000;
 }
 
 body { min-height: 100vh; }
@@ -90,294 +126,346 @@ a:hover { color: var(--lcars-a2); }
 	to { transform: scaleX(1); opacity: 1; }
 }
 
-/* —— Frame: full-width left trunk (thelcars model) —— */
-
 .lcars-screen {
 	min-height: 100vh;
-	padding: 1rem 1.25rem 1.5rem 0.4rem;
-	background: var(--lcars-black);
-	animation: lcars-fade-in 0.45s ease-out;
+	padding: 0.5rem 1rem 1.5rem 0.35rem;
+	background: #000;
+	animation: lcars-fade-in 0.4s ease-out;
 }
 
-@media (max-width: 700px) {
-	.lcars-screen { padding: 0.75rem; }
+@media (max-width: 540px) {
+	.lcars-screen { padding: 0.5rem 0.5rem 1.25rem; }
 }
 
-.lcars-frame {
-	display: grid;
-	grid-template-columns: var(--lfw) minmax(0, 1fr);
-	grid-template-rows: auto var(--lcars-bar-h) 1fr;
-	grid-template-areas:
-		"rail-u header"
-		"rail-u bars"
-		"rail-l main";
-	column-gap: 0;
-	row-gap: var(--lcars-gap);
-	max-width: 1180px;
-	margin: 0 auto;
-	min-height: calc(100vh - 2rem);
+/* —— Wraps (thelcars .wrap) —— */
+
+.lcars-wrap {
+	display: flex;
+	max-width: 1400px;
+	margin-inline: auto;
+	align-items: stretch;
 }
 
-/*
-  Upper trunk: solid full --lfw width.
-  Outer elbow only (bottom-left radius). NO right-side cutout —
-  that was making the elbow look narrower than the buttons.
-*/
-.lcars-rail-upper {
-	grid-area: rail-u;
+.lcars-wrap--top {
+	align-items: stretch;
+}
+
+.lcars-wrap--bot {
+	min-height: 0;
+}
+
+/* —— Left frames: IDENTICAL width, full trunk —— */
+
+.lcars-left-top,
+.lcars-left-bot {
+	width: var(--lfw);
+	min-width: var(--lfw);
+	max-width: var(--lfw);
+	flex-shrink: 0;
 	display: flex;
 	flex-direction: column;
-	width: var(--lfw);
-	background: var(--lcars-a6);
-	border-radius: 0 0 0 var(--lcars-elbow-r);
-	position: relative;
+	text-align: right;
+	font-weight: 700;
+	color: #000;
 }
 
-.lcars-rail-lower {
-	grid-area: rail-l;
-	display: flex;
-	flex-direction: column;
-	width: var(--lfw);
-	background: var(--lcars-a1);
-	border-radius: var(--lcars-elbow-r) 0 0 0;
-	position: relative;
-	min-height: 10rem;
+.lcars-left-top {
+	background: var(--left-frame-top-color);
+	border-radius: var(--radius-top);
 }
 
-/* Buttons = full trunk width (same as elbow), thelcars panel style */
-.lcars-btn {
+.lcars-left-bot {
+	background: var(--left-frame-color);
+	border-radius: var(--radius-bottom);
+	position: relative;
+	justify-content: flex-start;
+	min-height: 12rem;
+}
+
+/* Black bite at top of lower trunk (thelcars left-frame::before) */
+.lcars-left-bot::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: var(--lfw);
+	height: 120px;
+	background: #000;
+	pointer-events: none;
+	z-index: 1;
+}
+
+@media (max-width: 1460px) {
+	.lcars-left-bot::before { height: 100px; }
+}
+@media (max-width: 750px) {
+	.lcars-left-bot::before { height: 70px; }
+}
+
+/* —— Nav panels: always full --lfw, square corners —— */
+
+.lcars-panel {
 	appearance: none;
 	border: 0;
-	border-bottom: var(--lcars-gap) solid var(--lcars-black);
+	border-bottom: var(--panel-border);
+	border-radius: 0;
 	display: flex;
 	align-items: flex-end;
 	justify-content: flex-end;
-	width: 100%;
-	min-height: 3rem;
-	padding: 0.35rem 0.75rem 0.3rem 0.5rem;
+	width: var(--lfw);
+	min-width: var(--lfw);
+	max-width: var(--lfw);
+	min-height: 3.25rem;
+	padding: var(--left-frame-padding);
 	background: var(--lcars-a3);
 	color: #000;
 	font: inherit;
-	font-size: clamp(0.85rem, 1.5vw, 1.05rem);
+	font-size: clamp(0.85rem, 1.4vw, 1.05rem);
 	font-weight: 700;
-	letter-spacing: 0.05em;
+	letter-spacing: 0.04em;
 	text-transform: uppercase;
 	text-decoration: none;
 	cursor: pointer;
-	line-height: 1.1;
+	line-height: 1.15;
 	position: relative;
-	z-index: 1;
+	z-index: 2;
 	transition: filter 0.15s ease;
 }
 
-.lcars-btn:hover { filter: brightness(1.12); }
-.lcars-btn:focus-visible { outline: 2px solid var(--lcars-a5); outline-offset: -2px; }
-.lcars-btn__short { display: none; }
+.lcars-panel:hover { filter: brightness(1.12); }
+.lcars-panel:focus-visible { outline: 2px solid var(--lcars-a5); outline-offset: -2px; }
+.lcars-panel__short { display: none; }
 
-.lcars-btn--a1 { background: var(--lcars-a1); }
-.lcars-btn--a2 { background: var(--lcars-a2); }
-.lcars-btn--a3 { background: var(--lcars-a3); }
-.lcars-btn--a4 { background: var(--lcars-a4); }
-.lcars-btn--a5 { background: var(--lcars-a5); }
-.lcars-btn--a6 { background: var(--lcars-a6); }
-.lcars-btn--a7 { background: var(--lcars-a7); }
-.lcars-btn--a8 { background: var(--lcars-a8); }
-.lcars-btn--a9 { background: var(--lcars-a9); }
-.lcars-btn--alert { background: var(--lcars-alert); color: #fff; }
-
-/* Decorative codes stay solid panels (like thelcars), not transparent ghosts */
-.lcars-btn--ghost {
-	background: var(--lcars-a3);
-	color: #000;
+.lcars-panel--a1 { background: var(--lcars-a1); }
+.lcars-panel--a2 { background: var(--lcars-a2); }
+.lcars-panel--a3 { background: var(--lcars-a3); }
+.lcars-panel--a4 { background: var(--lcars-a4); }
+.lcars-panel--a5 { background: var(--lcars-a5); }
+.lcars-panel--a6 { background: var(--lcars-a6); }
+.lcars-panel--a7 { background: var(--lcars-a7); }
+.lcars-panel--a8 { background: var(--lcars-a8); }
+.lcars-panel--a9 { background: var(--lcars-a9); }
+.lcars-panel--alert { background: var(--lcars-alert); color: #fff; }
+.lcars-panel--deco {
 	cursor: default;
 	pointer-events: none;
-	font-weight: 700;
 }
-.lcars-btn--active {
-	box-shadow: inset 0.25rem 0 0 #000;
-	filter: brightness(1.08);
+.lcars-panel--active {
+	box-shadow: inset 0.3rem 0 0 #000;
 }
 
-.lcars-rail-upper .lcars-btn:last-of-type {
-	/* last nav btn keeps its bottom border; elbow filler has none */
+.lcars-left-top .lcars-panel:last-child {
+	border-bottom: 0;
+	/* do not flex-grow — elbow body is the frame background, not a stretched button */
 }
 
-.lcars-elbow {
+.lcars-left-bot .lcars-panel:first-child {
+	margin-top: 120px; /* clear the black bite */
+}
+@media (max-width: 1460px) {
+	.lcars-left-bot .lcars-panel:first-child { margin-top: 100px; }
+}
+@media (max-width: 750px) {
+	.lcars-left-bot .lcars-panel:first-child { margin-top: 70px; }
+}
+
+.lcars-left-spacer {
 	flex: 1 1 auto;
 	min-height: 2rem;
-	/* transparent — trunk mauve shows; this is the elbow body */
-	background: transparent;
+	position: relative;
+	z-index: 2;
 }
 
-.lcars-rail-fill {
-	flex: 1 1 auto;
-	min-height: 2rem;
-	background: transparent;
-}
+/* —— Right top: banner + bars + inner scoop —— */
 
-.lcars-header {
-	grid-area: header;
+.lcars-right-top {
+	flex: 1;
+	min-width: 0;
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	justify-content: flex-end;
-	padding: 0 0 0.65rem 1.1rem;
-	min-width: 0;
-	position: relative;
-	z-index: 1;
+	padding-left: 0;
 }
 
-/*
-  Inner scoop (thelcars right-frame-top::before/::after):
-  colored corner fill + black radius, sitting in the crook above the bars.
-*/
-.lcars-header::before {
+/* Inner scoop above the bars (thelcars right-frame-top::before/after) */
+.lcars-right-top::before {
 	content: "";
 	position: absolute;
 	left: 0;
-	bottom: 0;
-	width: var(--lcars-inner-r);
-	height: var(--lcars-inner-r);
-	background: var(--lcars-a6);
-	z-index: -1;
+	bottom: var(--bar-height);
+	width: 60px;
+	height: 60px;
+	background: var(--corner-color-top);
+	z-index: 0;
 }
 
-.lcars-header::after {
+.lcars-right-top::after {
 	content: "";
 	position: absolute;
 	left: 0;
-	bottom: 0;
-	width: var(--lcars-inner-r);
-	height: var(--lcars-inner-r);
-	background: var(--lcars-black);
-	border-radius: 0 0 0 var(--lcars-inner-r);
-	z-index: -1;
+	bottom: var(--bar-height);
+	width: 60px;
+	height: 60px;
+	background: #000;
+	border-radius: var(--radius-content-top);
+	z-index: 0;
 }
 
 .lcars-eyebrow {
-	margin: 0 0 0.3rem;
+	margin: 0 0 0.35rem;
+	padding-left: 0.75rem;
 	font-size: 0.8rem;
 	letter-spacing: 0.14em;
 	text-transform: uppercase;
 	text-align: right;
 	color: var(--lcars-a8);
+	position: relative;
+	z-index: 1;
 }
 
-.lcars-title-row {
+.lcars-banner-row {
 	display: flex;
 	align-items: flex-end;
 	justify-content: flex-end;
 	gap: 1rem;
 	flex-wrap: wrap;
+	padding: 0 0 0.85rem 0.75rem;
+	position: relative;
+	z-index: 1;
 }
 
-.lcars-title {
+.lcars-banner {
 	margin: 0;
-	font-size: clamp(1.45rem, 4vw, 2.75rem);
+	font-size: clamp(1.5rem, 0.75rem + 3.5vw, 3rem);
 	font-weight: 700;
 	letter-spacing: 0.02em;
-	line-height: 0.95;
+	line-height: 1;
 	text-transform: uppercase;
 	text-align: right;
 	color: var(--lcars-a5);
 	animation: lcars-title-slide 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.lcars-title-actions {
+.lcars-banner-actions {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.45rem;
 	align-items: center;
 }
 
-/* Bars flush against full-width trunk */
-.lcars-bar-row {
-	grid-area: bars;
+/* Bars flush to left trunk — no padding */
+.lcars-bar-panel {
 	display: flex;
-	height: var(--lcars-bar-h);
+	height: var(--bar-height);
 	width: 100%;
+	position: relative;
+	z-index: 1;
+}
+
+.lcars-bar-panel--lower {
+	margin-bottom: 0;
 }
 
 .lcars-bar {
 	display: block;
 	height: 100%;
-	border-right: var(--lcars-gap) solid var(--lcars-black);
+	border-right: var(--bar-border);
+	flex-shrink: 0;
 }
 
-.lcars-bar:last-child {
-	border-right: 0;
+.lcars-bar--1 { width: 40%; background: var(--lcars-a6); }
+.lcars-bar--2 { width: 4%; background: var(--lcars-a1); }
+.lcars-bar--3 { width: 17%; background: var(--lcars-a8); }
+.lcars-bar--4 { width: 17%; background: var(--lcars-a8); }
+.lcars-bar--5 {
 	flex: 1;
-	border-radius: 0 var(--lcars-radius-pill) var(--lcars-radius-pill) 0;
+	background: var(--lcars-alert);
+	border-right: 0;
+	border-radius: 0 100vmax 100vmax 0;
 }
 
-.lcars-bar--1 { width: 42%; background: var(--lcars-a6); }
-.lcars-bar--2 { width: 5%; background: var(--lcars-a1); }
-.lcars-bar--3 { width: 14%; background: var(--lcars-a8); }
-.lcars-bar--4 { width: 10%; background: var(--lcars-a8); }
-.lcars-bar--5 { background: var(--lcars-alert); }
+.lcars-bar--6 { width: 40%; background: var(--lcars-a1); }
+.lcars-bar--7 { width: 4%; background: var(--lcars-a2); }
+.lcars-bar--8 { width: 17%; background: var(--lcars-alert); }
+.lcars-bar--9 { width: 17%; background: var(--lcars-a8); }
+.lcars-bar--10 {
+	flex: 1;
+	background: var(--lcars-a2);
+	border-right: 0;
+	border-radius: 0 100vmax 100vmax 0;
+}
+
+/* —— Right bottom: content + lower scoop —— */
+
+.lcars-right-bot {
+	flex: 1;
+	min-width: 0;
+	position: relative;
+}
+
+.lcars-right-bot::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: var(--bar-height);
+	width: 60px;
+	height: 60px;
+	background: var(--corner-color-bottom);
+	z-index: 0;
+}
+
+.lcars-right-bot::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: var(--bar-height);
+	width: 60px;
+	height: 60px;
+	background: #000;
+	border-radius: var(--radius-content-bottom);
+	z-index: 0;
+}
 
 .lcars-main {
-	grid-area: main;
-	min-width: 0;
-	padding: 0.85rem 0 1.25rem 1.1rem;
 	position: relative;
 	z-index: 1;
+	padding: 1.25rem 0 1rem clamp(1rem, 3vw, 2.5rem);
 }
 
-/* Lower inner scoop into the orange trunk */
-.lcars-main::before {
-	content: "";
-	position: absolute;
-	left: 0;
-	top: 0;
-	width: var(--lcars-inner-r);
-	height: var(--lcars-inner-r);
-	background: var(--lcars-a1);
-	z-index: -1;
-}
-
-.lcars-main::after {
-	content: "";
-	position: absolute;
-	left: 0;
-	top: 0;
-	width: var(--lcars-inner-r);
-	height: var(--lcars-inner-r);
-	background: var(--lcars-black);
-	border-radius: var(--lcars-inner-r) 0 0 0;
-	z-index: -1;
-}
+/* —— Mobile: hide trunks, keep bars + pills —— */
 
 @media (max-width: 700px) {
-	.lcars-frame {
-		grid-template-columns: 1fr;
-		grid-template-rows: auto var(--lcars-bar-h) auto;
-		grid-template-areas:
-			"header"
-			"bars"
-			"main";
-		row-gap: 0.45rem;
+	.lcars-left-top,
+	.lcars-left-bot {
+		display: none;
 	}
 
-	.lcars-rail-upper,
-	.lcars-rail-lower { display: none; }
-
-	.lcars-header {
-		padding-left: 0;
+	.lcars-right-top::before,
+	.lcars-right-top::after,
+	.lcars-right-bot::before,
+	.lcars-right-bot::after {
+		display: none;
 	}
-	.lcars-header::before,
-	.lcars-header::after,
-	.lcars-main::before,
-	.lcars-main::after { display: none; }
 
 	.lcars-eyebrow,
-	.lcars-title { text-align: left; }
-	.lcars-title-row { justify-content: flex-start; }
-
-	.lcars-bar--1 {
-		border-radius: var(--lcars-radius-pill) 0 0 var(--lcars-radius-pill);
+	.lcars-banner {
+		text-align: left;
 	}
 
-	.lcars-main { padding-left: 0; padding-top: 0.5rem; }
+	.lcars-banner-row {
+		justify-content: flex-start;
+		padding-left: 0;
+	}
+
+	.lcars-eyebrow { padding-left: 0; }
+
+	.lcars-bar--1,
+	.lcars-bar--6 {
+		border-radius: 100vmax 0 0 100vmax;
+	}
+
+	.lcars-main { padding-left: 0; }
 	.lcars-mobile-nav { display: flex; }
 }
 
@@ -396,7 +484,7 @@ a:hover { color: var(--lcars-a2); }
 	justify-content: center;
 	min-height: 2.5rem;
 	padding: 0.35rem 1.15rem;
-	border-radius: var(--lcars-radius-pill);
+	border-radius: 100vmax;
 	background: var(--lcars-a5);
 	color: #000;
 	font: inherit;
@@ -430,10 +518,8 @@ a:hover { color: var(--lcars-a2); }
 	font-size: 0.85rem;
 }
 
-.lcars-panel {
-	background: transparent;
-	border: 0;
-	padding: 0;
+/* Content section headers */
+.lcars-section {
 	margin: 0 0 1.25rem;
 }
 
@@ -441,43 +527,31 @@ a:hover { color: var(--lcars-a2); }
 	display: flex;
 	align-items: center;
 	min-height: 1.65rem;
-	padding: 0.15rem 0.85rem 0.15rem 1rem;
-	margin: 0 0 0.75rem 0.55rem;
+	padding: 0.15rem 0.85rem;
+	margin: 0 0 0.75rem;
 	background: var(--lcars-a3);
 	color: #000;
 	font-weight: 700;
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
 	font-size: 0.95rem;
-	border-radius: 0 var(--lcars-radius-pill) var(--lcars-radius-pill) 0;
-	position: relative;
+	border-radius: 100vmax;
 }
 
-.lcars-text-bar::before {
-	content: "";
-	position: absolute;
-	left: -0.55rem;
-	top: 0;
-	bottom: 0;
-	width: 0.55rem;
-	background: var(--lcars-a1);
-	border-radius: var(--lcars-radius-pill) 0 0 var(--lcars-radius-pill);
-}
-
-.lcars-text-bar--a1::before { background: var(--lcars-a1); }
+.lcars-text-bar--a1 { background: var(--lcars-a1); }
 .lcars-text-bar--a2 { background: var(--lcars-a2); }
-.lcars-text-bar--a2::before { background: var(--lcars-a2); }
 .lcars-text-bar--a5 { background: var(--lcars-a5); }
-.lcars-text-bar--a5::before { background: var(--lcars-a5); }
 .lcars-text-bar--a6 { background: var(--lcars-a6); }
-.lcars-text-bar--a6::before { background: var(--lcars-a6); }
 .lcars-text-bar--a8 { background: var(--lcars-a8); }
-.lcars-text-bar--a8::before { background: var(--lcars-a8); }
 
-.lcars-panel-body {
-	padding: 0.1rem 0.15rem 0.35rem 0.35rem;
+.lcars-section-body {
+	padding: 0.1rem 0.15rem 0.35rem;
 	color: var(--lcars-text);
 }
+
+/* Back-compat alias used by older class names in pages */
+.lcars-panel-body { /* noop kept for safety */ }
+.lcars-title { /* noop */ }
 
 
 /* —— Landing hero —— */

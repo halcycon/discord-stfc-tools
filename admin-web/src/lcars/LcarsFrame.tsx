@@ -21,19 +21,20 @@ type Props = {
 };
 
 function colorClass(color?: LcarsNavItem['color']) {
-	if (color === 'alert') return 'lcars-btn--alert';
-	if (color) return `lcars-btn--a${color}`;
-	return 'lcars-btn--a3';
+	if (color === 'alert') return 'lcars-panel--alert';
+	if (color) return `lcars-panel--a${color}`;
+	return 'lcars-panel--a3';
 }
 
-function NavBtn({ item }: { item: LcarsNavItem }) {
-	const className = `lcars-btn ${colorClass(item.color)}${
-		item.active ? ' lcars-btn--active' : ''
-	}${!(item.to || item.onClick) ? ' lcars-btn--ghost' : ''}`;
+function Panel({ item }: { item: LcarsNavItem }) {
+	const className = `lcars-panel ${colorClass(item.color)}${
+		item.active ? ' lcars-panel--active' : ''
+	}${!(item.to || item.onClick) ? ' lcars-panel--deco' : ''}`;
+
 	const label = (
 		<>
-			<span className="lcars-btn__full">{item.label}</span>
-			<span className="lcars-btn__short">{item.short ?? item.label.slice(0, 3)}</span>
+			<span className="lcars-panel__full">{item.label}</span>
+			<span className="lcars-panel__short">{item.short ?? item.label.slice(0, 3)}</span>
 		</>
 	);
 
@@ -60,19 +61,19 @@ function MobileNav({ items }: { items: LcarsNavItem[] }) {
 	return (
 		<nav className="lcars-mobile-nav" aria-label="Console navigation">
 			{interactive.map((item) => {
-				const className = `lcars-pill lcars-pill--sm ${colorClass(item.color).replace(
-					'lcars-btn',
+				const pill = `lcars-pill lcars-pill--sm ${colorClass(item.color).replace(
+					'lcars-panel',
 					'lcars-pill',
 				)}`;
 				if (item.to) {
 					return (
-						<Link key={item.label} className={className} to={item.to}>
+						<Link key={item.label} className={pill} to={item.to}>
 							{item.label}
 						</Link>
 					);
 				}
 				return (
-					<button key={item.label} type="button" className={className} onClick={item.onClick}>
+					<button key={item.label} type="button" className={pill} onClick={item.onClick}>
 						{item.label}
 					</button>
 				);
@@ -82,8 +83,9 @@ function MobileNav({ items }: { items: LcarsNavItem[] }) {
 }
 
 /**
- * Single LCARS L-bracket via CSS grid:
- * upper rail spans header+bars rows (flush elbow), lower rail sits beside main.
+ * thelcars.com classic layout:
+ *   wrap-top: left-frame-top + right-frame-top (banner + bars)
+ *   wrap-bot: left-frame     + right-frame     (content)
  */
 export function LcarsFrame({
 	title,
@@ -110,41 +112,50 @@ export function LcarsFrame({
 
 	return (
 		<div className="lcars-screen">
-			<div className="lcars-frame">
-				<aside className="lcars-rail-upper" aria-label="Primary navigation">
+			{/* —— Top wrap: elbow + title + divider bars —— */}
+			<div className="lcars-wrap lcars-wrap--top">
+				<div className="lcars-left-top">
 					{top.map((item) => (
-						<NavBtn key={item.label} item={item} />
+						<Panel key={item.label} item={item} />
 					))}
-					<div className="lcars-elbow" aria-hidden="true" />
-				</aside>
-
-				<header className="lcars-header">
-					{eyebrow ? <p className="lcars-eyebrow">{eyebrow}</p> : null}
-					<div className="lcars-title-row">
-						<h1 className="lcars-title">{title}</h1>
-						{actions ? <div className="lcars-title-actions">{actions}</div> : null}
-					</div>
-				</header>
-
-				<div className="lcars-bar-row" aria-hidden="true">
-					<span className="lcars-bar lcars-bar--1" />
-					<span className="lcars-bar lcars-bar--2" />
-					<span className="lcars-bar lcars-bar--3" />
-					<span className="lcars-bar lcars-bar--4" />
-					<span className="lcars-bar lcars-bar--5" />
 				</div>
+				<div className="lcars-right-top">
+					{eyebrow ? <p className="lcars-eyebrow">{eyebrow}</p> : null}
+					<div className="lcars-banner-row">
+						<h1 className="lcars-banner">{title}</h1>
+						{actions ? <div className="lcars-banner-actions">{actions}</div> : null}
+					</div>
+					<div className="lcars-bar-panel" aria-hidden="true">
+						<span className="lcars-bar lcars-bar--1" />
+						<span className="lcars-bar lcars-bar--2" />
+						<span className="lcars-bar lcars-bar--3" />
+						<span className="lcars-bar lcars-bar--4" />
+						<span className="lcars-bar lcars-bar--5" />
+					</div>
+				</div>
+			</div>
 
-				<aside className="lcars-rail-lower" aria-label="Secondary navigation">
+			{/* —— Bottom wrap: lower trunk + content —— */}
+			<div className="lcars-wrap lcars-wrap--bot">
+				<div className="lcars-left-bot">
 					{bot.map((item) => (
-						<NavBtn key={item.label} item={item} />
+						<Panel key={item.label} item={item} />
 					))}
-					<div className="lcars-rail-fill" aria-hidden="true" />
-				</aside>
-
-				<main className="lcars-main">
-					<MobileNav items={[...top, ...bot]} />
-					{children}
-				</main>
+					<div className="lcars-left-spacer" aria-hidden="true" />
+				</div>
+				<div className="lcars-right-bot">
+					<div className="lcars-bar-panel lcars-bar-panel--lower" aria-hidden="true">
+						<span className="lcars-bar lcars-bar--6" />
+						<span className="lcars-bar lcars-bar--7" />
+						<span className="lcars-bar lcars-bar--8" />
+						<span className="lcars-bar lcars-bar--9" />
+						<span className="lcars-bar lcars-bar--10" />
+					</div>
+					<main className="lcars-main">
+						<MobileNav items={[...top, ...bot]} />
+						{children}
+					</main>
+				</div>
 			</div>
 		</div>
 	);
@@ -158,9 +169,9 @@ type PanelProps = {
 
 export function LcarsPanel({ label, cap = 'a1', children }: PanelProps) {
 	return (
-		<section className="lcars-panel">
+		<section className="lcars-section">
 			<div className={`lcars-text-bar lcars-text-bar--${cap}`}>{label}</div>
-			<div className="lcars-panel-body">{children}</div>
+			<div className="lcars-section-body">{children}</div>
 		</section>
 	);
 }
