@@ -1,43 +1,46 @@
-.legal-shell {
-	max-width: 720px;
-}
-
 .legal-nav {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 0.85rem;
+	gap: 0.45rem;
 	align-items: center;
 }
 
 .legal-doc {
-	margin-top: 0.5rem;
+	margin-top: 0.15rem;
 }
 
 .legal-doc h1 {
 	font-size: 1.35rem;
 	margin: 0 0 0.75rem;
+	color: var(--lcars-a5);
 }
 
 .legal-doc h2 {
 	margin-top: 1.5rem;
+	color: var(--lcars-a2);
 }
 
 .legal-doc h3 {
 	margin-top: 1.1rem;
 	font-size: 1rem;
+	color: var(--lcars-a8);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
 }
 
 .legal-doc p,
 .legal-doc li {
-	color: color-mix(in srgb, var(--text) 92%, var(--muted));
+	color: color-mix(in srgb, var(--lcars-text) 92%, var(--lcars-text-dim));
+	line-height: 1.5;
 }
 
 .legal-doc blockquote {
 	margin: 1rem 0;
 	padding: 0.75rem 1rem;
-	border-left: 3px solid var(--accent);
-	background: color-mix(in srgb, var(--panel) 80%, black);
-	color: var(--muted);
+	border-left: 0.55rem solid var(--lcars-a5);
+	background: color-mix(in srgb, var(--lcars-a3) 14%, transparent);
+	color: var(--lcars-text-dim);
+	border-radius: 0;
 }
 
 .legal-doc table {
@@ -49,14 +52,17 @@
 
 .legal-doc th,
 .legal-doc td {
-	border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+	border: 1px solid color-mix(in srgb, var(--lcars-a3) 45%, transparent);
 	padding: 0.45rem 0.55rem;
 	text-align: left;
 	vertical-align: top;
 }
 
 .legal-doc th {
-	background: color-mix(in srgb, var(--panel) 70%, black);
+	background: color-mix(in srgb, var(--lcars-a6) 35%, transparent);
+	color: #000;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
 }
 
 .legal-doc code {
@@ -64,5 +70,7 @@
 }
 
 .legal-footer {
-	margin-top: 1.5rem;
+	margin-top: 1.25rem;
+	padding-top: 0.75rem;
+	border-top: 3px solid var(--lcars-a3);
 }

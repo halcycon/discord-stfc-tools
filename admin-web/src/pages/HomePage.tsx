@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, type GuildListItem, type MeResponse } from '../api';
-import './pages.css';
+import { LcarsFrame, LcarsPanel } from '../lcars/LcarsFrame';
 
 export function HomePage() {
 	const navigate = useNavigate();
@@ -40,50 +40,57 @@ export function HomePage() {
 
 	if (loading) {
 		return (
-			<div className="shell center">
-				<p className="muted">Loading…</p>
-			</div>
+			<LcarsFrame title="Systems" eyebrow="STFC Tools" navBottom={[{ label: 'Loading', color: 3 }]}>
+				<p className="lcars-status">Loading guild directory…</p>
+			</LcarsFrame>
 		);
 	}
 
 	return (
-		<div className="shell">
-			<header className="top">
-				<div>
-					<p className="eyebrow">STFC Tools · v{me?.bot_version}</p>
-					<h1>Your guilds</h1>
-				</div>
-				<div className="top-actions">
-					{me ? (
-						<span className="muted">
-							{me.user.global_name || me.user.username}
-						</span>
-					) : null}
-					<button type="button" className="btn" onClick={() => void logout()}>
-						Log out
-					</button>
-				</div>
-			</header>
+		<LcarsFrame
+			title="Your guilds"
+			eyebrow={`STFC Tools · v${me?.bot_version ?? '—'}`}
+			navTop={[
+				{ label: 'Guilds', to: '/app', color: 5, active: true },
+				{ label: 'Home', to: '/', color: 6 },
+			]}
+			navBottom={[
+				{ label: me?.user.global_name || me?.user.username || 'Operator', color: 2 },
+				{ label: 'Log out', onClick: () => void logout(), color: 'alert' },
+			]}
+			actions={
+				<button type="button" className="lcars-pill lcars-pill--ghost lcars-pill--sm" onClick={() => void logout()}>
+					Log out
+				</button>
+			}
+		>
 			{error ? <p className="error">{error}</p> : null}
 			{guilds.length === 0 ? (
-				<div className="card">
-					<p>No accessible guilds. Invite the bot and run <code>/server setup</code>, or ensure you have Administrator / a web-admin role.</p>
-				</div>
+				<LcarsPanel label="Directory" cap="a6">
+					<p>
+						No accessible guilds. Invite the bot and run <code>/server setup</code>, or ensure
+						you have Administrator / a web-admin role.
+					</p>
+				</LcarsPanel>
 			) : (
-				<ul className="guild-list">
-					{guilds.map((g) => (
-						<li key={g.id}>
-							<Link className="card guild-link" to={`/guilds/${g.id}`}>
-								<strong>{g.name}</strong>
-								<span className="muted">
-									{g.alliance_tag ? `[${g.alliance_tag}] · ` : ''}
-									{g.mode} · via {g.via}
-								</span>
-							</Link>
-						</li>
-					))}
-				</ul>
+				<LcarsPanel label={`Accessible · ${guilds.length}`} cap="a5">
+					<ul className="guild-list">
+						{guilds.map((g) => (
+							<li key={g.id}>
+								<Link className="guild-link" to={`/guilds/${g.id}`}>
+									<span className="guild-link-body">
+										<strong>{g.name}</strong>
+										<span className="muted">
+											{g.alliance_tag ? `[${g.alliance_tag}] · ` : ''}
+											{g.mode} · via {g.via}
+										</span>
+									</span>
+								</Link>
+							</li>
+						))}
+					</ul>
+				</LcarsPanel>
 			)}
-		</div>
+		</LcarsFrame>
 	);
 }

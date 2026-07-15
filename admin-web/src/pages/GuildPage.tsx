@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api, type GuildStatus } from '../api';
-import './pages.css';
+import { LcarsFrame, LcarsPanel } from '../lcars/LcarsFrame';
 
 type ConfigForm = {
 	alliance_tag: string;
@@ -98,39 +98,44 @@ export function GuildPage() {
 
 	if (!status || !form) {
 		return (
-			<div className="shell center">
-				{error ? <p className="error">{error}</p> : <p className="muted">Loading…</p>}
-				<Link to="/app">← Guilds</Link>
-			</div>
+			<LcarsFrame
+				title="Guild"
+				eyebrow="STFC Tools"
+				navTop={[{ label: 'Guilds', to: '/app', color: 5 }]}
+				navBottom={[{ label: error ? 'Fault' : 'Loading', color: error ? 'alert' : 3 }]}
+			>
+				{error ? <p className="error">{error}</p> : <p className="lcars-status">Loading guild…</p>}
+			</LcarsFrame>
 		);
 	}
 
 	const cfg = status.config;
+	const tag = cfg.alliance_tag ? `[${String(cfg.alliance_tag)}] ` : '';
+	const gatewayOk = Boolean(status.gateway?.ready);
 
 	return (
-		<div className="shell">
-			<header className="top">
-				<div>
-					<Link className="tiny" to="/app">
-						← Guilds
-					</Link>
-					<p className="eyebrow">
-						{String(cfg.mode)} · server {String(cfg.stfc_server)} {String(cfg.stfc_region)}
-					</p>
-					<h1>
-						{cfg.alliance_tag ? `[${String(cfg.alliance_tag)}] ` : ''}
-						Guild dashboard
-					</h1>
-				</div>
-				<span className="muted tiny">bot v{status.bot_version}</span>
-			</header>
-
+		<LcarsFrame
+			title={`${tag}Guild dashboard`}
+			eyebrow={`${String(cfg.mode)} · server ${String(cfg.stfc_server)} ${String(cfg.stfc_region)}`}
+			navTop={[
+				{ label: 'Guilds', to: '/app', color: 5 },
+				{ label: 'Home', to: '/', color: 6 },
+			]}
+			navBottom={[
+				{ label: gatewayOk ? 'Gateway OK' : 'Gateway —', color: gatewayOk ? 5 : 3 },
+				{ label: `v${status.bot_version}`, color: 8 },
+			]}
+			actions={
+				<span className={`lcars-status${gatewayOk ? ' lcars-status--ok' : ' lcars-status--warn'}`}>
+					{gatewayOk ? 'Gateway linked' : 'Gateway unknown'}
+				</span>
+			}
+		>
 			{error ? <p className="error">{error}</p> : null}
 			{saved ? <p className="ok">{saved}</p> : null}
 
 			<section className="grid">
-				<div className="card">
-					<h2>At a glance</h2>
+				<LcarsPanel label="At a glance" cap="a5">
 					<p className="stat">{status.stats.verified_total}</p>
 					<p className="muted">Verified / guest players</p>
 					<ul className="plain">
@@ -140,9 +145,8 @@ export function GuildPage() {
 							</li>
 						))}
 					</ul>
-				</div>
-				<div className="card">
-					<h2>By grade</h2>
+				</LcarsPanel>
+				<LcarsPanel label="By grade" cap="a2">
 					<ul className="plain">
 						{status.stats.by_grade.length === 0 ? (
 							<li className="muted">No grade data</li>
@@ -154,18 +158,16 @@ export function GuildPage() {
 							))
 						)}
 					</ul>
-				</div>
-				<div className="card">
-					<h2>Gateway</h2>
-					<p>
-						{status.gateway?.ready ? 'Connected' : 'Not ready / unknown'}
+				</LcarsPanel>
+				<LcarsPanel label="Gateway" cap="a6">
+					<p className={gatewayOk ? 'lcars-status lcars-status--ok' : 'lcars-status lcars-status--warn'}>
+						{gatewayOk ? 'Connected' : 'Not ready / unknown'}
 					</p>
-					<p className="muted tiny">
+					<p className="muted tiny" style={{ marginTop: '0.65rem' }}>
 						Last event: {status.gateway?.lastEventAt ?? '—'}
 					</p>
-				</div>
-				<div className="card">
-					<h2>Alliances</h2>
+				</LcarsPanel>
+				<LcarsPanel label="Alliances" cap="a8">
 					<ul className="plain">
 						{status.stats.by_alliance.slice(0, 12).map((r) => (
 							<li key={r.alliance_tag}>
@@ -173,11 +175,10 @@ export function GuildPage() {
 							</li>
 						))}
 					</ul>
-				</div>
+				</LcarsPanel>
 			</section>
 
-			<section className="card" style={{ marginTop: '1.5rem' }}>
-				<h2>Config</h2>
+			<LcarsPanel label="Config" cap="a1">
 				<p className="muted tiny">
 					Subset of <code>/server</code> settings. Slash commands remain available in Discord.
 				</p>
@@ -286,11 +287,11 @@ export function GuildPage() {
 							Welcome DM
 						</label>
 					</div>
-					<button type="submit" className="btn primary" disabled={saving}>
+					<button type="submit" className="lcars-pill" disabled={saving}>
 						{saving ? 'Saving…' : 'Save config'}
 					</button>
 				</form>
-			</section>
-		</div>
+			</LcarsPanel>
+		</LcarsFrame>
 	);
 }

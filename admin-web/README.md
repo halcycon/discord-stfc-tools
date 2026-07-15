@@ -1,6 +1,6 @@
 # Admin web (STFC Tools)
 
-Cloudflare Pages app (Root directory: `admin-web`).
+Cloudflare Pages app (Root directory: `admin-web`). UI uses a custom **LCARS** theme (TNG-inspired elbows, Antonio typeface, classic Okuda/Drexler palette) — see `src/lcars/`.
 
 ## Public URLs
 
