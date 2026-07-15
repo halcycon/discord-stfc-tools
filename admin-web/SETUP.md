@@ -203,6 +203,33 @@ Then deploy the Worker:
 
 npm run deploy
 
+## Admin login troubleshooting
+
+If Discord OAuth succeeds but the admin panel immediately shows you as logged out:
+
+The issue is usually browser cookie restrictions.
+
+The default Cloudflare URLs:
+
+- Pages: `*.pages.dev`
+- Workers: `*.workers.dev`
+
+are considered different sites by browsers.
+
+For testing:
+- Allow third-party cookies.
+
+For production:
+- Configure custom domains for both Pages and Worker.
+
+Example:
+
+Admin UI:
+https://admin.example.com
+
+API:
+https://api.example.com
+
 ## Deployment checklist
 
 * [ ] Worker deployed
