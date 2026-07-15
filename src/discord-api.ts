@@ -98,6 +98,8 @@ export interface DiscordRole {
 	mentionable: boolean;
 	/** Permission bitfield as decimal string. */
 	permissions?: string;
+	/** Role colour as integer (0 = default). */
+	color?: number;
 	/** Integration/bot tags when present. */
 	tags?: { bot_id?: string; integration_id?: string; premium_subscriber?: null };
 }

@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, type GradePlayersResponse, type GuildStatus, type RosterPlayerRow } from '../api';
+import {
+	api,
+	type GradePlayersResponse,
+	type GuildRoleRow,
+	type GuildRolesResponse,
+	type GuildStatus,
+	type RosterPlayerRow,
+} from '../api';
 import { LcarsFrame, LcarsPanel } from '../lcars/LcarsFrame';
 
 type ConfigForm = {
@@ -14,7 +21,7 @@ type ConfigForm = {
 	data_consent_version: string;
 	agreement_enabled: boolean;
 	welcome_dm_enabled: boolean;
-	web_admin_role_ids: string;
+	web_admin_role_ids: string[];
 };
 
 function formFromConfig(c: Record<string, unknown>): ConfigForm {
@@ -39,14 +46,19 @@ function formFromConfig(c: Record<string, unknown>): ConfigForm {
 		agreement_enabled: Boolean(c.agreement_enabled),
 		welcome_dm_enabled: Boolean(c.welcome_dm_enabled),
 		web_admin_role_ids: Array.isArray(c.web_admin_role_ids)
-			? (c.web_admin_role_ids as string[]).join(', ')
-			: '',
+			? (c.web_admin_role_ids as string[]).filter((id) => /^\d{15,20}$/.test(id))
+			: [],
 	};
 }
 
 function fmtNum(n: number | null | undefined): string {
 	if (n == null || !Number.isFinite(n)) return '—';
 	return n.toLocaleString();
+}
+
+function roleColorCss(color: number): string | undefined {
+	if (!color) return undefined;
+	return `#${color.toString(16).padStart(6, '0')}`;
 }
 
 export function GuildPage() {
@@ -61,6 +73,10 @@ export function GuildPage() {
 	const [gradePlayers, setGradePlayers] = useState<RosterPlayerRow[] | null>(null);
 	const [gradeLoading, setGradeLoading] = useState(false);
 	const [gradeError, setGradeError] = useState<string | null>(null);
+	const [roles, setRoles] = useState<GuildRoleRow[] | null>(null);
+	const [rolesLoading, setRolesLoading] = useState(false);
+	const [rolesError, setRolesError] = useState<string | null>(null);
+	const [roleFilter, setRoleFilter] = useState('');
 
 	useEffect(() => {
 		if (!guildId) return;
@@ -110,6 +126,59 @@ export function GuildPage() {
 		};
 	}, [guildId, selectedGrade, navigate]);
 
+	async function loadRoles() {
+		if (!guildId) return;
+		setRolesLoading(true);
+		setRolesError(null);
+		const res = await api<GuildRolesResponse>(`/api/admin/guilds/${guildId}/roles`);
+		setRolesLoading(false);
+		if (res.status === 401) {
+			navigate('/login');
+			return;
+		}
+		if (res.error || !res.data) {
+			setRolesError(res.error || 'Failed to list roles');
+			return;
+		}
+		setRoles(res.data.roles);
+	}
+
+	function toggleWebAdminRole(roleId: string) {
+		if (!form) return;
+		const has = form.web_admin_role_ids.includes(roleId);
+		setForm({
+			...form,
+			web_admin_role_ids: has
+				? form.web_admin_role_ids.filter((id) => id !== roleId)
+				: [...form.web_admin_role_ids, roleId],
+		});
+	}
+
+	function applySuggestedLeadershipRoles() {
+		if (!form || !status) return;
+		const suggested = Array.isArray(status.config.suggested_web_admin_role_ids)
+			? (status.config.suggested_web_admin_role_ids as string[]).filter((id) =>
+					/^\d{15,20}$/.test(id),
+				)
+			: [];
+		if (suggested.length === 0) {
+			setRolesError(
+				'No Premier/Commodore/Admiral roles configured yet — set them via /server setup, or pick roles below.',
+			);
+			return;
+		}
+		setForm({
+			...form,
+			web_admin_role_ids: Array.from(new Set([...form.web_admin_role_ids, ...suggested])),
+		});
+		setRolesError(null);
+	}
+
+	function clearWebAdminRoles() {
+		if (!form) return;
+		setForm({ ...form, web_admin_role_ids: [] });
+	}
+
 	async function save(e: React.FormEvent) {
 		e.preventDefault();
 		if (!guildId || !form || !status) return;
@@ -136,10 +205,7 @@ export function GuildPage() {
 			data_consent_version: form.data_consent_version.trim() || '1',
 			agreement_enabled: form.agreement_enabled,
 			welcome_dm_enabled: form.welcome_dm_enabled,
-			web_admin_role_ids: form.web_admin_role_ids
-				.split(/[,\s]+/)
-				.map((s) => s.trim())
-				.filter((id) => /^\d{15,20}$/.test(id)),
+			web_admin_role_ids: form.web_admin_role_ids.filter((id) => /^\d{15,20}$/.test(id)),
 		};
 		const res = await api<{ config: Record<string, unknown> }>(
 			`/api/admin/guilds/${guildId}/config`,
@@ -176,6 +242,19 @@ export function GuildPage() {
 	const tag = cfg.alliance_tag ? `[${String(cfg.alliance_tag)}] ` : '';
 	const gatewayOk = Boolean(status.gateway?.ready);
 	const nickIsDefault = !String(cfg.nickname_template ?? '').trim();
+	const suggestedCount = Array.isArray(cfg.suggested_web_admin_role_ids)
+		? (cfg.suggested_web_admin_role_ids as string[]).length
+		: 0;
+	const filterLc = roleFilter.trim().toLowerCase();
+	const visibleRoles =
+		roles?.filter((r) => {
+			if (!filterLc) return true;
+			return r.name.toLowerCase().includes(filterLc) || r.id.includes(filterLc);
+		}) ?? [];
+	const selectedRoleNames = form.web_admin_role_ids.map((id) => {
+		const known = roles?.find((r) => r.id === id);
+		return known ? known.name : id;
+	});
 
 	return (
 		<LcarsFrame
@@ -365,14 +444,105 @@ export function GuildPage() {
 							onChange={(e) => setForm({ ...form, data_consent_version: e.target.value })}
 						/>
 					</label>
-					<label>
-						Web admin role IDs (comma-separated)
-						<input
-							value={form.web_admin_role_ids}
-							onChange={(e) => setForm({ ...form, web_admin_role_ids: e.target.value })}
-							placeholder="role ids for leadership access"
-						/>
-					</label>
+
+					<div className="role-picker">
+						<div className="role-picker-head">
+							<span className="role-picker-title">Web admin roles</span>
+							<div className="role-picker-actions">
+								<button
+									type="button"
+									className="lcars-pill lcars-pill--sm lcars-pill--a6"
+									onClick={() => void loadRoles()}
+									disabled={rolesLoading}
+								>
+									{rolesLoading ? 'Loading…' : roles ? 'Refresh roles' : 'List roles'}
+								</button>
+								<button
+									type="button"
+									className="lcars-pill lcars-pill--sm lcars-pill--a2"
+									onClick={applySuggestedLeadershipRoles}
+									disabled={suggestedCount === 0}
+									title={
+										suggestedCount === 0
+											? 'Configure Premier/Commodore/Admiral roles in /server setup first'
+											: 'Select Premier / Commodore / Admiral roles from /server setup'
+									}
+								>
+									Suggest leadership
+								</button>
+								<button
+									type="button"
+									className="lcars-pill lcars-pill--sm lcars-pill--ghost"
+									onClick={clearWebAdminRoles}
+									disabled={form.web_admin_role_ids.length === 0}
+								>
+									Clear
+								</button>
+							</div>
+						</div>
+						<span className="field-hint">
+							Default (empty): Discord <strong>Administrators only</strong> — not every guild
+							member. Selected roles are an extra gate for leadership without Administrator.
+						</span>
+						{form.web_admin_role_ids.length > 0 ? (
+							<p className="role-selected muted tiny">
+								Selected ({form.web_admin_role_ids.length}): {selectedRoleNames.join(', ')}
+							</p>
+						) : (
+							<p className="role-selected muted tiny">Selected: none (Administrators only)</p>
+						)}
+						{rolesError ? <p className="error">{rolesError}</p> : null}
+						{roles ? (
+							<>
+								<input
+									className="role-filter"
+									value={roleFilter}
+									onChange={(e) => setRoleFilter(e.target.value)}
+									placeholder="Filter roles by name or id"
+									spellCheck={false}
+								/>
+								<ul className="role-checklist">
+									{visibleRoles.length === 0 ? (
+										<li className="muted">No roles match</li>
+									) : (
+										visibleRoles.map((r) => {
+											const checked = form.web_admin_role_ids.includes(r.id);
+											const swatch = roleColorCss(r.color);
+											return (
+												<li key={r.id}>
+													<label className={`role-check${checked ? ' role-check--on' : ''}`}>
+														<input
+															type="checkbox"
+															checked={checked}
+															onChange={() => toggleWebAdminRole(r.id)}
+														/>
+														<span
+															className="role-swatch"
+															style={swatch ? { background: swatch } : undefined}
+															aria-hidden
+														/>
+														<span className="role-name">
+															{r.name}
+															{r.managed ? (
+																<span className="role-managed"> managed</span>
+															) : null}
+														</span>
+														<code className="role-id">{r.id}</code>
+													</label>
+												</li>
+											);
+										})
+									)}
+								</ul>
+							</>
+						) : (
+							<p className="muted tiny">
+								Click <strong>List roles</strong> to load Discord roles via the bot, then tick
+								who may use this dashboard.
+							</p>
+						)}
+					</div>
+
 					<div className="checks">
 						<label className="check">
 							<input

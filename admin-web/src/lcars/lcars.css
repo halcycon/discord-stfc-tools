@@ -900,3 +900,118 @@ code {
 .roster-table td:nth-child(n + 3):nth-child(-n + 6) {
 	font-variant-numeric: tabular-nums;
 }
+
+.role-picker {
+	display: grid;
+	gap: 0.55rem;
+	padding: 0.65rem 0 0.25rem;
+	border-top: 1px solid color-mix(in srgb, var(--lcars-a3) 40%, transparent);
+}
+
+.role-picker-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.55rem;
+}
+
+.role-picker-title {
+	font-size: 0.9rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--lcars-a2);
+	font-weight: 700;
+}
+
+.role-picker-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+}
+
+.role-selected {
+	margin: 0;
+}
+
+.role-filter {
+	font: inherit;
+	padding: 0.45rem 0.65rem;
+	border: 0;
+	border-bottom: 3px solid var(--lcars-a3);
+	background: color-mix(in srgb, var(--lcars-a3) 12%, transparent);
+	color: var(--lcars-text);
+	letter-spacing: 0.03em;
+}
+
+.role-filter:focus {
+	outline: none;
+	border-bottom-color: var(--lcars-a5);
+}
+
+.role-checklist {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	max-height: 18rem;
+	overflow: auto;
+	border: 1px solid color-mix(in srgb, var(--lcars-a3) 35%, transparent);
+	background: color-mix(in srgb, var(--lcars-a3) 8%, transparent);
+}
+
+.role-checklist li {
+	border-bottom: 1px solid color-mix(in srgb, var(--lcars-a3) 28%, transparent);
+}
+
+.role-checklist li:last-child {
+	border-bottom: 0;
+}
+
+.role-check {
+	display: grid !important;
+	grid-template-columns: auto auto 1fr auto;
+	align-items: center;
+	gap: 0.55rem;
+	padding: 0.4rem 0.55rem;
+	margin: 0;
+	cursor: pointer;
+	text-transform: none !important;
+	letter-spacing: 0.02em !important;
+	color: var(--lcars-text) !important;
+	font-size: 0.9rem;
+}
+
+.role-check:hover {
+	background: color-mix(in srgb, var(--lcars-a2) 18%, transparent);
+}
+
+.role-check--on {
+	background: color-mix(in srgb, var(--lcars-a5) 18%, transparent);
+}
+
+.role-swatch {
+	width: 0.7rem;
+	height: 0.7rem;
+	border-radius: 50%;
+	background: var(--lcars-a8);
+	flex-shrink: 0;
+}
+
+.role-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.role-managed {
+	color: var(--lcars-text-dim);
+	font-size: 0.75rem;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.role-id {
+	font-size: 0.7rem;
+	color: var(--lcars-text-dim);
+	justify-self: end;
+}

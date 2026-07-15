@@ -8,6 +8,7 @@ import {
 	upsertGuildConfig,
 } from '../guild-db';
 import { getDiscordGatewayStatus } from '../discord-gateway/wake';
+import { listGuildRoles } from '../discord-api';
 import { AuditColor, postAuditLog } from '../audit-log';
 import { defaultNicknameTemplate } from '../nickname-utils';
 import { BOT_VERSION } from '../version';
@@ -108,6 +109,14 @@ function publicConfig(config: GuildConfig) {
 		audit_log_channel_id: config.audit_log_channel_id,
 		urgent_notify_channel_id: config.urgent_notify_channel_id,
 		web_admin_role_ids: config.web_admin_role_ids,
+		/** Leadership rank roles already configured via /server (Premier/Commodore/Admiral) — UI can suggest these. */
+		suggested_web_admin_role_ids: Array.from(
+			new Set([
+				...config.premier_role_ids,
+				...config.commodore_role_ids,
+				...config.admiral_role_ids,
+			]),
+		),
 		dm_query_role_ids: config.dm_query_role_ids,
 	};
 }
@@ -361,6 +370,46 @@ export async function handleAdminApi(
 				count: players.length,
 				players: players.map(publicRosterPlayer),
 			});
+		}
+
+		// GET .../roles — Discord guild roles via bot token
+		if (rest === '/roles' && request.method === 'GET') {
+			const token = env.DISCORD_BOT_TOKEN?.trim();
+			if (!token) {
+				return jsonCors(request, env, { error: 'Bot token not configured' }, { status: 503 });
+			}
+			try {
+				const roles = await listGuildRoles(token, guildId);
+				const publicRoles = roles
+					.filter((r) => r.id !== guildId) // @everyone
+					.sort((a, b) => b.position - a.position)
+					.map((r) => ({
+						id: r.id,
+						name: r.name,
+						position: r.position,
+						managed: Boolean(r.managed),
+						color: Number(r.color ?? 0) || 0,
+					}));
+				return jsonCors(request, env, {
+					guild_id: guildId,
+					roles: publicRoles,
+					suggested_web_admin_role_ids: Array.from(
+						new Set([
+							...config.premier_role_ids,
+							...config.commodore_role_ids,
+							...config.admiral_role_ids,
+						]),
+					),
+				});
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				return jsonCors(
+					request,
+					env,
+					{ error: `Failed to list roles: ${msg.slice(0, 200)}` },
+					{ status: 502 },
+				);
+			}
 		}
 
 		// GET/PATCH .../config

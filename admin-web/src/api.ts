@@ -77,3 +77,17 @@ export type GradePlayersResponse = {
 	count: number;
 	players: RosterPlayerRow[];
 };
+
+export type GuildRoleRow = {
+	id: string;
+	name: string;
+	position: number;
+	managed: boolean;
+	color: number;
+};
+
+export type GuildRolesResponse = {
+	guild_id: string;
+	roles: GuildRoleRow[];
+	suggested_web_admin_role_ids: string[];
+};

@@ -65,8 +65,9 @@ npm run admin-web:deploy     # local Vite build (reads admin-web/.env) + wrangle
 
 ## Access control
 
-- Discord **Administrator**, or
-- Member of a role listed in `guild_configs.web_admin_role_ids` (editable in the web Config form)
+- Discord **Administrator** always has access (server Admin permission bit).
+- Optionally, members of roles listed in `guild_configs.web_admin_role_ids` (empty by default = **Administrators only** — not all guild members).
+- Guild dashboard: **List roles** loads Discord roles via the bot; tick roles to grant web access. **Suggest leadership** selects Premier/Commodore/Admiral roles already configured in `/server setup`.
 
 ## Local
 
