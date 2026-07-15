@@ -4,7 +4,6 @@ import './lcars.css';
 
 export type LcarsNavItem = {
 	label: string;
-	/** Short label for narrow / mobile rail */
 	short?: string;
 	to?: string;
 	onClick?: () => void;
@@ -22,19 +21,19 @@ type Props = {
 };
 
 function colorClass(color?: LcarsNavItem['color']) {
-	if (color === 'alert') return 'lcars-panel-btn--alert';
-	if (color) return `lcars-panel-btn--a${color}`;
-	return 'lcars-panel-btn--a3';
+	if (color === 'alert') return 'lcars-btn--alert';
+	if (color) return `lcars-btn--a${color}`;
+	return 'lcars-btn--a3';
 }
 
-function PanelBtn({ item }: { item: LcarsNavItem }) {
-	const className = `lcars-panel-btn ${colorClass(item.color)}${
-		item.active ? ' lcars-panel-btn--active' : ''
-	}${!(item.to || item.onClick) ? ' lcars-panel-btn--ghost' : ''}`;
+function NavBtn({ item }: { item: LcarsNavItem }) {
+	const className = `lcars-btn ${colorClass(item.color)}${
+		item.active ? ' lcars-btn--active' : ''
+	}${!(item.to || item.onClick) ? ' lcars-btn--ghost' : ''}`;
 	const label = (
 		<>
-			<span className="lcars-panel-btn__full">{item.label}</span>
-			<span className="lcars-panel-btn__short">{item.short ?? item.label.slice(0, 3)}</span>
+			<span className="lcars-btn__full">{item.label}</span>
+			<span className="lcars-btn__short">{item.short ?? item.label.slice(0, 3)}</span>
 		</>
 	);
 
@@ -62,7 +61,7 @@ function MobileNav({ items }: { items: LcarsNavItem[] }) {
 		<nav className="lcars-mobile-nav" aria-label="Console navigation">
 			{interactive.map((item) => {
 				const className = `lcars-pill lcars-pill--sm ${colorClass(item.color).replace(
-					'lcars-panel-btn',
+					'lcars-btn',
 					'lcars-pill',
 				)}`;
 				if (item.to) {
@@ -83,8 +82,8 @@ function MobileNav({ items }: { items: LcarsNavItem[] }) {
 }
 
 /**
- * LCARS console frame modeled on thelcars.com classic layout:
- * top wrap (left-frame-top + banner/bars) + bottom wrap (left-frame + content).
+ * Single LCARS L-bracket via CSS grid:
+ * upper rail spans header+bars rows (flush elbow), lower rail sits beside main.
  */
 export function LcarsFrame({
 	title,
@@ -111,47 +110,40 @@ export function LcarsFrame({
 
 	return (
 		<div className="lcars-screen">
-			{/* Top wrap: elbow + title + divider bars */}
-			<div className="lcars-wrap lcars-wrap--top">
-				<aside className="lcars-left-top" aria-label="Primary navigation">
+			<div className="lcars-frame">
+				<aside className="lcars-rail-upper" aria-label="Primary navigation">
 					{top.map((item) => (
-						<PanelBtn key={item.label} item={item} />
+						<NavBtn key={item.label} item={item} />
 					))}
+					<div className="lcars-elbow" aria-hidden="true" />
 				</aside>
-				<div className="lcars-right-top">
+
+				<header className="lcars-header">
 					{eyebrow ? <p className="lcars-eyebrow">{eyebrow}</p> : null}
 					<div className="lcars-title-row">
 						<h1 className="lcars-title">{title}</h1>
 						{actions ? <div className="lcars-title-actions">{actions}</div> : null}
 					</div>
-					<div className="lcars-bar-row" aria-hidden="true">
-						<span className="lcars-bar lcars-bar--1" />
-						<span className="lcars-bar lcars-bar--2" />
-						<span className="lcars-bar lcars-bar--3" />
-						<span className="lcars-bar lcars-bar--4" />
-						<span className="lcars-bar lcars-bar--5" />
-					</div>
-				</div>
-			</div>
+				</header>
 
-			{/* Bottom wrap: lower rail + main content */}
-			<div className="lcars-wrap lcars-wrap--bot">
-				<aside className="lcars-left-bot" aria-label="Secondary navigation">
+				<div className="lcars-bar-row" aria-hidden="true">
+					<span className="lcars-bar lcars-bar--1" />
+					<span className="lcars-bar lcars-bar--2" />
+					<span className="lcars-bar lcars-bar--3" />
+					<span className="lcars-bar lcars-bar--4" />
+					<span className="lcars-bar lcars-bar--5" />
+				</div>
+
+				<aside className="lcars-rail-lower" aria-label="Secondary navigation">
 					{bot.map((item) => (
-						<PanelBtn key={item.label} item={item} />
+						<NavBtn key={item.label} item={item} />
 					))}
-					<div className="lcars-panel-spacer" aria-hidden="true" />
+					<div className="lcars-rail-fill" aria-hidden="true" />
 				</aside>
-				<main className="lcars-right-main">
-					<div className="lcars-bar-row lcars-bar-row--lower" aria-hidden="true">
-						<span className="lcars-bar lcars-bar--6" />
-						<span className="lcars-bar lcars-bar--7" />
-						<span className="lcars-bar lcars-bar--8" />
-						<span className="lcars-bar lcars-bar--9" />
-						<span className="lcars-bar lcars-bar--10" />
-					</div>
+
+				<main className="lcars-main">
 					<MobileNav items={[...top, ...bot]} />
-					<div className="lcars-content">{children}</div>
+					{children}
 				</main>
 			</div>
 		</div>
