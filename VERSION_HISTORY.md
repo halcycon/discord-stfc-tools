@@ -30,7 +30,7 @@ Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. 
 
 ## 1.10.3 — Suggest table + Approve by confidence (2026-07-16)
 
-- `/alliance suggest` lists matches in a compact ASCII table (all rows, H/M/L)
+- `/alliance suggest` lists matches in a compact ASCII table (all rows, H/M/L; **Nick** + **User** columns)
 - **Approve 🟢 / 🟡 / 🟠** batch each confidence tier (same chunk + Continue as before)
 - Individual **#** buttons under the table (first 20); group Approve for the rest
 

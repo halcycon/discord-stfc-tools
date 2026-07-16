@@ -57,14 +57,21 @@ export type LinkSuggestRosterPlayer = {
 export type LinkSuggestDiscordMember = {
 	discordUserId: string;
 	username: string;
-	nick: string | null;
+	/** Guild nickname only (null if unset). */
+	serverNick: string | null;
+	/** Discord display name (global_name), if any. */
+	globalName: string | null;
 };
 
 export type LinkSuggestionConfidence = 'high' | 'medium' | 'low';
 
 export type LinkSuggestion = {
 	discordUserId: string;
+	/** Display used for matching (server nick → global name → username). */
 	discordLabel: string;
+	/** Guild nickname, or null if they have none. */
+	serverNick: string | null;
+	username: string;
 	playerId: number;
 	playerName: string;
 	allianceTag: string;
@@ -116,7 +123,10 @@ export function suggestRosterDiscordLinks(
 	const candidates: Cand[] = [];
 
 	for (const m of members) {
-		const display = (m.nick?.trim() || m.username || '').trim();
+		const serverNick = m.serverNick?.trim() || null;
+		const globalName = m.globalName?.trim() || null;
+		const username = (m.username || '').trim();
+		const display = (serverNick || globalName || username).trim();
 		if (!display) continue;
 		const parsed = parseDiscordNick(display);
 		const queryName = parsed.name || display;
@@ -130,6 +140,13 @@ export function suggestRosterDiscordLinks(
 		const searchIn = byTag.length > 0 ? byTag : rosterPool;
 		if (searchIn.length === 0) continue;
 
+		const baseMeta = {
+			discordUserId: m.discordUserId,
+			discordLabel: display,
+			serverNick,
+			username: username || display,
+		};
+
 		const exact = searchIn.find(
 			(r) => normalizePlayerName(r.playerName) === qNorm,
 		);
@@ -138,8 +155,7 @@ export function suggestRosterDiscordLinks(
 				parsed.tag != null &&
 				(exact.allianceTag ?? '').toUpperCase() === parsed.tag;
 			candidates.push({
-				discordUserId: m.discordUserId,
-				discordLabel: display,
+				...baseMeta,
 				playerId: exact.playerId,
 				playerName: exact.playerName,
 				allianceTag: exact.allianceTag ?? '—',
@@ -161,8 +177,7 @@ export function suggestRosterDiscordLinks(
 		const confidence: LinkSuggestionConfidence =
 			nearest.distance === 0 ? 'high' : nearest.distance === 1 ? 'medium' : 'low';
 		candidates.push({
-			discordUserId: m.discordUserId,
-			discordLabel: display,
+			...baseMeta,
 			playerId: r.playerId,
 			playerName: r.playerName,
 			allianceTag: r.allianceTag ?? '—',
@@ -193,6 +208,8 @@ export function suggestRosterDiscordLinks(
 		out.push({
 			discordUserId: c.discordUserId,
 			discordLabel: c.discordLabel,
+			serverNick: c.serverNick,
+			username: c.username,
 			playerId: c.playerId,
 			playerName: c.playerName,
 			allianceTag: c.allianceTag,
@@ -207,11 +224,12 @@ export function suggestRosterDiscordLinks(
 const SUGGEST_COLS: TableColumn[] = [
 	{ header: '#', width: 2, align: 'right' },
 	{ header: '●', width: 1 },
-	{ header: 'Discord', width: 14 },
-	{ header: 'Player', width: 12 },
-	{ header: 'Id', width: 8, align: 'right' },
+	{ header: 'Nick', width: 12 },
+	{ header: 'User', width: 10 },
+	{ header: 'Player', width: 11 },
+	{ header: 'Id', width: 7, align: 'right' },
 	{ header: 'Tag', width: 4 },
-	{ header: 'Why', width: 14 },
+	{ header: 'Why', width: 12 },
 ];
 
 function confidenceDot(c: LinkSuggestionConfidence): string {
@@ -226,11 +244,12 @@ export function formatLinkSuggestionsTable(
 	const rows: TableData[] = suggestions.map((s, i) => ({
 		'#': String(i + 1),
 		'●': confidenceDot(s.confidence),
-		Discord: playerCell(s.discordLabel),
+		Nick: playerCell(s.serverNick),
+		User: playerCell(s.username),
 		Player: playerCell(s.playerName, s.playerId),
 		Id: String(s.playerId),
 		Tag: tagCell(s.allianceTag),
-		Why: (s.reason || '—').slice(0, 14),
+		Why: (s.reason || '—').slice(0, 12),
 	}));
 	return formatReportTable(rows, SUGGEST_COLS, {
 		maxRows: suggestions.length,
@@ -299,7 +318,7 @@ export function formatLinkSuggestions(
 	}
 	return (
 		`🔗 **Link suggestions**${tagNote} (${suggestions.length}) — ${tally}\n` +
-		`_● = H/M/L confidence. Mentions do not render inside the table._\n` +
+		`_● = H/M/L · **Nick** = server nick (— if none) · **User** = Discord username._\n` +
 		table +
 		footer
 	);

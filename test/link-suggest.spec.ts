@@ -41,27 +41,35 @@ describe('suggestRosterDiscordLinks', () => {
 
 	it('matches exact name with tag boost', () => {
 		const suggestions = suggestRosterDiscordLinks(
-			[{ discordUserId: 'u1', username: 'x', nick: '[KWSN] Ada' }],
+			[
+				{
+					discordUserId: 'u1',
+					username: 'x',
+					serverNick: '[KWSN] Ada',
+					globalName: null,
+				},
+			],
 			roster,
 		);
 		expect(suggestions).toHaveLength(1);
 		expect(suggestions[0]!.playerId).toBe(1);
 		expect(suggestions[0]!.confidence).toBe('high');
 		expect(suggestions[0]!.reason).toContain('TAG');
+		expect(suggestions[0]!.serverNick).toBe('[KWSN] Ada');
 	});
 
 	it('does not double-assign the same player', () => {
 		const suggestions = suggestRosterDiscordLinks(
 			[
-				{ discordUserId: 'u1', username: 'a', nick: 'Ada' },
-				{ discordUserId: 'u2', username: 'b', nick: 'Ada' },
+				{ discordUserId: 'u1', username: 'a', serverNick: 'Ada', globalName: null },
+				{ discordUserId: 'u2', username: 'b', serverNick: 'Ada', globalName: null },
 			],
 			roster,
 		);
 		expect(suggestions).toHaveLength(1);
 	});
 
-	it('formats empty and non-empty lists as table', () => {
+	it('formats empty and non-empty lists as table with Nick column', () => {
 		expect(formatLinkSuggestions([], { rosterCount: 3, discordCount: 10 })).toContain(
 			'No confident matches',
 		);
@@ -72,6 +80,8 @@ describe('suggestRosterDiscordLinks', () => {
 			{
 				discordUserId: '9',
 				discordLabel: '[KWSN] Ada',
+				serverNick: '[KWSN] Ada',
+				username: 'ada_user',
 				playerId: 1,
 				playerName: 'Ada',
 				allianceTag: 'KWSN',
@@ -80,7 +90,9 @@ describe('suggestRosterDiscordLinks', () => {
 			},
 		]);
 		expect(text).toContain('```');
-		expect(text).toContain('Ada');
+		expect(text).toContain('Nick');
+		expect(text).toContain('[KWSN] Ada');
+		expect(text).toContain('ada_user');
 		expect(text).toContain('Buttons:');
 		expect(text).toContain('🟢 **1**');
 	});
@@ -92,6 +104,8 @@ describe('suggestRosterDiscordLinks', () => {
 				{
 					discordUserId: '111111111111111111',
 					discordLabel: '[KWSN] Ada',
+					serverNick: '[KWSN] Ada',
+					username: 'ada',
 					playerId: 42,
 					playerName: 'Ada',
 					allianceTag: 'KWSN',
@@ -101,6 +115,8 @@ describe('suggestRosterDiscordLinks', () => {
 				{
 					discordUserId: '222222222222222222',
 					discordLabel: 'BobX',
+					serverNick: null,
+					username: 'bobx',
 					playerId: 43,
 					playerName: 'Bob',
 					allianceTag: 'KWSN',
@@ -110,6 +126,8 @@ describe('suggestRosterDiscordLinks', () => {
 				{
 					discordUserId: '333333333333333333',
 					discordLabel: 'Car',
+					serverNick: 'Car',
+					username: 'cara',
 					playerId: 44,
 					playerName: 'Cara',
 					allianceTag: 'HORUS',
@@ -133,6 +151,8 @@ describe('suggestRosterDiscordLinks', () => {
 		const many = Array.from({ length: 5 }, (_, i) => ({
 			discordUserId: String(111111111111111111n + BigInt(i)),
 			discordLabel: `P${i}`,
+			serverNick: `P${i}`,
+			username: `u${i}`,
 			playerId: i + 1,
 			playerName: `P${i}`,
 			allianceTag: 'KWSN',

@@ -87,8 +87,8 @@ async function collectLinkSuggestions(
 		.map((m) => ({
 			discordUserId: m.user.id,
 			username: m.user.username,
-			// Prefer server nick, then Discord display name, then username.
-			nick: m.nick?.trim() || m.user.global_name?.trim() || null,
+			serverNick: m.nick?.trim() || null,
+			globalName: m.user.global_name?.trim() || null,
 		}));
 
 	const roster = missing
