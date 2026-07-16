@@ -483,6 +483,22 @@ Change sections (joins, leaves, moves, ops, rank, renames) and the morning **Pla
 
 Unlinked STFC players stay in the alliance roster cache (`/roster missing-verify`). Suggestions prefer nicks like `[TAG] Name` / `[TAG] (Adm) Name`. Use the **Approve** buttons on the suggest message (or **Approve all 🟢** for high-confidence), or `/server verify user:@Them link:https://stfc.pro/players/ID`.
 
+#### Approve-all chunking (Workers Free vs Paid)
+
+Approve-all **always** uses the same pattern: process a small batch with live progress edits, then show **Continue Approve 🟢** if high-confidence matches remain. Only the **chunk size** differs by plan.
+
+Why chunk on Paid too? Each link does several Discord API calls (roles, nick, channels, audit). Even with Paid’s higher CPU/subrequest caps, a single interaction still hits ~**30s `waitUntil`** — in practice batches die around **~10** approvals mid-run. So Paid is not “do all 30 at once”; it is “same Continue flow, larger chunks.”
+
+| Setting | Default chunk | Behaviour |
+|---------|---------------|-----------|
+| `WORKERS_PLAN=free` (default) | **2** links / click | Safer under Free’s **50 subrequests** / request |
+| `WORKERS_PLAN=paid` | **6** links / click | Same Continue flow; stays under the ~10 cliff |
+| `ALLIANCE_APPROVE_CHUNK=N` | override (**1–10** max) | Free struggling → try `1`. Do not set above 10 |
+
+Set in `.env`, then `npm run push-env && npm run deploy`. The suggest message footer shows the active chunk size and plan. Progress updates appear after each link in the current batch (`this batch: N / M`).
+
+**Single Approve** always processes one link (works on Free and Paid).
+
 ### Verify / guests
 
 - Fresh roster (≤36h) hit → use cache; else live lookup.

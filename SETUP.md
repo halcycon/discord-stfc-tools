@@ -471,6 +471,8 @@ npm run push-env && npm run deploy
 | `D1_DATABASE_ID` | Yes (fresh) | Wrangler D1 database UUID |
 | `WORKER_NAME` | No | Cloudflare Worker script name (default `stfc-tools`). Keep stable once deployed |
 | `WORKER_URL` | Recommended | Deployed Worker URL |
+| `WORKERS_PLAN` | No | `free` (default) or `paid` — `/alliance suggest` Approve-all chunk size; Paid also sets `cpu_ms` |
+| `ALLIANCE_APPROVE_CHUNK` | No | Override Approve-all links per click (1–10 hard max) |
 | `KV_NAMESPACE_ID` | No | Optional KV binding |
 | `KV_NAMESPACE_PREVIEW_ID` | No | Optional KV preview binding |
 | `R2_BUCKET_NAME` | No | Screenshot archive bucket |
@@ -489,6 +491,8 @@ npm run push-env && npm run deploy
 | `DISCORD_APPLICATION_ID` | Deferred interaction follow-ups |
 | `WORKER_URL` | Public Worker URL |
 | `ENVIRONMENT` | `development` (default) |
+| `WORKERS_PLAN` | `free` \| `paid` — Approve-all chunk defaults |
+| `ALLIANCE_APPROVE_CHUNK` | Optional override for Approve-all chunk size (max 10) |
 
 ### Wrangler bindings (generated in `wrangler.json`)
 

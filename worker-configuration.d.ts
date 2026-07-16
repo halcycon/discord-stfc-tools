@@ -16,6 +16,13 @@ declare namespace Cloudflare {
 		ADMIN_WEB_ORIGIN?: string;
 		WORKER_URL?: string;
 		ENVIRONMENT?: string;
+		/**
+		 * Cloudflare Workers billing plan for long Discord workflows.
+		 * `free` (default) | `paid` — sets `/alliance suggest` Approve-all chunk size.
+		 */
+		WORKERS_PLAN?: string;
+		/** Override Approve-all links per click (1–10 hard max). */
+		ALLIANCE_APPROVE_CHUNK?: string;
 		/** Global kill-switch for DM Workers AI (default off). Set "true" to allow. */
 		DM_AI_ENABLED?: string;
 		/** Max Workers AI requests per UTC day before hard-stop (default 50). */

@@ -22,9 +22,6 @@ function generateWranglerConfig() {
     "observability": {
       "enabled": true
     },
-    "limits": {
-      "cpu_ms": 300000
-    },
     "vars": {
       "ENVIRONMENT": "development"
     },
@@ -117,6 +114,18 @@ function generateWranglerConfig() {
     configTemplate.vars.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
   }
 
+  // Workers plan: free (default) | paid. Affects /alliance suggest Approve-all chunk size.
+  // cpu_ms only applies on Paid (Free is capped at 10ms by the platform).
+  const workersPlan = String(process.env.WORKERS_PLAN || 'free').trim().toLowerCase();
+  const planPaid = workersPlan === 'paid' || workersPlan === 'standard';
+  configTemplate.vars.WORKERS_PLAN = planPaid ? 'paid' : 'free';
+  if (process.env.ALLIANCE_APPROVE_CHUNK) {
+    configTemplate.vars.ALLIANCE_APPROVE_CHUNK = String(process.env.ALLIANCE_APPROVE_CHUNK);
+  }
+  if (planPaid) {
+    configTemplate.limits = { cpu_ms: 300000 };
+  }
+
   const outputPath = path.join(__dirname, 'wrangler.json');
   fs.writeFileSync(outputPath, JSON.stringify(configTemplate, null, 2));
 
@@ -130,6 +139,7 @@ function generateWranglerConfig() {
 
   console.log('✅ Generated wrangler.json with environment-specific configuration');
   console.log(`📝 Worker name: ${workerName}${process.env.WORKER_NAME ? '' : ' (default; set WORKER_NAME to override)'}`);
+  console.log(`📝 Workers plan: ${configTemplate.vars.WORKERS_PLAN}${planPaid ? ' (cpu_ms 300000)' : ' (Free-safe Approve-all chunks)'}`);
   console.log(`📝 KV Namespace ID: ${process.env.KV_NAMESPACE_ID || 'Not set'}`);
   console.log(`📝 R2 Bucket: ${process.env.R2_BUCKET_NAME || 'Not set'}`);
 }

@@ -772,7 +772,7 @@ export async function editInteractionResponse(
 	},
 ): Promise<void> {
 	const url = `${DISCORD_API}/webhooks/${applicationId}/${interactionToken}/messages/@original`;
-	await fetch(url, {
+	const response = await fetch(url, {
 		method: 'PATCH',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
@@ -782,6 +782,12 @@ export async function editInteractionResponse(
 			...(opts?.embeds !== undefined ? { embeds: opts.embeds } : {}),
 		}),
 	});
+	if (!response.ok) {
+		const body = await response.text().catch(() => '');
+		throw new Error(
+			`editInteractionResponse failed (HTTP ${response.status})${body ? `: ${body.slice(0, 200)}` : ''}`,
+		);
+	}
 }
 
 export function interactionResponse(

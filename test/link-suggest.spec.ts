@@ -117,4 +117,20 @@ describe('suggestRosterDiscordLinks', () => {
 			'alink:1:123456789012345678:111111111111111111:42:KWSN',
 		);
 	});
+
+	it('labels Approve-all with per-click chunk when many high matches', () => {
+		const many = Array.from({ length: 5 }, (_, i) => ({
+			discordUserId: String(111111111111111111n + BigInt(i)),
+			discordLabel: `P${i}`,
+			playerId: i + 1,
+			playerName: `P${i}`,
+			allianceTag: 'KWSN',
+			confidence: 'high' as const,
+			reason: 'exact',
+		}));
+		const rows = buildLinkSuggestComponents('123456789012345678', many, 'KWSN', {
+			approveChunkSize: 2,
+		});
+		expect(rows[0]!.components[0]!.label).toContain('2/click');
+	});
 });

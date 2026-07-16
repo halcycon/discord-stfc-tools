@@ -182,7 +182,14 @@ export function suggestRosterDiscordLinks(
 
 export function formatLinkSuggestions(
 	suggestions: LinkSuggestion[],
-	opts?: { tag?: string | null; rosterCount?: number; discordCount?: number },
+	opts?: {
+		tag?: string | null;
+		rosterCount?: number;
+		discordCount?: number;
+		/** Approve-all processes this many high-confidence links per click. */
+		approveChunkSize?: number;
+		workersPlanLabel?: string;
+	},
 ): string {
 	const tagNote = opts?.tag ? ` for **[${opts.tag.toUpperCase()}]**` : '';
 	if (suggestions.length === 0) {
@@ -215,10 +222,20 @@ export function formatLinkSuggestions(
 	});
 	const highCount = suggestions.filter((s) => s.confidence === 'high').length;
 	const buttonCap = maxLinkSuggestButtons(highCount > 0);
+	const chunk = opts?.approveChunkSize;
 	let footer =
 		`\n\nUse the buttons below to link` +
-		(highCount ? ` (or **Approve all 🟢** for ${highCount} high-confidence)` : '') +
+		(highCount
+			? ` (or **Approve all 🟢** for high-confidence` +
+				(chunk && highCount > chunk
+					? ` — **${chunk}/click**, then **Continue**`
+					: '') +
+				`)`
+			: '') +
 		`.`;
+	if (chunk && opts?.workersPlanLabel) {
+		footer += `\n_Approve-all chunk: **${chunk}** (${opts.workersPlanLabel})._`;
+	}
 	if (suggestions.length > buttonCap) {
 		footer +=
 			`\n_Buttons for first **${buttonCap}** only — ` +
@@ -236,26 +253,62 @@ export function maxLinkSuggestButtons(hasApproveAllHigh: boolean): number {
 	return hasApproveAllHigh ? 20 : 25;
 }
 
+/** Tag key embedded in `alink:*` custom_ids (12 chars max). */
+export function linkSuggestTagKey(tagFilter?: string | null): string {
+	return (tagFilter?.trim().toUpperCase() || '_').slice(0, 12);
+}
+
+/** Continue button after a partial Approve-all chunk. */
+export function buildApproveContinueComponents(
+	guildId: string,
+	tagFilter: string | null | undefined,
+	remainingHigh: number,
+	chunkSize: number,
+): DiscordActionRow[] {
+	const tagKey = linkSuggestTagKey(tagFilter);
+	const next = Math.min(remainingHigh, chunkSize);
+	return [
+		{
+			type: 1,
+			components: [
+				{
+					type: 2,
+					style: 3,
+					label: `Continue Approve 🟢 (${remainingHigh} left · next ${next})`.slice(0, 80),
+					custom_id: `alink:more:${guildId}:${tagKey}`,
+				},
+			],
+		},
+	];
+}
+
 /** Discord button rows for approving suggested links. */
 export function buildLinkSuggestComponents(
 	guildId: string,
 	suggestions: LinkSuggestion[],
 	tagFilter?: string | null,
+	opts?: { approveChunkSize?: number },
 ): DiscordActionRow[] {
 	if (suggestions.length === 0) return [];
 
 	const rows: DiscordActionRow[] = [];
 	const high = suggestions.filter((s) => s.confidence === 'high');
-	const tagKey = (tagFilter?.trim().toUpperCase() || '_').slice(0, 12);
+	const tagKey = linkSuggestTagKey(tagFilter);
+	const chunk = opts?.approveChunkSize;
 
 	if (high.length > 0) {
+		const next = chunk ? Math.min(high.length, chunk) : high.length;
+		const label =
+			chunk && high.length > chunk
+				? `Approve all 🟢 (${high.length} · ${next}/click)`
+				: `Approve all 🟢 (${high.length})`;
 		rows.push({
 			type: 1,
 			components: [
 				{
 					type: 2,
 					style: 3,
-					label: `Approve all 🟢 (${high.length})`.slice(0, 80),
+					label: label.slice(0, 80),
 					custom_id: `alink:high:${guildId}:${tagKey}`,
 				},
 			],

@@ -20,6 +20,7 @@ import {
 import { collectTrackedAllianceTags, isMultiAllianceGuild } from './alliance-roster-sync';
 import { trackAndScrapeAlliance, untrackAllianceTag } from './alliance-track';
 import {
+	buildApproveContinueComponents,
 	buildLinkSuggestComponents,
 	formatLinkSuggestions,
 	stfcProPlayerUrl,
@@ -28,6 +29,11 @@ import {
 } from './link-suggest';
 import { AuditColor, postAuditLog } from './audit-log';
 import { processVerification } from './verification';
+import {
+	allianceApproveChunkSize,
+	resolveWorkersPlan,
+	workersPlanLabel,
+} from './workers-plan';
 
 function getOptionValue(
 	options: Array<{ name: string; value?: unknown }> | undefined,
@@ -102,22 +108,29 @@ async function collectLinkSuggestions(
 }
 
 function suggestMessage(
+	env: Env,
 	guildId: string,
 	suggestions: LinkSuggestion[],
 	tagFilter: string | null,
 	prefix?: string,
 	meta?: { rosterCount: number; discordCount: number },
 ): { content: string; components: ReturnType<typeof buildLinkSuggestComponents> } {
+	const chunkSize = allianceApproveChunkSize(env);
+	const plan = resolveWorkersPlan(env);
 	let text = formatLinkSuggestions(suggestions, {
 		tag: tagFilter,
 		rosterCount: meta?.rosterCount,
 		discordCount: meta?.discordCount,
+		approveChunkSize: chunkSize,
+		workersPlanLabel: workersPlanLabel(plan),
 	});
 	if (prefix) text = `${prefix}\n\n${text}`;
 	if (text.length > 1900) text = text.slice(0, 1890) + '\n…';
 	return {
 		content: text,
-		components: buildLinkSuggestComponents(guildId, suggestions, tagFilter),
+		components: buildLinkSuggestComponents(guildId, suggestions, tagFilter, {
+			approveChunkSize: chunkSize,
+		}),
 	};
 }
 
@@ -264,7 +277,7 @@ export async function handleAllianceCommand(
 						guildId,
 						tagFilter,
 					);
-					const msg = suggestMessage(guildId, suggestions, tagFilter, undefined, {
+					const msg = suggestMessage(env, guildId, suggestions, tagFilter, undefined, {
 						rosterCount,
 						discordCount,
 					});
@@ -294,8 +307,191 @@ export async function handleAllianceCommand(
 	);
 }
 
+function formatApproveProgress(opts: {
+	done: number;
+	batchTotal: number;
+	ok: number;
+	fail: number;
+	lines: string[];
+	current?: LinkSuggestion | null;
+	chunkSize: number;
+	planLabel: string;
+	highWaiting: number;
+}): string {
+	const { done, batchTotal, ok, fail, lines, current, chunkSize, planLabel, highWaiting } = opts;
+	const head =
+		`⏳ **Approve all 🟢 — this batch: ${done} / ${batchTotal}**` +
+		` · ✅ ${ok}` +
+		(fail ? ` · ❌ ${fail}` : '') +
+		`\n_Chunk size **${chunkSize}** (${planLabel})` +
+		(highWaiting > batchTotal
+			? ` · ~**${highWaiting - batchTotal}** more after this batch_`
+			: '_') +
+		(current ? `\n_Working on <@${current.discordUserId}> → **${current.playerName}**…_` : '') +
+		`\n_Buttons cleared until this batch finishes — keep this message open._`;
+	const recent = lines.slice(-10);
+	const body = recent.length
+		? `\n\n${recent.join('\n')}` +
+			(lines.length > recent.length ? `\n_…${lines.length - recent.length} earlier_` : '')
+		: '';
+	const text = head + body;
+	return text.length > 1900 ? text.slice(0, 1890) + '\n…' : text;
+}
+
+async function runHighConfidenceApproveChunk(
+	env: Env,
+	opts: {
+		appId: string;
+		token: string;
+		guildId: string;
+		tagFilter: string | null;
+		adminId?: string;
+		config: NonNullable<Awaited<ReturnType<typeof getGuildConfig>>>;
+	},
+): Promise<void> {
+	const { appId, token, guildId, tagFilter, adminId, config } = opts;
+	const chunkSize = allianceApproveChunkSize(env);
+	const plan = resolveWorkersPlan(env);
+	const planLabel = workersPlanLabel(plan);
+
+	await editInteractionResponse(
+		appId,
+		token,
+		`⏳ Preparing **Approve all 🟢**…\n_Chunk **${chunkSize}** (${planLabel}); loading suggestions._`,
+		true,
+		{ components: [], config },
+	);
+
+	const collected = await collectLinkSuggestions(env, guildId, tagFilter);
+	const high = collected.suggestions.filter((s) => s.confidence === 'high');
+	if (high.length === 0) {
+		const msg = suggestMessage(
+			env,
+			guildId,
+			collected.suggestions,
+			tagFilter,
+			'ℹ️ No high-confidence suggestions left to approve.',
+			collected,
+		);
+		await editInteractionResponse(appId, token, msg.content, true, {
+			components: msg.components,
+			config,
+		});
+		return;
+	}
+
+	const batch = high.slice(0, chunkSize);
+	const lines: string[] = [];
+	let ok = 0;
+	let fail = 0;
+
+	await editInteractionResponse(
+		appId,
+		token,
+		formatApproveProgress({
+			done: 0,
+			batchTotal: batch.length,
+			ok,
+			fail,
+			lines,
+			current: batch[0] ?? null,
+			chunkSize,
+			planLabel,
+			highWaiting: high.length,
+		}),
+		true,
+		{ components: [], config },
+	);
+
+	for (let i = 0; i < batch.length; i++) {
+		const s = batch[i]!;
+		const link = stfcProPlayerUrl(s.playerId, config.stfc_server, config.stfc_region);
+		try {
+			const result = await processVerification(
+				env,
+				guildId,
+				s.discordUserId,
+				link,
+				undefined,
+				adminId ? { manualByUserId: adminId, sendWelcomeDm: false } : undefined,
+			);
+			const short = result.length > 120 ? result.slice(0, 117) + '…' : result;
+			if (result.startsWith('❌') || result.includes('failed')) {
+				fail++;
+				lines.push(`• ❌ <@${s.discordUserId}> → ${s.playerName}: ${short}`);
+			} else {
+				ok++;
+				lines.push(`• ✅ <@${s.discordUserId}> → **${s.playerName}**`);
+			}
+		} catch (err) {
+			fail++;
+			lines.push(
+				`• ❌ <@${s.discordUserId}> → ${s.playerName}: ${
+					err instanceof Error ? err.message : String(err)
+				}`.slice(0, 180),
+			);
+		}
+
+		const done = i + 1;
+		await editInteractionResponse(
+			appId,
+			token,
+			formatApproveProgress({
+				done,
+				batchTotal: batch.length,
+				ok,
+				fail,
+				lines,
+				current: batch[done] ?? null,
+				chunkSize,
+				planLabel,
+				highWaiting: high.length,
+			}),
+			true,
+			{ components: [], config },
+		);
+	}
+
+	// Fresh list after the batch — decide Continue vs finished UI.
+	const after = await collectLinkSuggestions(env, guildId, tagFilter);
+	const highLeft = after.suggestions.filter((s) => s.confidence === 'high').length;
+	const batchSummary =
+		`✅ Batch finished — **${ok}** linked` +
+		(fail ? `, **${fail}** failed` : '') +
+		` this click (${batch.length} attempted · chunk ${chunkSize} / ${planLabel})\n` +
+		`${lines.join('\n')}`;
+
+	if (highLeft > 0) {
+		const continueText =
+			`${batchSummary}\n\n` +
+			`⏸ **${highLeft}** high-confidence still waiting — press **Continue Approve 🟢** ` +
+			`(next **${Math.min(highLeft, chunkSize)}**).\n` +
+			`_Each click stays within Cloudflare Workers Free subrequest / waitUntil limits._`;
+		const text =
+			continueText.length > 1900 ? continueText.slice(0, 1890) + '\n…' : continueText;
+		await editInteractionResponse(appId, token, text, true, {
+			components: buildApproveContinueComponents(guildId, tagFilter, highLeft, chunkSize),
+			config,
+		});
+		return;
+	}
+
+	const msg = suggestMessage(
+		env,
+		guildId,
+		after.suggestions,
+		tagFilter,
+		`${batchSummary}\n\n✅ Approve all 🟢 complete — no high-confidence left.`,
+		after,
+	);
+	await editInteractionResponse(appId, token, msg.content, true, {
+		components: msg.components,
+		config,
+	});
+}
+
 /**
- * Button handler for `/alliance suggest` — `alink:1:…` or `alink:high:…`.
+ * Button handler for `/alliance suggest` — `alink:1:…`, `alink:high:…`, `alink:more:…`.
  */
 export async function handleAllianceLinkComponent(
 	env: Env,
@@ -314,11 +510,12 @@ export async function handleAllianceLinkComponent(
 	const customId = interaction.data?.custom_id ?? '';
 	const single = customId.match(/^alink:1:(\d{15,20}):(\d{15,20}):(\d+):([A-Za-z0-9_]+)$/);
 	const highAll = customId.match(/^alink:high:(\d{15,20}):([A-Za-z0-9_]+)$/);
-	if (!single && !highAll) {
+	const moreAll = customId.match(/^alink:more:(\d{15,20}):([A-Za-z0-9_]+)$/);
+	if (!single && !highAll && !moreAll) {
 		return interactionResponse('❌ Unknown link button.', true);
 	}
 
-	const guildId = (single?.[1] ?? highAll?.[1])!;
+	const guildId = (single?.[1] ?? highAll?.[1] ?? moreAll?.[1])!;
 	if (interaction.guild_id && interaction.guild_id !== guildId) {
 		return interactionResponse('❌ Guild mismatch.', true);
 	}
@@ -345,6 +542,13 @@ export async function handleAllianceLinkComponent(
 					const playerId = Number(single[3]);
 					const tagKey = single[4]!;
 					const tagFilter = tagKey === '_' ? null : tagKey;
+					await editInteractionResponse(
+						appId,
+						interaction.token,
+						`⏳ Linking <@${discordUserId}> → \`${playerId}\`…\n_Other approve buttons paused._`,
+						true,
+						{ components: [], config },
+					);
 					const link = stfcProPlayerUrl(playerId, config.stfc_server, config.stfc_region);
 					const result = await processVerification(
 						env,
@@ -356,6 +560,7 @@ export async function handleAllianceLinkComponent(
 					);
 					const remaining = await collectLinkSuggestions(env, guildId, tagFilter);
 					const msg = suggestMessage(
+						env,
 						guildId,
 						remaining.suggestions,
 						tagFilter,
@@ -369,80 +574,28 @@ export async function handleAllianceLinkComponent(
 					return;
 				}
 
-				const tagKey = highAll![2]!;
+				const tagKey = (highAll?.[2] ?? moreAll![2])!;
 				const tagFilter = tagKey === '_' ? null : tagKey;
-				const collected = await collectLinkSuggestions(env, guildId, tagFilter);
-				const high = collected.suggestions.filter((s) => s.confidence === 'high');
-				if (high.length === 0) {
-					const msg = suggestMessage(
-						guildId,
-						collected.suggestions,
-						tagFilter,
-						'ℹ️ No high-confidence suggestions left to approve.',
-						collected,
-					);
-					await editInteractionResponse(appId, interaction.token, msg.content, true, {
-						components: msg.components,
-						config,
-					});
-					return;
-				}
-
-				const lines: string[] = [];
-				let ok = 0;
-				let fail = 0;
-				for (const s of high) {
-					const link = stfcProPlayerUrl(s.playerId, config.stfc_server, config.stfc_region);
-					try {
-						const result = await processVerification(
-							env,
-							guildId,
-							s.discordUserId,
-							link,
-							undefined,
-							adminId ? { manualByUserId: adminId, sendWelcomeDm: false } : undefined,
-						);
-						const short = result.length > 120 ? result.slice(0, 117) + '…' : result;
-						if (result.startsWith('❌') || result.includes('failed')) {
-							fail++;
-							lines.push(`• <@${s.discordUserId}> → ${s.playerName}: ${short}`);
-						} else {
-							ok++;
-							lines.push(`• ✅ <@${s.discordUserId}> → **${s.playerName}**`);
-						}
-					} catch (err) {
-						fail++;
-						lines.push(
-							`• ❌ <@${s.discordUserId}> → ${s.playerName}: ${err instanceof Error ? err.message : String(err)}`,
-						);
-					}
-				}
-
-				const remaining = await collectLinkSuggestions(env, guildId, tagFilter);
-				const prefix =
-					`✅ Approve all 🟢 — **${ok}** linked` +
-					(fail ? `, **${fail}** failed` : '') +
-					`\n${lines.slice(0, 15).join('\n')}` +
-					(lines.length > 15 ? `\n…+${lines.length - 15} more` : '');
-				const msg = suggestMessage(
+				await runHighConfidenceApproveChunk(env, {
+					appId,
+					token: interaction.token,
 					guildId,
-					remaining.suggestions,
 					tagFilter,
-					prefix,
-					remaining,
-				);
-				await editInteractionResponse(appId, interaction.token, msg.content, true, {
-					components: msg.components,
+					adminId,
 					config,
 				});
 			} catch (err) {
-				await editInteractionResponse(
-					appId,
-					interaction.token,
-					`❌ Link failed: ${err instanceof Error ? err.message : String(err)}`,
-					true,
-					{ components: [], config },
-				);
+				try {
+					await editInteractionResponse(
+						appId,
+						interaction.token,
+						`❌ Link failed: ${err instanceof Error ? err.message : String(err)}`,
+						true,
+						{ components: [], config },
+					);
+				} catch (editErr) {
+					console.error('alliance link: failed to report error', err, editErr);
+				}
 			}
 		})(),
 	);

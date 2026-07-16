@@ -27,6 +27,8 @@ See [SETUP.md — Pushing .env to Cloudflare](./SETUP.md#pushing-env-to-cloudfla
 | `D1_DATABASE_ID` | Yes | D1 database UUID from `wrangler d1 create` |
 | `WORKER_NAME` | No | Cloudflare Worker script name (default `stfc-tools`). Set if you already deploy under another name — changing it creates a new Worker |
 | `WORKER_URL` | Recommended | Deployed Worker URL |
+| `WORKERS_PLAN` | No | `free` (default) or `paid` — Approve-all chunk size + Paid `cpu_ms` limit |
+| `ALLIANCE_APPROVE_CHUNK` | No | Override links per Approve-all click (1–10; hard max) |
 | `KV_NAMESPACE_ID` | No | Optional; runtime uses bundled system data |
 | `R2_BUCKET_NAME` | No | Optional verification screenshot archive |
 
