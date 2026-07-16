@@ -555,7 +555,7 @@ export function nicknameForPlayer(config: GuildConfig, player: PlayerData): stri
 		name: player.name,
 		allianceTag: player.allianceTag,
 		rank: player.rank,
-	});
+	}, { displayRanks: config.nickname_display_ranks });
 }
 
 /**

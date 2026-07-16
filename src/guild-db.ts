@@ -15,6 +15,7 @@ import type {
 	VerifiedPlayer,
 } from './types';
 import { parseDeployMode } from './deploy-mode';
+import { parseNicknameDisplayRanks } from './nickname-utils';
 import { parsePersonalChannelPermTemplate } from './personal-channel-perm-template';
 
 function parseDemotionPolicy(value: string | null | undefined): DemotionPolicy {
@@ -81,6 +82,7 @@ function mapGuildConfig(row: any): GuildConfig {
 		overlay_buckets: parseOverlayBuckets(row.overlay_buckets),
 		alliance_role_prefix: row.alliance_role_prefix ?? null,
 		nickname_template: row.nickname_template ?? null,
+		nickname_display_ranks: parseNicknameDisplayRanks(row.nickname_display_ranks),
 		verification_log_channel_id: row.verification_log_channel_id ?? null,
 		audit_log_channel_id: row.audit_log_channel_id ?? null,
 		urgent_notify_channel_id: row.urgent_notify_channel_id ?? null,
@@ -243,6 +245,7 @@ export async function upsertGuildConfig(
 		await upsertDmAssistantConfigFields(db, config);
 		await upsertAgreementConfigFields(db, config);
 		await upsertDemotionPolicyField(db, config);
+		await upsertNicknameDisplayRanksField(db, config);
 		// Brand-new guilds start in testing unless explicitly set.
 		await upsertDeployModeField(db, {
 			guild_id: config.guild_id,
@@ -503,9 +506,27 @@ async function upsertDiplomacyConfigFields(
 	await upsertDataConsentConfigFields(db, config);
 	await upsertAgreementConfigFields(db, config);
 	await upsertDemotionPolicyField(db, config);
+	await upsertNicknameDisplayRanksField(db, config);
 	await upsertDeployModeField(db, config);
 	await upsertWelcomeDmConfigFields(db, config);
 	await upsertWebAdminRoleIdsField(db, config);
+}
+
+async function upsertNicknameDisplayRanksField(
+	db: D1Database,
+	config: Partial<GuildConfig> & { guild_id: string },
+): Promise<void> {
+	if (!Object.prototype.hasOwnProperty.call(config, 'nickname_display_ranks')) return;
+	const ranks = parseNicknameDisplayRanks(config.nickname_display_ranks);
+	await db
+		.prepare(
+			`UPDATE guild_configs SET
+			 nickname_display_ranks = ?,
+			 updated_at = datetime('now')
+			 WHERE guild_id = ?`,
+		)
+		.bind(JSON.stringify(ranks), config.guild_id)
+		.run();
 }
 
 async function upsertWebAdminRoleIdsField(

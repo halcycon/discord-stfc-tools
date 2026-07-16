@@ -67,7 +67,7 @@ import {
 	formatPersonalChannelPermTemplate,
 } from './personal-channel-perm-template';
 import { DEFAULT_SOFT_LIMIT } from './personal-channel-plan';
-import { defaultNicknameTemplate } from './nickname-utils';
+import { defaultNicknameTemplate, parseNicknameDisplayRanks } from './nickname-utils';
 import { createVerificationLogChannel } from './verification-log';
 import {
 	diplomacyChannelsEnabled,
@@ -379,6 +379,8 @@ async function handleServerSetupCommand(
 	const createMissingRoles = createMissingRolesRaw === true || createMissingRolesRaw === 'true';
 	const nicknameTemplateRaw = getOptionValue(data.options, 'nickname_template');
 	const nicknameTemplateProvided = nicknameTemplateRaw !== undefined && nicknameTemplateRaw !== null;
+	const nicknameRanksRaw = getOptionValue(data.options, 'nickname_ranks');
+	const nicknameRanksProvided = nicknameRanksRaw !== undefined && nicknameRanksRaw !== null;
 
 	const guestRoleToken = parseRoleToken(getOptionValue(data.options, 'guest_role'));
 	const memberRoleTokens = parseRoleTokensCsv(getOptionValue(data.options, 'member_roles'));
@@ -478,6 +480,9 @@ async function handleServerSetupCommand(
 			...(nicknameTemplateProvided
 				? { nickname_template: String(nicknameTemplateRaw).trim() || null }
 				: {}),
+			...(nicknameRanksProvided
+				? { nickname_display_ranks: parseNicknameDisplayRanks(String(nicknameRanksRaw)) }
+				: {}),
 		});
 
 		if (mode === 'multi_alliance') {
@@ -519,6 +524,7 @@ async function handleServerSetupCommand(
 				`• STFC: server **${server}** (${region})\n` +
 				(mode === 'single_alliance' ? `• Alliance tag: **${allianceTag}**\n` : '') +
 				`• Nickname template: \`${effectiveNick}\`\n` +
+				`• Nickname ranks: ${(refreshed?.nickname_display_ranks ?? []).join(', ') || 'all'}\n` +
 				`• Member roles: ${memberRoleIds.length ? memberRoleIds.join(', ') : 'none yet'}\n` +
 				`• Guest role: ${guestRoleId ?? 'not set'}\n` +
 				`• Operative/Agent/Premier/Commodore/Admiral roles set: ` +

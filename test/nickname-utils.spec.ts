@@ -5,6 +5,7 @@ import {
 	defaultNicknameTemplate,
 	DISCORD_NICK_MAX,
 	normalizeAllianceRank,
+	parseNicknameDisplayRanks,
 } from '../src/nickname-utils';
 
 describe('nickname-utils', () => {
@@ -106,6 +107,52 @@ describe('nickname-utils', () => {
 				rank: 'Premier',
 			}),
 		).toBe('Pr | Ada');
+	});
+
+	it('nickname_display_ranks filters which ranks appear in placeholders', () => {
+		expect(
+			buildMemberNickname(null, 'single_alliance', {
+				name: 'Adam',
+				rank: 'Admiral',
+			}, { displayRanks: ['Commodore', 'Admiral'] }),
+		).toBe('[Adm] Adam');
+
+		expect(
+			buildMemberNickname(null, 'single_alliance', {
+				name: 'Adam',
+				rank: 'Premier',
+			}, { displayRanks: ['Commodore', 'Admiral'] }),
+		).toBe('Adam');
+
+		expect(
+			buildMemberNickname(null, 'multi_alliance', {
+				name: 'Adam',
+				allianceTag: 'HORUS',
+				rank: 'Operative',
+			}, { displayRanks: ['Commodore', 'Admiral'] }),
+		).toBe('[HORUS] Adam');
+
+		expect(
+			buildMemberNickname(null, 'multi_alliance', {
+				name: 'Adam',
+				allianceTag: 'HORUS',
+				rank: 'Commodore',
+			}, { displayRanks: ['Com', 'Adm'] }),
+		).toBe('[HORUS] (Com) Adam');
+	});
+
+	it('parseNicknameDisplayRanks defaults to all when empty', () => {
+		expect(parseNicknameDisplayRanks(null)).toEqual([
+			'Operative',
+			'Agent',
+			'Premier',
+			'Commodore',
+			'Admiral',
+		]);
+		expect(parseNicknameDisplayRanks('Commodore, Admiral')).toEqual([
+			'Commodore',
+			'Admiral',
+		]);
 	});
 
 	it('truncates to Discord nick limit', () => {

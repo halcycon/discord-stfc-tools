@@ -115,8 +115,18 @@ On verify (and daily sync), the bot sets the member’s nick from a template.
 | Single alliance | `{rank_prefix}{player_name}` | `[Adm] Halcynicon` or `Halcynicon` |
 | Multi alliance | `[{alliance_tag}]{rank_paren} {player_name}` | `[KWSN] (Adm) Halcynicon` |
 
-`{rank_prefix}` is `[Pr] ` / `[Com] ` / `[Adm] ` only (empty for Op/Ag).  
-`{rank_paren}` is ` (Adm)` / ` (Com)` / ` (Pr)` / ` (Op)` / ` (Ag)` when rank is known.
+`{rank_prefix}` is `[Pr] ` / `[Com] ` / `[Adm] ` only (empty for Op/Ag), and only when that rank is in **nickname ranks**.  
+`{rank_paren}` is ` (Adm)` / … when rank is known **and** allowed by nickname ranks.
+
+### Nickname ranks (which ranks appear)
+
+By default all five ranks can appear in `{rank}` / `{rank_paren}` (leadership only for `{rank_prefix}`). Restrict with:
+
+```
+/server setup … nickname_ranks:Commodore,Admiral
+```
+
+Abbrevs work too (`Adm,Com`). Empty / omit = all ranks. Also on `/server status` and admin web Config.
 
 ### Custom template
 
@@ -128,9 +138,9 @@ On verify (and daily sync), the bot sets the member’s nick from a template.
 |-------------|---------|
 | `{player_name}` | In-game name |
 | `{alliance_tag}` | Alliance tag (no brackets) |
-| `{rank}` | Abbreviated rank (`Adm`/`Com`/`Pr`/`Op`/`Ag`) or empty |
-| `{rank_prefix}` | `[Adm] ` style for leadership ranks |
-| `{rank_paren}` | ` (Adm)` when rank known |
+| `{rank}` | Abbreviated rank (`Adm`/`Com`/`Pr`/`Op`/`Ag`) when allowed |
+| `{rank_prefix}` | `[Adm] ` style for leadership ranks when allowed |
+| `{rank_paren}` | ` (Adm)` when rank known and allowed |
 
 Nicks are truncated to Discord’s **32** character limit.
 

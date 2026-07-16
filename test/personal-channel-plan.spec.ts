@@ -33,6 +33,7 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		personal_channel_archive_category_id: null,
 		alliance_role_prefix: null,
 		nickname_template: null,
+		nickname_display_ranks: ["Operative","Agent","Premier","Commodore","Admiral"],
 		verification_log_channel_id: null,
 		audit_log_channel_id: null,
 		urgent_notify_channel_id: null,

@@ -7,6 +7,7 @@ import { LcarsPanel } from '../../lcars/LcarsFrame';
 type ConfigForm = {
 	alliance_tag: string;
 	nickname_template: string;
+	nickname_display_ranks: string;
 	verification_enabled: boolean;
 	poll_interval_hours: number;
 	deploy_mode: string;
@@ -26,9 +27,13 @@ function formFromConfig(c: Record<string, unknown>): ConfigForm {
 			: c.nickname_template_default != null
 				? String(c.nickname_template_default)
 				: '');
+	const ranks = Array.isArray(c.nickname_display_ranks)
+		? c.nickname_display_ranks.map(String).join(',')
+		: String(c.nickname_display_ranks ?? '');
 	return {
 		alliance_tag: String(c.alliance_tag ?? ''),
 		nickname_template: effective,
+		nickname_display_ranks: ranks,
 		verification_enabled: Boolean(c.verification_enabled),
 		poll_interval_hours: Number(c.poll_interval_hours ?? 6),
 		deploy_mode: String(c.deploy_mode ?? 'testing'),
@@ -69,6 +74,7 @@ export function ConfigPage() {
 		const body = {
 			alliance_tag: form.alliance_tag.trim() || null,
 			nickname_template,
+			nickname_display_ranks: form.nickname_display_ranks.trim() || null,
 			verification_enabled: form.verification_enabled,
 			poll_interval_hours: form.poll_interval_hours,
 			deploy_mode: form.deploy_mode,
@@ -120,6 +126,21 @@ export function ConfigPage() {
 						{nickIsDefault
 							? 'Using mode default (DB unset). Placeholders: {player_name} {alliance_tag} {rank} {rank_prefix} {rank_paren}'
 							: 'Custom template stored in DB. Clear or match default to revert.'}
+					</span>
+				</label>
+				<label>
+					Nickname ranks
+					<input
+						value={form.nickname_display_ranks}
+						onChange={(e) =>
+							setForm({ ...form, nickname_display_ranks: e.target.value })
+						}
+						placeholder="Commodore,Admiral"
+						spellCheck={false}
+					/>
+					<span className="field-hint">
+						Which in-game ranks appear in nick placeholders (comma-separated). Empty =
+						all. Abbrevs OK: Adm, Com, Pr, Op, Ag.
 					</span>
 				</label>
 				<label>

@@ -480,6 +480,13 @@ const commands = [
 							'Nick pattern ({player_name} {alliance_tag} {rank} {rank_prefix} {rank_paren}); empty=default',
 						required: false,
 					},
+					{
+						type: 3,
+						name: 'nickname_ranks',
+						description:
+							'Ranks shown in nick (e.g. Commodore,Admiral). Empty=all. Abbrevs: Adm Com Pr Op Ag',
+						required: false,
+					},
 				],
 			},
 			{

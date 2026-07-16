@@ -76,7 +76,7 @@ Also: Gateway DM flow (invite → language → consent → screenshot → link) 
 
 | Subcommand | Notes | Single | Multi |
 |------------|-------|:------:|:-----:|
-| `setup` | `server`, `region`, `mode`, roles, nick template. `alliance_tag` **required** for single. | ✓ | ✓ (`alliance_tag` cleared) |
+| `setup` | `server`, `region`, `mode`, roles, nick template, `nickname_ranks`. `alliance_tag` **required** for single. | ✓ | ✓ (`alliance_tag` cleared) |
 | `status` | Config + bot version + roster id hints. | ✓ | ✓ |
 | `deploy` | `testing` vs `live`; `preview:true` lists pending invite/welcome DMs. | ✓ | ✓ |
 | `demotion` | Leave / mismatch policy (`approval` / `yolo`). | Primary | Empty tags never auto-guest; policy still for missing players if used |

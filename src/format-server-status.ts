@@ -16,6 +16,7 @@ export function formatServerStatus(config: GuildConfig): string {
 		`\n` +
 		`• Nickname template: \`${config.nickname_template?.trim() || defaultNicknameTemplate(config.mode)}\`` +
 		`${config.nickname_template?.trim() ? '' : ' (default)'}\n` +
+		`• Nickname ranks: ${config.nickname_display_ranks.join(', ') || 'all'}\n` +
 		`• Verification log: ${config.verification_log_channel_id ? `<#${config.verification_log_channel_id}>` : 'not set'}\n` +
 		`• Audit log: ${config.audit_log_channel_id ? `<#${config.audit_log_channel_id}>` : 'not set'}\n` +
 		`• Urgent alerts: ${config.urgent_notify_channel_id ? `<#${config.urgent_notify_channel_id}>` : 'not set'}\n` +

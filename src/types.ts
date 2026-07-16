@@ -80,6 +80,11 @@ export interface GuildConfig {
 	alliance_role_prefix: string | null;
 	/** Discord nick pattern; null = mode default. See nickname-utils.ts placeholders. */
 	nickname_template: string | null;
+	/**
+	 * In-game ranks that appear in {rank}/{rank_prefix}/{rank_paren}.
+	 * Empty/default = all five (Operative…Admiral).
+	 */
+	nickname_display_ranks: string[];
 	/** Channel for admin verification audit posts (summary + screenshot). */
 	verification_log_channel_id: string | null;
 	/** Channel for general bot audit (admin commands + automated actions). */

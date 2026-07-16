@@ -21,7 +21,7 @@ import {
 import { getDiscordGatewayStatus } from '../discord-gateway/wake';
 import { listGuildRoles } from '../discord-api';
 import { AuditColor, postAuditLog } from '../audit-log';
-import { defaultNicknameTemplate } from '../nickname-utils';
+import { defaultNicknameTemplate, parseNicknameDisplayRanks } from '../nickname-utils';
 import { BOT_VERSION } from '../version';
 import type { GuildConfig } from '../types';
 import { corsHeaders, jsonCors, withCors } from './cors';
@@ -129,6 +129,7 @@ function publicConfig(config: GuildConfig) {
 		nickname_template: storedNick,
 		nickname_template_default: nicknameDefault,
 		nickname_template_effective: storedNick || nicknameDefault,
+		nickname_display_ranks: config.nickname_display_ranks,
 		verification_enabled: config.verification_enabled,
 		poll_interval_hours: config.poll_interval_hours,
 		deploy_mode: config.deploy_mode,
@@ -194,6 +195,7 @@ function publicRosterPlayer(p: {
 const CONFIG_PATCH_KEYS = [
 	'alliance_tag',
 	'nickname_template',
+	'nickname_display_ranks',
 	'verification_enabled',
 	'poll_interval_hours',
 	'deploy_mode',
@@ -654,6 +656,10 @@ export async function handleAdminApi(
 				} else if (key === 'poll_interval_hours') {
 					const n = Number(val);
 					if (Number.isFinite(n) && n >= 1 && n <= 168) patch.poll_interval_hours = n;
+				} else if (key === 'nickname_display_ranks') {
+					patch.nickname_display_ranks = parseNicknameDisplayRanks(
+						Array.isArray(val) ? val.map(String) : val == null ? null : String(val),
+					);
 				} else if (key === 'deploy_mode') {
 					if (val === 'testing' || val === 'live') patch.deploy_mode = val;
 				} else if (key === 'demotion_policy') {

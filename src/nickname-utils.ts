@@ -7,6 +7,14 @@ export type AllianceRankKey = 'Operative' | 'Agent' | 'Premier' | 'Commodore' | 
 /** Short forms used in Discord nicknames (32-char limit). */
 export type AllianceRankAbbrev = 'Op' | 'Ag' | 'Pr' | 'Com' | 'Adm';
 
+export const ALL_ALLIANCE_RANKS: AllianceRankKey[] = [
+	'Operative',
+	'Agent',
+	'Premier',
+	'Commodore',
+	'Admiral',
+];
+
 const LEADERSHIP_RANKS = new Set<AllianceRankKey>(['Premier', 'Commodore', 'Admiral']);
 
 const RANK_ABBREV: Record<AllianceRankKey, AllianceRankAbbrev> = {
@@ -49,6 +57,47 @@ export function isLeadershipRank(rank: AllianceRankKey | null): boolean {
 	return rank !== null && LEADERSHIP_RANKS.has(rank);
 }
 
+/**
+ * Parse comma-separated or JSON-ish rank list for nickname display.
+ * Empty / invalid → all ranks (default). Dedupes, preserves canonical order.
+ */
+export function parseNicknameDisplayRanks(
+	raw: string | string[] | null | undefined,
+): AllianceRankKey[] {
+	let parts: string[] = [];
+	if (Array.isArray(raw)) {
+		parts = raw.map(String);
+	} else if (typeof raw === 'string' && raw.trim()) {
+		const trimmed = raw.trim();
+		if (trimmed.startsWith('[')) {
+			try {
+				const parsed = JSON.parse(trimmed);
+				if (Array.isArray(parsed)) parts = parsed.map(String);
+			} catch {
+				parts = trimmed.split(/[,|]/);
+			}
+		} else {
+			parts = trimmed.split(/[,|]/);
+		}
+	}
+	const selected = new Set<AllianceRankKey>();
+	for (const p of parts) {
+		const key = normalizeAllianceRank(p);
+		if (key) selected.add(key);
+	}
+	if (selected.size === 0) return [...ALL_ALLIANCE_RANKS];
+	return ALL_ALLIANCE_RANKS.filter((r) => selected.has(r));
+}
+
+export function rankShownInNickname(
+	rank: AllianceRankKey | null,
+	displayRanks: readonly string[] | null | undefined,
+): boolean {
+	if (!rank) return false;
+	const allowed = parseNicknameDisplayRanks(displayRanks ?? null);
+	return allowed.includes(rank);
+}
+
 /** Mode defaults when `guild_configs.nickname_template` is null/empty. */
 export function defaultNicknameTemplate(mode: GuildMode): string {
 	return mode === 'multi_alliance'
@@ -62,15 +111,20 @@ export interface NicknamePlayerFields {
 	rank?: string | null;
 }
 
+export interface BuildNicknameOpts {
+	/** Which ranks appear in {rank}/{rank_prefix}/{rank_paren}. Default: all five. */
+	displayRanks?: readonly string[] | null;
+}
+
 /**
  * Build a Discord nickname from a template.
  *
  * Placeholders:
  * - `{player_name}` — in-game name
  * - `{alliance_tag}` — alliance tag (no brackets)
- * - `{rank}` — abbreviated rank (Adm/Com/Pr/Op/Ag) or empty
- * - `{rank_prefix}` — `[Adm] ` / `[Com] ` / `[Pr] ` for leadership ranks; else empty
- * - `{rank_paren}` — ` (Adm)` etc. when rank is known; else empty
+ * - `{rank}` — abbreviated rank (Adm/Com/Pr/Op/Ag) when allowed by displayRanks
+ * - `{rank_prefix}` — `[Adm] ` / `[Com] ` / `[Pr] ` for leadership ranks in displayRanks
+ * - `{rank_paren}` — ` (Adm)` etc. when rank is known and in displayRanks
  *
  * Result is trimmed, collapsed whitespace, and truncated to Discord's 32-char limit.
  */
@@ -78,11 +132,14 @@ export function buildMemberNickname(
 	template: string | null | undefined,
 	mode: GuildMode,
 	player: NicknamePlayerFields,
+	opts?: BuildNicknameOpts,
 ): string {
-	const tpl = (template?.trim() || defaultNicknameTemplate(mode));
+	const tpl = template?.trim() || defaultNicknameTemplate(mode);
 	const rankKey = normalizeAllianceRank(player.rank);
-	const rankAbbrev = rankKey ? abbreviateAllianceRank(rankKey) : '';
-	const rankPrefix = isLeadershipRank(rankKey) ? `[${rankAbbrev}] ` : '';
+	const showRank = rankShownInNickname(rankKey, opts?.displayRanks);
+	const rankAbbrev = showRank && rankKey ? abbreviateAllianceRank(rankKey) : '';
+	const rankPrefix =
+		showRank && isLeadershipRank(rankKey) ? `[${rankAbbrev}] ` : '';
 	const rankParen = rankAbbrev ? ` (${rankAbbrev})` : '';
 	const allianceTag = (player.allianceTag ?? '').trim();
 	const playerName = (player.name ?? '').trim() || 'Unknown';
