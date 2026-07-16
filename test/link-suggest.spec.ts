@@ -61,27 +61,14 @@ describe('suggestRosterDiscordLinks', () => {
 		expect(suggestions).toHaveLength(1);
 	});
 
-	it('formats empty and non-empty lists', () => {
+	it('formats empty and non-empty lists as table', () => {
 		expect(formatLinkSuggestions([], { rosterCount: 3, discordCount: 10 })).toContain(
 			'No confident matches',
 		);
 		expect(formatLinkSuggestions([], { tag: 'KWSN', rosterCount: 0 })).toContain(
 			'No unlinked roster players',
 		);
-		expect(
-			formatLinkSuggestions([
-				{
-					discordUserId: '9',
-					discordLabel: '[KWSN] Ada',
-					playerId: 1,
-					playerName: 'Ada',
-					allianceTag: 'KWSN',
-					confidence: 'high',
-					reason: 'exact name + [TAG]',
-				},
-			]),
-		).toContain('<@9>');
-		expect(formatLinkSuggestions([
+		const text = formatLinkSuggestions([
 			{
 				discordUserId: '9',
 				discordLabel: '[KWSN] Ada',
@@ -91,10 +78,14 @@ describe('suggestRosterDiscordLinks', () => {
 				confidence: 'high',
 				reason: 'exact name + [TAG]',
 			},
-		])).toContain('buttons below');
+		]);
+		expect(text).toContain('```');
+		expect(text).toContain('Ada');
+		expect(text).toContain('Buttons:');
+		expect(text).toContain('🟢 **1**');
 	});
 
-	it('builds Approve buttons including Approve-all-high', () => {
+	it('builds group Approve buttons for each confidence present', () => {
 		const rows = buildLinkSuggestComponents(
 			'123456789012345678',
 			[
@@ -107,18 +98,38 @@ describe('suggestRosterDiscordLinks', () => {
 					confidence: 'high',
 					reason: 'exact',
 				},
+				{
+					discordUserId: '222222222222222222',
+					discordLabel: 'BobX',
+					playerId: 43,
+					playerName: 'Bob',
+					allianceTag: 'KWSN',
+					confidence: 'medium',
+					reason: 'fuzzy Δ1',
+				},
+				{
+					discordUserId: '333333333333333333',
+					discordLabel: 'Car',
+					playerId: 44,
+					playerName: 'Cara',
+					allianceTag: 'HORUS',
+					confidence: 'low',
+					reason: 'fuzzy Δ2',
+				},
 			],
 			'KWSN',
 		);
-		expect(rows[0]!.components[0]!.custom_id).toBe(
-			'alink:high:123456789012345678:KWSN',
-		);
+		expect(rows[0]!.components.map((c) => c.custom_id)).toEqual([
+			'alink:grp:h:123456789012345678:KWSN',
+			'alink:grp:m:123456789012345678:KWSN',
+			'alink:grp:l:123456789012345678:KWSN',
+		]);
 		expect(rows[1]!.components[0]!.custom_id).toBe(
 			'alink:1:123456789012345678:111111111111111111:42:KWSN',
 		);
 	});
 
-	it('labels Approve-all with per-click chunk when many high matches', () => {
+	it('labels group Approve with per-click chunk when many matches', () => {
 		const many = Array.from({ length: 5 }, (_, i) => ({
 			discordUserId: String(111111111111111111n + BigInt(i)),
 			discordLabel: `P${i}`,
@@ -132,5 +143,6 @@ describe('suggestRosterDiscordLinks', () => {
 			approveChunkSize: 2,
 		});
 		expect(rows[0]!.components[0]!.label).toContain('2/click');
+		expect(rows[0]!.components[0]!.custom_id).toContain('alink:grp:h:');
 	});
 });

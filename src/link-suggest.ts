@@ -4,6 +4,8 @@
  */
 import type { DiscordActionRow } from './discord-api';
 import { findNearestMatch, normalizePlayerName } from './player-name-match';
+import { formatReportTable, playerCell, tagCell } from './report-table';
+import type { TableColumn, TableData } from './tableUtils';
 
 export type ParsedDiscordNick = {
 	/** Uppercase alliance tag if nick starts with [TAG]. */
@@ -58,17 +60,39 @@ export type LinkSuggestDiscordMember = {
 	nick: string | null;
 };
 
+export type LinkSuggestionConfidence = 'high' | 'medium' | 'low';
+
 export type LinkSuggestion = {
 	discordUserId: string;
 	discordLabel: string;
 	playerId: number;
 	playerName: string;
 	allianceTag: string;
-	confidence: 'high' | 'medium' | 'low';
+	confidence: LinkSuggestionConfidence;
 	reason: string;
 };
 
-function confidenceRank(c: LinkSuggestion['confidence']): number {
+/** Short code used in `alink:grp:` / `alink:more:` custom_ids. */
+export type ConfidenceCode = 'h' | 'm' | 'l';
+
+export const CONFIDENCE_ORDER: LinkSuggestionConfidence[] = ['high', 'medium', 'low'];
+
+export function confidenceEmoji(c: LinkSuggestionConfidence): string {
+	return c === 'high' ? '🟢' : c === 'medium' ? '🟡' : '🟠';
+}
+
+export function confidenceCode(c: LinkSuggestionConfidence): ConfidenceCode {
+	return c === 'high' ? 'h' : c === 'medium' ? 'm' : 'l';
+}
+
+export function confidenceFromCode(code: string): LinkSuggestionConfidence | null {
+	if (code === 'h' || code === 'high') return 'high';
+	if (code === 'm' || code === 'medium') return 'medium';
+	if (code === 'l' || code === 'low') return 'low';
+	return null;
+}
+
+function confidenceRank(c: LinkSuggestionConfidence): number {
 	return c === 'high' ? 3 : c === 'medium' ? 2 : 1;
 }
 
@@ -119,7 +143,7 @@ export function suggestRosterDiscordLinks(
 				playerId: exact.playerId,
 				playerName: exact.playerName,
 				allianceTag: exact.allianceTag ?? '—',
-				confidence: tagMatch ? 'high' : 'high',
+				confidence: 'high',
 				reason: tagMatch ? 'exact name + [TAG]' : 'exact name',
 				score: tagMatch ? 100 : 90,
 			});
@@ -134,7 +158,7 @@ export function suggestRosterDiscordLinks(
 		const r = nearest.payload;
 		const tagMatch =
 			parsed.tag != null && (r.allianceTag ?? '').toUpperCase() === parsed.tag;
-		const confidence: LinkSuggestion['confidence'] =
+		const confidence: LinkSuggestionConfidence =
 			nearest.distance === 0 ? 'high' : nearest.distance === 1 ? 'medium' : 'low';
 		candidates.push({
 			discordUserId: m.discordUserId,
@@ -180,13 +204,55 @@ export function suggestRosterDiscordLinks(
 	return out;
 }
 
+const SUGGEST_COLS: TableColumn[] = [
+	{ header: '#', width: 2, align: 'right' },
+	{ header: '●', width: 1 },
+	{ header: 'Discord', width: 14 },
+	{ header: 'Player', width: 12 },
+	{ header: 'Id', width: 8, align: 'right' },
+	{ header: 'Tag', width: 4 },
+	{ header: 'Why', width: 14 },
+];
+
+function confidenceDot(c: LinkSuggestionConfidence): string {
+	return c === 'high' ? 'H' : c === 'medium' ? 'M' : 'L';
+}
+
+/** Compact ASCII table of all suggestions (mentions do not render in fences). */
+export function formatLinkSuggestionsTable(
+	suggestions: LinkSuggestion[],
+	opts?: { maxChars?: number },
+): string {
+	const rows: TableData[] = suggestions.map((s, i) => ({
+		'#': String(i + 1),
+		'●': confidenceDot(s.confidence),
+		Discord: playerCell(s.discordLabel),
+		Player: playerCell(s.playerName, s.playerId),
+		Id: String(s.playerId),
+		Tag: tagCell(s.allianceTag),
+		Why: (s.reason || '—').slice(0, 14),
+	}));
+	return formatReportTable(rows, SUGGEST_COLS, {
+		maxRows: suggestions.length,
+		maxChars: opts?.maxChars ?? 1600,
+	});
+}
+
+export function countByConfidence(suggestions: LinkSuggestion[]): Record<LinkSuggestionConfidence, number> {
+	return {
+		high: suggestions.filter((s) => s.confidence === 'high').length,
+		medium: suggestions.filter((s) => s.confidence === 'medium').length,
+		low: suggestions.filter((s) => s.confidence === 'low').length,
+	};
+}
+
 export function formatLinkSuggestions(
 	suggestions: LinkSuggestion[],
 	opts?: {
 		tag?: string | null;
 		rosterCount?: number;
 		discordCount?: number;
-		/** Approve-all processes this many high-confidence links per click. */
+		/** Approve-all processes this many links of one confidence per click. */
 		approveChunkSize?: number;
 		workersPlanLabel?: string;
 	},
@@ -212,45 +278,36 @@ export function formatLinkSuggestions(
 			`._ Members need server nick / display name close to the in-game name (ideally \`[TAG] Name\`).`
 		);
 	}
-	const lines = suggestions.map((s, i) => {
-		const conf =
-			s.confidence === 'high' ? '🟢' : s.confidence === 'medium' ? '🟡' : '🟠';
-		return (
-			`${conf} **${i + 1}.** <@${s.discordUserId}> \`${s.discordLabel}\` → **${s.playerName}** ` +
-			`(\`${s.playerId}\`) [${s.allianceTag}] — ${s.reason}`
-		);
-	});
-	const highCount = suggestions.filter((s) => s.confidence === 'high').length;
-	const buttonCap = maxLinkSuggestButtons(highCount > 0);
+
+	const counts = countByConfidence(suggestions);
+	const tally =
+		`🟢 **${counts.high}** · 🟡 **${counts.medium}** · 🟠 **${counts.low}**`;
+	const table = formatLinkSuggestionsTable(suggestions, { maxChars: 1550 });
 	const chunk = opts?.approveChunkSize;
+	const buttonCap = maxLinkSuggestIndividualButtons();
 	let footer =
-		`\n\nUse the buttons below to link` +
-		(highCount
-			? ` (or **Approve all 🟢** for high-confidence` +
-				(chunk && highCount > chunk
-					? ` — **${chunk}/click**, then **Continue**`
-					: '') +
-				`)`
-			: '') +
-		`.`;
-	if (chunk && opts?.workersPlanLabel) {
-		footer += `\n_Approve-all chunk: **${chunk}** (${opts.workersPlanLabel})._`;
-	}
+		`\n\n**Buttons:** Approve by confidence (🟢/🟡/🟠), or tap **#** for one row.` +
+		(chunk
+			? ` Group approve runs **${chunk}/click**` +
+				(opts?.workersPlanLabel ? ` (${opts.workersPlanLabel})` : '') +
+				`, then **Continue**.`
+			: '');
 	if (suggestions.length > buttonCap) {
 		footer +=
-			`\n_Buttons for first **${buttonCap}** only — ` +
-			`\`/server verify user:@Them link:https://stfc.pro/players/ID\` for the rest._`;
+			`\n_Individual buttons for first **${buttonCap}** rows — use group Approve for the rest, ` +
+			`or \`/server verify user:@Them link:https://stfc.pro/players/ID\`._`;
 	}
 	return (
-		`🔗 **Link suggestions**${tagNote} (${suggestions.length})\n` +
-		lines.join('\n') +
+		`🔗 **Link suggestions**${tagNote} (${suggestions.length}) — ${tally}\n` +
+		`_● = H/M/L confidence. Mentions do not render inside the table._\n` +
+		table +
 		footer
 	);
 }
 
-/** Discord allows 5 action rows; Approve-all uses one when present. */
-export function maxLinkSuggestButtons(hasApproveAllHigh: boolean): number {
-	return hasApproveAllHigh ? 20 : 25;
+/** Discord: 5 rows; 1 reserved for group-approve; 4×5 individual. */
+export function maxLinkSuggestIndividualButtons(): number {
+	return 20;
 }
 
 /** Tag key embedded in `alink:*` custom_ids (12 chars max). */
@@ -258,31 +315,47 @@ export function linkSuggestTagKey(tagFilter?: string | null): string {
 	return (tagFilter?.trim().toUpperCase() || '_').slice(0, 12);
 }
 
-/** Continue button after a partial Approve-all chunk. */
+/** Continue button after a partial group-approve chunk. */
 export function buildApproveContinueComponents(
 	guildId: string,
 	tagFilter: string | null | undefined,
-	remainingHigh: number,
+	remaining: number,
 	chunkSize: number,
+	confidence: LinkSuggestionConfidence,
 ): DiscordActionRow[] {
 	const tagKey = linkSuggestTagKey(tagFilter);
-	const next = Math.min(remainingHigh, chunkSize);
+	const code = confidenceCode(confidence);
+	const emoji = confidenceEmoji(confidence);
+	const next = Math.min(remaining, chunkSize);
 	return [
 		{
 			type: 1,
 			components: [
 				{
 					type: 2,
-					style: 3,
-					label: `Continue Approve 🟢 (${remainingHigh} left · next ${next})`.slice(0, 80),
-					custom_id: `alink:more:${guildId}:${tagKey}`,
+					style: confidence === 'high' ? 3 : confidence === 'medium' ? 1 : 2,
+					label: `Continue ${emoji} (${remaining} left · next ${next})`.slice(0, 80),
+					custom_id: `alink:more:${code}:${guildId}:${tagKey}`,
 				},
 			],
 		},
 	];
 }
 
-/** Discord button rows for approving suggested links. */
+function groupApproveLabel(
+	confidence: LinkSuggestionConfidence,
+	count: number,
+	chunk?: number,
+): string {
+	const emoji = confidenceEmoji(confidence);
+	const next = chunk ? Math.min(count, chunk) : count;
+	if (chunk && count > chunk) {
+		return `Approve ${emoji} (${count} · ${next}/click)`;
+	}
+	return `Approve ${emoji} (${count})`;
+}
+
+/** Discord button rows: group Approves (one row) + individual # buttons. */
 export function buildLinkSuggestComponents(
 	guildId: string,
 	suggestions: LinkSuggestion[],
@@ -292,40 +365,35 @@ export function buildLinkSuggestComponents(
 	if (suggestions.length === 0) return [];
 
 	const rows: DiscordActionRow[] = [];
-	const high = suggestions.filter((s) => s.confidence === 'high');
 	const tagKey = linkSuggestTagKey(tagFilter);
 	const chunk = opts?.approveChunkSize;
+	const counts = countByConfidence(suggestions);
 
-	if (high.length > 0) {
-		const next = chunk ? Math.min(high.length, chunk) : high.length;
-		const label =
-			chunk && high.length > chunk
-				? `Approve all 🟢 (${high.length} · ${next}/click)`
-				: `Approve all 🟢 (${high.length})`;
-		rows.push({
-			type: 1,
-			components: [
-				{
-					type: 2,
-					style: 3,
-					label: label.slice(0, 80),
-					custom_id: `alink:high:${guildId}:${tagKey}`,
-				},
-			],
-		});
+	const groupButtons = CONFIDENCE_ORDER.filter((c) => counts[c] > 0).map((c) => ({
+		type: 2 as const,
+		style: (c === 'high' ? 3 : c === 'medium' ? 1 : 2) as 1 | 2 | 3,
+		label: groupApproveLabel(c, counts[c], chunk).slice(0, 80),
+		custom_id: `alink:grp:${confidenceCode(c)}:${guildId}:${tagKey}`,
+	}));
+
+	if (groupButtons.length > 0) {
+		rows.push({ type: 1, components: groupButtons });
 	}
 
-	const forButtons = suggestions.slice(0, maxLinkSuggestButtons(high.length > 0));
+	const forButtons = suggestions.slice(0, maxLinkSuggestIndividualButtons());
 	for (let i = 0; i < forButtons.length; i += 5) {
-		const chunk = forButtons.slice(i, i + 5);
+		const slice = forButtons.slice(i, i + 5);
 		rows.push({
 			type: 1,
-			components: chunk.map((s, j) => {
+			components: slice.map((s, j) => {
 				const n = i + j + 1;
 				const label = `${n} ✓ ${s.playerName}`.slice(0, 80);
 				return {
-					type: 2,
-					style: s.confidence === 'high' ? 3 : s.confidence === 'medium' ? 1 : 2,
+					type: 2 as const,
+					style: (s.confidence === 'high' ? 3 : s.confidence === 'medium' ? 1 : 2) as
+						| 1
+						| 2
+						| 3,
 					label,
 					custom_id: `alink:1:${guildId}:${s.discordUserId}:${s.playerId}:${tagKey}`,
 				};

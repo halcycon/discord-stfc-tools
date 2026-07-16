@@ -22,10 +22,13 @@ import { trackAndScrapeAlliance, untrackAllianceTag } from './alliance-track';
 import {
 	buildApproveContinueComponents,
 	buildLinkSuggestComponents,
+	confidenceEmoji,
+	confidenceFromCode,
 	formatLinkSuggestions,
 	stfcProPlayerUrl,
 	suggestRosterDiscordLinks,
 	type LinkSuggestion,
+	type LinkSuggestionConfidence,
 } from './link-suggest';
 import { AuditColor, postAuditLog } from './audit-log';
 import { processVerification } from './verification';
@@ -308,6 +311,7 @@ export async function handleAllianceCommand(
 }
 
 function formatApproveProgress(opts: {
+	confidence: LinkSuggestionConfidence;
 	done: number;
 	batchTotal: number;
 	ok: number;
@@ -316,16 +320,28 @@ function formatApproveProgress(opts: {
 	current?: LinkSuggestion | null;
 	chunkSize: number;
 	planLabel: string;
-	highWaiting: number;
+	waiting: number;
 }): string {
-	const { done, batchTotal, ok, fail, lines, current, chunkSize, planLabel, highWaiting } = opts;
+	const {
+		confidence,
+		done,
+		batchTotal,
+		ok,
+		fail,
+		lines,
+		current,
+		chunkSize,
+		planLabel,
+		waiting,
+	} = opts;
+	const emoji = confidenceEmoji(confidence);
 	const head =
-		`⏳ **Approve all 🟢 — this batch: ${done} / ${batchTotal}**` +
+		`⏳ **Approve ${emoji} (${confidence}) — this batch: ${done} / ${batchTotal}**` +
 		` · ✅ ${ok}` +
 		(fail ? ` · ❌ ${fail}` : '') +
 		`\n_Chunk size **${chunkSize}** (${planLabel})` +
-		(highWaiting > batchTotal
-			? ` · ~**${highWaiting - batchTotal}** more after this batch_`
+		(waiting > batchTotal
+			? ` · ~**${waiting - batchTotal}** more after this batch_`
 			: '_') +
 		(current ? `\n_Working on <@${current.discordUserId}> → **${current.playerName}**…_` : '') +
 		`\n_Buttons cleared until this batch finishes — keep this message open._`;
@@ -338,7 +354,7 @@ function formatApproveProgress(opts: {
 	return text.length > 1900 ? text.slice(0, 1890) + '\n…' : text;
 }
 
-async function runHighConfidenceApproveChunk(
+async function runConfidenceApproveChunk(
 	env: Env,
 	opts: {
 		appId: string;
@@ -346,31 +362,33 @@ async function runHighConfidenceApproveChunk(
 		guildId: string;
 		tagFilter: string | null;
 		adminId?: string;
+		confidence: LinkSuggestionConfidence;
 		config: NonNullable<Awaited<ReturnType<typeof getGuildConfig>>>;
 	},
 ): Promise<void> {
-	const { appId, token, guildId, tagFilter, adminId, config } = opts;
+	const { appId, token, guildId, tagFilter, adminId, config, confidence } = opts;
 	const chunkSize = allianceApproveChunkSize(env);
 	const plan = resolveWorkersPlan(env);
 	const planLabel = workersPlanLabel(plan);
+	const emoji = confidenceEmoji(confidence);
 
 	await editInteractionResponse(
 		appId,
 		token,
-		`⏳ Preparing **Approve all 🟢**…\n_Chunk **${chunkSize}** (${planLabel}); loading suggestions._`,
+		`⏳ Preparing **Approve ${emoji}**…\n_Chunk **${chunkSize}** (${planLabel}); loading suggestions._`,
 		true,
 		{ components: [], config },
 	);
 
 	const collected = await collectLinkSuggestions(env, guildId, tagFilter);
-	const high = collected.suggestions.filter((s) => s.confidence === 'high');
-	if (high.length === 0) {
+	const pool = collected.suggestions.filter((s) => s.confidence === confidence);
+	if (pool.length === 0) {
 		const msg = suggestMessage(
 			env,
 			guildId,
 			collected.suggestions,
 			tagFilter,
-			'ℹ️ No high-confidence suggestions left to approve.',
+			`ℹ️ No ${confidence}-confidence suggestions left to approve.`,
 			collected,
 		);
 		await editInteractionResponse(appId, token, msg.content, true, {
@@ -380,7 +398,7 @@ async function runHighConfidenceApproveChunk(
 		return;
 	}
 
-	const batch = high.slice(0, chunkSize);
+	const batch = pool.slice(0, chunkSize);
 	const lines: string[] = [];
 	let ok = 0;
 	let fail = 0;
@@ -389,6 +407,7 @@ async function runHighConfidenceApproveChunk(
 		appId,
 		token,
 		formatApproveProgress({
+			confidence,
 			done: 0,
 			batchTotal: batch.length,
 			ok,
@@ -397,7 +416,7 @@ async function runHighConfidenceApproveChunk(
 			current: batch[0] ?? null,
 			chunkSize,
 			planLabel,
-			highWaiting: high.length,
+			waiting: pool.length,
 		}),
 		true,
 		{ components: [], config },
@@ -437,6 +456,7 @@ async function runHighConfidenceApproveChunk(
 			appId,
 			token,
 			formatApproveProgress({
+				confidence,
 				done,
 				batchTotal: batch.length,
 				ok,
@@ -445,32 +465,37 @@ async function runHighConfidenceApproveChunk(
 				current: batch[done] ?? null,
 				chunkSize,
 				planLabel,
-				highWaiting: high.length,
+				waiting: pool.length,
 			}),
 			true,
 			{ components: [], config },
 		);
 	}
 
-	// Fresh list after the batch — decide Continue vs finished UI.
 	const after = await collectLinkSuggestions(env, guildId, tagFilter);
-	const highLeft = after.suggestions.filter((s) => s.confidence === 'high').length;
+	const left = after.suggestions.filter((s) => s.confidence === confidence).length;
 	const batchSummary =
 		`✅ Batch finished — **${ok}** linked` +
 		(fail ? `, **${fail}** failed` : '') +
-		` this click (${batch.length} attempted · chunk ${chunkSize} / ${planLabel})\n` +
+		` this click (${batch.length} attempted · ${confidence} · chunk ${chunkSize} / ${planLabel})\n` +
 		`${lines.join('\n')}`;
 
-	if (highLeft > 0) {
+	if (left > 0) {
 		const continueText =
 			`${batchSummary}\n\n` +
-			`⏸ **${highLeft}** high-confidence still waiting — press **Continue Approve 🟢** ` +
-			`(next **${Math.min(highLeft, chunkSize)}**).\n` +
+			`⏸ **${left}** ${confidence} still waiting — press **Continue ${emoji}** ` +
+			`(next **${Math.min(left, chunkSize)}**).\n` +
 			`_Each click stays within Cloudflare Workers Free subrequest / waitUntil limits._`;
 		const text =
 			continueText.length > 1900 ? continueText.slice(0, 1890) + '\n…' : continueText;
 		await editInteractionResponse(appId, token, text, true, {
-			components: buildApproveContinueComponents(guildId, tagFilter, highLeft, chunkSize),
+			components: buildApproveContinueComponents(
+				guildId,
+				tagFilter,
+				left,
+				chunkSize,
+				confidence,
+			),
 			config,
 		});
 		return;
@@ -481,7 +506,7 @@ async function runHighConfidenceApproveChunk(
 		guildId,
 		after.suggestions,
 		tagFilter,
-		`${batchSummary}\n\n✅ Approve all 🟢 complete — no high-confidence left.`,
+		`${batchSummary}\n\n✅ Approve ${emoji} complete — no ${confidence} left.`,
 		after,
 	);
 	await editInteractionResponse(appId, token, msg.content, true, {
@@ -491,7 +516,9 @@ async function runHighConfidenceApproveChunk(
 }
 
 /**
- * Button handler for `/alliance suggest` — `alink:1:…`, `alink:high:…`, `alink:more:…`.
+ * Button handler for `/alliance suggest`:
+ * `alink:1:…`, `alink:grp:h|m|l:…`, `alink:more:h|m|l:…`
+ * (legacy `alink:high:` still accepted as high group).
  */
 export async function handleAllianceLinkComponent(
 	env: Env,
@@ -509,13 +536,19 @@ export async function handleAllianceLinkComponent(
 
 	const customId = interaction.data?.custom_id ?? '';
 	const single = customId.match(/^alink:1:(\d{15,20}):(\d{15,20}):(\d+):([A-Za-z0-9_]+)$/);
-	const highAll = customId.match(/^alink:high:(\d{15,20}):([A-Za-z0-9_]+)$/);
-	const moreAll = customId.match(/^alink:more:(\d{15,20}):([A-Za-z0-9_]+)$/);
-	if (!single && !highAll && !moreAll) {
+	const group = customId.match(/^alink:grp:([hml]):(\d{15,20}):([A-Za-z0-9_]+)$/);
+	const more = customId.match(/^alink:more:([hml]):(\d{15,20}):([A-Za-z0-9_]+)$/);
+	const legacyHigh = customId.match(/^alink:high:(\d{15,20}):([A-Za-z0-9_]+)$/);
+	const legacyMore = customId.match(/^alink:more:(\d{15,20}):([A-Za-z0-9_]+)$/);
+	if (!single && !group && !more && !legacyHigh && !legacyMore) {
 		return interactionResponse('❌ Unknown link button.', true);
 	}
 
-	const guildId = (single?.[1] ?? highAll?.[1] ?? moreAll?.[1])!;
+	const guildId = (single?.[1] ??
+		group?.[2] ??
+		more?.[2] ??
+		legacyHigh?.[1] ??
+		legacyMore?.[1])!;
 	if (interaction.guild_id && interaction.guild_id !== guildId) {
 		return interactionResponse('❌ Guild mismatch.', true);
 	}
@@ -574,14 +607,29 @@ export async function handleAllianceLinkComponent(
 					return;
 				}
 
-				const tagKey = (highAll?.[2] ?? moreAll![2])!;
+				let confidence: LinkSuggestionConfidence = 'high';
+				let tagKey: string;
+				if (group) {
+					confidence = confidenceFromCode(group[1]!) ?? 'high';
+					tagKey = group[3]!;
+				} else if (more) {
+					confidence = confidenceFromCode(more[1]!) ?? 'high';
+					tagKey = more[3]!;
+				} else if (legacyHigh) {
+					confidence = 'high';
+					tagKey = legacyHigh[2]!;
+				} else {
+					confidence = 'high';
+					tagKey = legacyMore![2]!;
+				}
 				const tagFilter = tagKey === '_' ? null : tagKey;
-				await runHighConfidenceApproveChunk(env, {
+				await runConfidenceApproveChunk(env, {
 					appId,
 					token: interaction.token,
 					guildId,
 					tagFilter,
 					adminId,
+					confidence,
 					config,
 				});
 			} catch (err) {

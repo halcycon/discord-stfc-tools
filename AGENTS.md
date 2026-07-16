@@ -139,7 +139,7 @@ Morning job scrapes stfc.pro **HTML** (API `/api/players` is 403 from Worker egr
 - **DM assistant** — HAL refusal for unknown asks; Badgey voice + admin menu wizards; roster Q&A gated by `/server assistant`
 - **Discord agreement** — optional CoC gate (`/server agreement`); DM Agree button; timing before/after verify; channel react planned
 - **Alliance roster cache** (single-alliance) — morning HTML scrape of `/alliances/{id}`; verify + daily sync prefer cache; audit report of joins/leaves/ops/rank/renames
-- `/alliance track|suggest|list|untrack` (multi) — scrape now + nick-based link suggestions; **Approve all 🟢** always chunks + **Continue** (Free **2**/click, Paid **6**/click, max **10** — Paid also dies ~10/interaction) — `src/workers-plan.ts`, `docs/ADMIN_GUIDE.md` § Approve-all chunking
+- `/alliance track|suggest|list|untrack` (multi) — scrape now + nick-based link suggestions (ASCII table); **Approve 🟢/🟡/🟠** per confidence + **Continue** (Free **2**/click, Paid **6**/click, max **10**) — `src/workers-plan.ts`, `docs/ADMIN_GUIDE.md` § Approve-all chunking
 
 **Personal channel permissions (agents):** Prefer **not** Discord “sync category → children” when existing channels have per-member allows — that wipes them. Audit first (`permissions-audit`), lock a good sample (`permissions-template-from`), then create/link. Template lives on `guild_configs.personal_channel_perm_template` (JSON); null = built-in bot + deny @everyone + member + `personal_channel_extra_roles`. Bot overwrite is always applied first so the bot can post surveys. Docs: `docs/ADMIN_GUIDE.md` § personal channels.
 

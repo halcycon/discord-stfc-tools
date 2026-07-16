@@ -481,11 +481,17 @@ Change sections (joins, leaves, moves, ops, rank, renames) and the morning **Pla
 /alliance untrack tag:KWSN        # drop from explicit list only
 ```
 
-Unlinked STFC players stay in the alliance roster cache (`/roster missing-verify`). Suggestions prefer nicks like `[TAG] Name` / `[TAG] (Adm) Name`. Use the **Approve** buttons on the suggest message (or **Approve all 🟢** for high-confidence), or `/server verify user:@Them link:https://stfc.pro/players/ID`.
+Unlinked STFC players stay in the alliance roster cache (`/roster missing-verify`). Suggestions prefer nicks like `[TAG] Name` / `[TAG] (Adm) Name`. The suggest reply shows an **ASCII table** of all matches (H/M/L), then:
+
+- **Approve 🟢 / 🟡 / 🟠** — batch-approve that confidence tier (chunked; **Continue** if more remain)
+- **# ✓ Name** — approve a single table row
+- Or `/server verify user:@Them link:https://stfc.pro/players/ID`
+
+Discord allows only five button rows, so individual buttons cover the first **20** rows; use the group Approves for the rest. Mentions do not render inside the table (names are shown instead).
 
 #### Approve-all chunking (Workers Free vs Paid)
 
-Approve-all **always** uses the same pattern: process a small batch with live progress edits, then show **Continue Approve 🟢** if high-confidence matches remain. Only the **chunk size** differs by plan.
+Group Approve **always** uses the same pattern: process a small batch with live progress edits, then show **Continue** if that confidence tier still has matches. Only the **chunk size** differs by plan.
 
 Why chunk on Paid too? Each link does several Discord API calls (roles, nick, channels, audit). Even with Paid’s higher CPU/subrequest caps, a single interaction still hits ~**30s `waitUntil`** — in practice batches die around **~10** approvals mid-run. So Paid is not “do all 30 at once”; it is “same Continue flow, larger chunks.”
 

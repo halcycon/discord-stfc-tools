@@ -141,11 +141,11 @@ List subcommands (`grade`, `ops`, `rank`, `inactive`, `missing-verify`) share op
 | Subcommand | Notes |
 |------------|-------|
 | `track` | `tag:` and/or `alliance_id:` — scrape HTML now, store roster, add to morning tracked set |
-| `suggest` | Optional `tag:` — match unverified Discord members to unlinked roster; **Approve** / **Approve all 🟢** / **Continue Approve 🟢** |
+| `suggest` | Optional `tag:` — table of matches + **Approve 🟢/🟡/🟠** per confidence, individual **#** buttons, **Continue** |
 | `list` | Explicit + diplomacy + combined tracked tags |
 | `untrack` | Remove from explicit list (diplomacy/verified tags still track) |
 
-**Approve-all** always chunks + **Continue** (not one giant batch). Free default **2**/click, Paid **6**/click, hard max **10**/click — see [ADMIN_GUIDE — Approve-all chunking](./ADMIN_GUIDE.md#approve-all-chunking-workers-free-vs-paid).
+**Group Approve** (per confidence) always chunks + **Continue**. Free default **2**/click, Paid **6**/click, hard max **10**/click — see [ADMIN_GUIDE — Approve-all chunking](./ADMIN_GUIDE.md#approve-all-chunking-workers-free-vs-paid).
 
 ---
 
