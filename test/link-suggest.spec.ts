@@ -62,7 +62,12 @@ describe('suggestRosterDiscordLinks', () => {
 	});
 
 	it('formats empty and non-empty lists', () => {
-		expect(formatLinkSuggestions([])).toContain('No confident matches');
+		expect(formatLinkSuggestions([], { rosterCount: 3, discordCount: 10 })).toContain(
+			'No confident matches',
+		);
+		expect(formatLinkSuggestions([], { tag: 'KWSN', rosterCount: 0 })).toContain(
+			'No unlinked roster players',
+		);
 		expect(
 			formatLinkSuggestions([
 				{

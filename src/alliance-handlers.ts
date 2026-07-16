@@ -15,6 +15,7 @@ import {
 	getVerifiedDiscordUserIds,
 	listActiveVerifiedPlayers,
 	listAllianceMembersMissingVerify,
+	type AllianceRosterMemberRow,
 } from './guild-db';
 import { collectTrackedAllianceTags, isMultiAllianceGuild } from './alliance-roster-sync';
 import { trackAndScrapeAlliance, untrackAllianceTag } from './alliance-track';
@@ -35,16 +36,39 @@ function getOptionValue(
 	return options?.find((o) => o.name === name)?.value;
 }
 
+/** Load unlinked roster rows for suggest — filter by tag in SQL; page past the UI 200-cap. */
+async function loadMissingRosterForSuggest(
+	db: D1Database,
+	guildId: string,
+	tagFilter: string | null,
+): Promise<AllianceRosterMemberRow[]> {
+	const pageSize = 500;
+	const maxRows = 4000;
+	const out: AllianceRosterMemberRow[] = [];
+	for (let offset = 0; offset < maxRows; offset += pageSize) {
+		const batch = await listAllianceMembersMissingVerify(db, guildId, {
+			limit: pageSize,
+			offset,
+			sort: 'name',
+			allianceTag: tagFilter,
+			maxLimit: pageSize,
+		});
+		out.push(...batch);
+		if (batch.length < pageSize) break;
+	}
+	return out;
+}
+
 async function collectLinkSuggestions(
 	env: Env,
 	guildId: string,
 	tagFilter: string | null,
-): Promise<LinkSuggestion[]> {
+): Promise<{ suggestions: LinkSuggestion[]; rosterCount: number; discordCount: number }> {
 	const [verifiedIds, excluded, members, missing] = await Promise.all([
 		getVerifiedDiscordUserIds(env.STFC_DB, guildId),
 		getExcludedUserIds(env.STFC_DB, guildId),
 		listAllGuildMembers(env.DISCORD_BOT_TOKEN!, guildId),
-		listAllianceMembersMissingVerify(env.STFC_DB, guildId, { limit: 200, sort: 'name' }),
+		loadMissingRosterForSuggest(env.STFC_DB, guildId, tagFilter),
 	]);
 
 	const discordCandidates = members
@@ -54,13 +78,11 @@ async function collectLinkSuggestions(
 		.map((m) => ({
 			discordUserId: m.user.id,
 			username: m.user.username,
-			nick: m.nick,
+			// Prefer server nick, then Discord display name, then username.
+			nick: m.nick?.trim() || m.user.global_name?.trim() || null,
 		}));
 
 	const roster = missing
-		.filter((r) =>
-			tagFilter ? (r.alliance_tag ?? '').toUpperCase() === tagFilter.toUpperCase() : true,
-		)
 		.map((r) => ({
 			playerId: r.player_id,
 			playerName: r.player_name ?? '',
@@ -69,10 +91,14 @@ async function collectLinkSuggestions(
 		}))
 		.filter((r) => r.playerName);
 
-	return suggestRosterDiscordLinks(discordCandidates, roster, {
-		tagFilter,
-		limit: 30,
-	});
+	return {
+		suggestions: suggestRosterDiscordLinks(discordCandidates, roster, {
+			tagFilter,
+			limit: 30,
+		}),
+		rosterCount: roster.length,
+		discordCount: discordCandidates.length,
+	};
 }
 
 function suggestMessage(
@@ -80,8 +106,13 @@ function suggestMessage(
 	suggestions: LinkSuggestion[],
 	tagFilter: string | null,
 	prefix?: string,
+	meta?: { rosterCount: number; discordCount: number },
 ): { content: string; components: ReturnType<typeof buildLinkSuggestComponents> } {
-	let text = formatLinkSuggestions(suggestions, { tag: tagFilter });
+	let text = formatLinkSuggestions(suggestions, {
+		tag: tagFilter,
+		rosterCount: meta?.rosterCount,
+		discordCount: meta?.discordCount,
+	});
 	if (prefix) text = `${prefix}\n\n${text}`;
 	if (text.length > 1900) text = text.slice(0, 1890) + '\n…';
 	return {
@@ -228,8 +259,15 @@ export async function handleAllianceCommand(
 		ctx.waitUntil(
 			(async () => {
 				try {
-					const suggestions = await collectLinkSuggestions(env, guildId, tagFilter);
-					const msg = suggestMessage(guildId, suggestions, tagFilter);
+					const { suggestions, rosterCount, discordCount } = await collectLinkSuggestions(
+						env,
+						guildId,
+						tagFilter,
+					);
+					const msg = suggestMessage(guildId, suggestions, tagFilter, undefined, {
+						rosterCount,
+						discordCount,
+					});
 					await editInteractionResponse(appId, interaction.token, msg.content, true, {
 						components: msg.components,
 						config,
@@ -317,7 +355,13 @@ export async function handleAllianceLinkComponent(
 						adminId ? { manualByUserId: adminId, sendWelcomeDm: false } : undefined,
 					);
 					const remaining = await collectLinkSuggestions(env, guildId, tagFilter);
-					const msg = suggestMessage(guildId, remaining, tagFilter, `✅ ${result}`);
+					const msg = suggestMessage(
+						guildId,
+						remaining.suggestions,
+						tagFilter,
+						`✅ ${result}`,
+						remaining,
+					);
 					await editInteractionResponse(appId, interaction.token, msg.content, true, {
 						components: msg.components,
 						config,
@@ -327,14 +371,15 @@ export async function handleAllianceLinkComponent(
 
 				const tagKey = highAll![2]!;
 				const tagFilter = tagKey === '_' ? null : tagKey;
-				const suggestions = await collectLinkSuggestions(env, guildId, tagFilter);
-				const high = suggestions.filter((s) => s.confidence === 'high');
+				const collected = await collectLinkSuggestions(env, guildId, tagFilter);
+				const high = collected.suggestions.filter((s) => s.confidence === 'high');
 				if (high.length === 0) {
 					const msg = suggestMessage(
 						guildId,
-						suggestions,
+						collected.suggestions,
 						tagFilter,
 						'ℹ️ No high-confidence suggestions left to approve.',
+						collected,
 					);
 					await editInteractionResponse(appId, interaction.token, msg.content, true, {
 						components: msg.components,
@@ -379,7 +424,13 @@ export async function handleAllianceLinkComponent(
 					(fail ? `, **${fail}** failed` : '') +
 					`\n${lines.slice(0, 15).join('\n')}` +
 					(lines.length > 15 ? `\n…+${lines.length - 15} more` : '');
-				const msg = suggestMessage(guildId, remaining, tagFilter, prefix);
+				const msg = suggestMessage(
+					guildId,
+					remaining.suggestions,
+					tagFilter,
+					prefix,
+					remaining,
+				);
 				await editInteractionResponse(appId, interaction.token, msg.content, true, {
 					components: msg.components,
 					config,

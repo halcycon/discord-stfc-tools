@@ -83,7 +83,14 @@ async function discordFetch(
 }
 
 export interface DiscordGuildMember {
-	user: { id: string; username: string; discriminator?: string; bot?: boolean };
+	user: {
+		id: string;
+		username: string;
+		discriminator?: string;
+		bot?: boolean;
+		/** Discord display name (falls back to username in the client). */
+		global_name?: string | null;
+	};
 	nick: string | null;
 	roles: string[];
 	joined_at: string;

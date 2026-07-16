@@ -182,13 +182,27 @@ export function suggestRosterDiscordLinks(
 
 export function formatLinkSuggestions(
 	suggestions: LinkSuggestion[],
-	opts?: { tag?: string | null },
+	opts?: { tag?: string | null; rosterCount?: number; discordCount?: number },
 ): string {
 	const tagNote = opts?.tag ? ` for **[${opts.tag.toUpperCase()}]**` : '';
 	if (suggestions.length === 0) {
+		const rosterN = opts?.rosterCount;
+		const discordN = opts?.discordCount;
+		if (rosterN === 0) {
+			return (
+				`🔗 **Link suggestions**${tagNote}\n` +
+				`_No unlinked roster players` +
+				(opts?.tag ? ` for **[${opts.tag.toUpperCase()}]**` : '') +
+				`._ Scraped alliances may be fully verified, or the tag was not tracked/scraped yet (\`/alliance track tag:\`).`
+			);
+		}
 		return (
 			`🔗 **Link suggestions**${tagNote}\n` +
-			`_No confident matches._ Ensure the alliance was scraped (\`/alliance track\`) and members use \`[TAG] Name\` nicks or matching display names.`
+			`_No confident matches_` +
+			(typeof rosterN === 'number' && typeof discordN === 'number'
+				? ` (${rosterN} unlinked roster · ${discordN} unverified Discord)`
+				: '') +
+			`._ Members need server nick / display name close to the in-game name (ideally \`[TAG] Name\`).`
 		);
 	}
 	const lines = suggestions.map((s, i) => {

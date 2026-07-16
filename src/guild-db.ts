@@ -2082,17 +2082,31 @@ export async function listAllianceMembersMissingVerify(
 		limit?: number;
 		offset?: number;
 		sort?: 'ops' | 'name' | 'rank';
+		/** When set, only that alliance tag (case-insensitive). */
+		allianceTag?: string | null;
+		/**
+		 * Hard ceiling for LIMIT. Default 200 (roster UI pages).
+		 * Link-suggest may raise this so a large multi-alliance cache is not truncated
+		 * before a JS tag filter can run.
+		 */
+		maxLimit?: number;
 	},
 ): Promise<AllianceRosterMemberRow[]> {
-	const cap = Math.min(Math.max(opts?.limit ?? 100, 1), 200);
+	const hardMax = Math.min(Math.max(opts?.maxLimit ?? 200, 1), 2000);
+	const cap = Math.min(Math.max(opts?.limit ?? 100, 1), hardMax);
 	const offset = Math.max(0, Math.floor(opts?.offset ?? 0));
 	const sort = opts?.sort ?? 'ops';
+	const tag = opts?.allianceTag?.trim().toUpperCase() || null;
 	const orderBy =
 		sort === 'name'
 			? `arm.player_name COLLATE NOCASE ASC, (arm.ops_level IS NULL), arm.ops_level DESC`
 			: sort === 'rank'
 				? `arm.alliance_rank COLLATE NOCASE ASC, (arm.ops_level IS NULL), arm.ops_level DESC`
 				: `(arm.ops_level IS NULL), arm.ops_level DESC, arm.player_name COLLATE NOCASE`;
+	const tagClause = tag ? ` AND UPPER(TRIM(COALESCE(arm.alliance_tag, ''))) = ?` : '';
+	const binds: unknown[] = [guildId];
+	if (tag) binds.push(tag);
+	binds.push(cap, offset);
 	const { results } = await db
 		.prepare(
 			`SELECT arm.*
@@ -2103,11 +2117,11 @@ export async function listAllianceMembersMissingVerify(
 			     WHERE vp.guild_id = arm.guild_id
 			       AND vp.player_id = arm.player_id
 			       AND vp.verification_status IN ('verified', 'active', 'guest')
-			   )
+			   )${tagClause}
 			 ORDER BY ${orderBy}
 			 LIMIT ? OFFSET ?`,
 		)
-		.bind(guildId, cap, offset)
+		.bind(...binds)
 		.all();
 	return (results ?? []).map((row) => mapAllianceRosterMemberRow(row as Record<string, unknown>));
 }
@@ -2115,7 +2129,12 @@ export async function listAllianceMembersMissingVerify(
 export async function countAllianceMembersMissingVerify(
 	db: D1Database,
 	guildId: string,
+	opts?: { allianceTag?: string | null },
 ): Promise<number> {
+	const tag = opts?.allianceTag?.trim().toUpperCase() || null;
+	const tagClause = tag ? ` AND UPPER(TRIM(COALESCE(arm.alliance_tag, ''))) = ?` : '';
+	const binds: unknown[] = [guildId];
+	if (tag) binds.push(tag);
 	const row = await db
 		.prepare(
 			`SELECT COUNT(*) AS c
@@ -2126,9 +2145,9 @@ export async function countAllianceMembersMissingVerify(
 			     WHERE vp.guild_id = arm.guild_id
 			       AND vp.player_id = arm.player_id
 			       AND vp.verification_status IN ('verified', 'active', 'guest')
-			   )`,
+			   )${tagClause}`,
 		)
-		.bind(guildId)
+		.bind(...binds)
 		.first();
 	return Number((row as { c?: number } | null)?.c ?? 0);
 }
