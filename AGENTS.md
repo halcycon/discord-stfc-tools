@@ -87,7 +87,7 @@ Morning job scrapes stfc.pro **HTML** (API `/api/players` is 403 from Worker egr
 | Concern | Behavior |
 |---------|----------|
 | **Single scrape** | `mode = single_alliance` **and** `alliance_tag` set |
-| **Multi scrape** | `mode = multi_alliance`; batch cap `MULTI_ALLIANCE_SCRAPE_MAX` |
+| **Multi scrape** | `mode = multi_alliance`; track tags = verified ∪ diplomacy map ∪ `tracked_alliance_tags`; batch cap `MULTI_ALLIANCE_SCRAPE_MAX` |
 | **Verify / guest poll** | Fresh roster (≤36h) hit → cache; else live HTML |
 | **Alliance id (single)** | `guild_configs.stfc_alliance_id`; auto-discovered from a verified profile if missing |
 | **Day-over-day report** | Posted to `/channels audit` |
@@ -156,8 +156,8 @@ Renders CSV as ASCII tables. Accepts inline `csv_data` or `.csv` attachment (max
 | `POST /table` | CSV table API |
 | `GET /gateway/status` | Gateway DO connection state |
 | `GET /stfc-session/status` | Anonymous stfc.pro session / token cache |
-| `GET /stfc-session/ping` | HTML player lookup smoke test |
-| `GET /alliance-roster/ping` | Alliance HTML roster scrape smoke test (`?persist=1&guild_id=` to write D1) |
+| `GET /stfc-session/ping` | HTML player lookup (`?server=&region=&search=` required) |
+| `GET /alliance-roster/ping` | Alliance HTML scrape (`?alliance_id=&server=&region=` required; `?persist=1&guild_id=` to write D1) |
 | `GET /systems` | First 10 bundled systems |
 
 **Logging:** `/channels log` = verification screenshots/summaries; `/channels audit` = general admin + automated bot events **including morning alliance roster change reports**; `/channels urgent` = optional high-signal alerts (e.g. DM blocked).

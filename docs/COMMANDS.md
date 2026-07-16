@@ -27,7 +27,7 @@ Deep setup (roles, channel perms, cron details) lives in [ADMIN_GUIDE.md](./ADMI
 | Diplomacy channels | Optional | Primary alliance-channel tool (`/diplomacy`) |
 | Resource exchange | Works; same-alliance donors never notified | Best fit (many tags) |
 
-**Tracked tags (multi only):** any tag currently on a verified player, plus every tag in the diplomacy channel map. Tags not on the server directory list, or past the 40-scrape cap, are **skipped** that morning (audit log notes them).
+**Tracked tags (multi only):** verified player tags ∪ diplomacy map ∪ `/alliance track` list. Tags not on the server directory list, or past the 40-scrape cap, are **skipped** that morning (audit log notes them).
 
 Switching **single → multi** clears the single-alliance roster cache.
 
@@ -113,6 +113,7 @@ List subcommands (`grade`, `ops`, `rank`, `inactive`, `missing-verify`) share op
 | `activity` | Show streak + inactive. `user:` (default you) **or** `player:` (name/id). | ✓ | ✓ |
 | `set-streak` / `set-inactive` | Admin backfill. `value:` + `user:` **or** `player:`. Near-miss names → **Did you mean?** Yes/No. Updates Discord row and/or alliance cache. | ✓ | ✓ |
 | `missing-verify` | Alliance-cache players with no Discord link. | Home alliance after morning scrape. | All tracked caches after morning scrape. |
+| `/alliance track|suggest|list|untrack` | — | — | Track+scrape now; nick-based link suggestions |
 | `unverified` | Discord members with no STFC link. Optional `set_guest:true` (Admin). | ✓ | ✓ |
 | `set-guest` | Force guest (Admin). Blocked in deploy **testing**. | Common. | Manual only when needed. |
 | `status` | Counts by verification status. | ✓ | ✓ |
@@ -132,6 +133,17 @@ List subcommands (`grade`, `ops`, `rank`, `inactive`, `missing-verify`) share op
 | `permissions-apply` | Bulk-add bot/role/extra/template overwrites (dry-run default). | ✓ |
 | `permissions-template-from` / `show` / `clear` | Lock sample perms for creates/links. | ✓ |
 | `log` / `audit` / `urgent` | Verification archive, bot audit, high-signal alerts. | ✓ (same) |
+
+---
+
+## `/alliance` (Administrator) — multi only
+
+| Subcommand | Notes |
+|------------|-------|
+| `track` | `tag:` and/or `alliance_id:` — scrape HTML now, store roster, add to morning tracked set |
+| `suggest` | Optional `tag:` — match unverified Discord members to unlinked roster (nick `[TAG] Name`) |
+| `list` | Explicit + diplomacy + combined tracked tags |
+| `untrack` | Remove from explicit list (diplomacy/verified tags still track) |
 
 ---
 
@@ -188,7 +200,8 @@ Preview invite / consent / agreement / welcome / demote DMs to yourself or `user
 ### Multi-alliance checklist
 
 1. `/server setup mode:multi_alliance …` (no `alliance_tag`)
-2. `/diplomacy enable:true` · create/link tags you care about (feeds morning track list)
+2. `/alliance track tag:…` for alliances you care about (or `/diplomacy enable:true` · create/link tags)
+3. `/alliance suggest` · `/roster missing-verify` for onboarding
 3. `/channels link` for personal channels as needed (skip rebalance)
 4. Optional `/exchange setup`
 5. `/roster alliances` · `/roster missing-verify` · `/roster inactive` across tracked tags

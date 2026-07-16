@@ -109,6 +109,11 @@ export interface GuildConfig {
 	diplomacy_archive_category_id: string | null;
 	/** allianceTag (upper) → Discord channel ID */
 	diplomacy_channel_map: Record<string, string>;
+	/**
+	 * Multi-alliance: tags explicitly tracked for morning scrape / `/alliance track`
+	 * (in addition to verified player tags ∪ diplomacy map).
+	 */
+	tracked_alliance_tags: string[];
 	/** If true, @everyone can view diplomacy channels (send still restricted). */
 	diplomacy_everyone_can_view: boolean;
 	/** Extra roles that can view (used when everyone_can_view is false, or as additive). */

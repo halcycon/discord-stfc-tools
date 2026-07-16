@@ -1277,6 +1277,62 @@ const commands = [
 				],
 	},
 	{
+		name: 'alliance',
+		description: 'Admin: multi-alliance track roster + link suggestions',
+		options: [
+			{
+				type: 1,
+				name: 'track',
+				description: 'Scrape an alliance now and keep it in the morning sync',
+				options: [
+					{
+						type: 3,
+						name: 'tag',
+						description: 'Alliance tag (e.g. KWSN)',
+						required: false,
+					},
+					{
+						type: 3,
+						name: 'alliance_id',
+						description: 'stfc.pro alliance id (optional if tag is set)',
+						required: false,
+					},
+				],
+			},
+			{
+				type: 1,
+				name: 'suggest',
+				description: 'Suggest Discord ↔ roster links from nicks like [TAG] Name',
+				options: [
+					{
+						type: 3,
+						name: 'tag',
+						description: 'Only suggest for this alliance tag',
+						required: false,
+					},
+				],
+			},
+			{
+				type: 1,
+				name: 'list',
+				description: 'Show tracked alliance tags',
+			},
+			{
+				type: 1,
+				name: 'untrack',
+				description: 'Remove a tag from the explicit track list',
+				options: [
+					{
+						type: 3,
+						name: 'tag',
+						description: 'Alliance tag to untrack',
+						required: true,
+					},
+				],
+			},
+		],
+	},
+	{
 		name: 'diplomacy',
 		description: 'Admin: multi-alliance diplomacy channels',
 		options: [

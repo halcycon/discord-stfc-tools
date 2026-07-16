@@ -5,7 +5,7 @@ import { handleScheduledEvent } from './cron';
 import { wakeDiscordGateway, getDiscordGatewayStatus } from './discord-gateway/wake';
 import { getStfcSessionStatus } from './stfc-session';
 import { findPlayerByIdOrName, scrapeAllianceById, scrapeServerAlliances } from './stfc-utils';
-import { getGuildConfig, listConfiguredGuilds } from './guild-db';
+import { getGuildConfig } from './guild-db';
 import {
 	isMultiAllianceGuild,
 	syncGuildAllianceRoster,
@@ -96,18 +96,23 @@ export default {
 			return Response.json(status ?? { error: 'STFC_SESSION binding not configured' });
 		}
 
-		// Diagnostic: HTML profile lookup using guild server/region (numeric ID preferred).
+		// Diagnostic: HTML profile lookup — requires explicit ?server=&region=&search=
 		if (url.pathname === '/stfc-session/ping' && request.method === 'GET') {
 			try {
-				const guilds = await listConfiguredGuilds(env.STFC_DB);
-				const defaultGuild = guilds[0];
-				const server = Number(url.searchParams.get('server') || defaultGuild?.stfc_server || 0);
-				const region = (url.searchParams.get('region') || defaultGuild?.stfc_region || 'US').toUpperCase();
-				const search = url.searchParams.get('search') || '3563194597';
-				if (!server) {
+				const serverRaw = url.searchParams.get('server');
+				const regionRaw = url.searchParams.get('region');
+				const search = url.searchParams.get('search')?.trim() || '';
+				const server = Number(serverRaw);
+				const region = (regionRaw || '').toUpperCase();
+				if (!serverRaw || !Number.isFinite(server) || server <= 0 || !region || !search) {
 					return Response.json(
-						{ ok: false, error: 'No stfc_server configured (run /server setup or pass ?server=)' },
-						{ status: 400 },
+						{
+							ok: false,
+							error: 'Required query params: server, region, search (numeric player id preferred)',
+							example:
+								'/stfc-session/ping?server=108&region=EU&search=1234567890',
+						},
+						{ status: 400, headers: { 'Cache-Control': 'no-store' } },
 					);
 				}
 
@@ -121,14 +126,6 @@ export default {
 						ok: Boolean(player),
 						lookupMs,
 						path: 'html-first-for-numeric-ids',
-						guildDefault: defaultGuild
-							? {
-									guild_id: defaultGuild.guild_id,
-									stfc_server: defaultGuild.stfc_server,
-									stfc_region: defaultGuild.stfc_region,
-									alliance_tag: defaultGuild.alliance_tag,
-								}
-							: null,
 						query: { server, region, search: searchTerm },
 						lookup: player
 							? {
@@ -162,16 +159,21 @@ export default {
 				if (persist && !requireBotOrAdminSecret(request, env)) {
 					return Response.json({ error: 'Unauthorized — persist requires Bot or Bearer ADMIN_SESSION_SECRET' }, { status: 401 });
 				}
-				const config = guildId ? await getGuildConfig(env.STFC_DB, guildId) : null;
-				const guilds = config ? [config] : await listConfiguredGuilds(env.STFC_DB);
-				const guild =
-					guilds.find((g) => g.mode === 'single_alliance' && g.alliance_tag) ??
-					guilds.find((g) => g.mode === 'multi_alliance') ??
-					guilds[0];
 
 				if (persist) {
+					if (!guildId) {
+						return Response.json(
+							{
+								ok: false,
+								error: 'persist=1 requires guild_id=',
+								example: '/alliance-roster/ping?persist=1&guild_id=…',
+							},
+							{ status: 400, headers: { 'Cache-Control': 'no-store' } },
+						);
+					}
+					const guild = await getGuildConfig(env.STFC_DB, guildId);
 					if (!guild) {
-						return Response.json({ ok: false, error: 'No configured guild' }, { status: 400 });
+						return Response.json({ ok: false, error: 'Guild not configured' }, { status: 400 });
 					}
 					const started = Date.now();
 					if (isMultiAllianceGuild(guild)) {
@@ -256,8 +258,20 @@ export default {
 
 				const serverOnly = url.searchParams.get('server_directory') === '1';
 				if (serverOnly) {
-					const server = Number(url.searchParams.get('server') || guild?.stfc_server || 108);
-					const region = (url.searchParams.get('region') || guild?.stfc_region || 'EU').toUpperCase();
+					const serverRaw = url.searchParams.get('server');
+					const regionRaw = url.searchParams.get('region');
+					const server = Number(serverRaw);
+					const region = (regionRaw || '').toUpperCase();
+					if (!serverRaw || !Number.isFinite(server) || server <= 0 || !region) {
+						return Response.json(
+							{
+								ok: false,
+								error: 'Required query params: server, region',
+								example: '/alliance-roster/ping?server_directory=1&server=108&region=EU',
+							},
+							{ status: 400, headers: { 'Cache-Control': 'no-store' } },
+						);
+					}
 					const started = Date.now();
 					const directory = await scrapeServerAlliances(server, region);
 					return Response.json(
@@ -272,12 +286,28 @@ export default {
 					);
 				}
 
-				const allianceId =
-					url.searchParams.get('alliance_id') ||
-					guild?.stfc_alliance_id ||
-					'2990767785';
-				const server = Number(url.searchParams.get('server') || guild?.stfc_server || 108);
-				const region = (url.searchParams.get('region') || guild?.stfc_region || 'EU').toUpperCase();
+				const allianceId = url.searchParams.get('alliance_id')?.trim() || '';
+				const serverRaw = url.searchParams.get('server');
+				const regionRaw = url.searchParams.get('region');
+				const server = Number(serverRaw);
+				const region = (regionRaw || '').toUpperCase();
+				if (
+					!allianceId ||
+					!serverRaw ||
+					!Number.isFinite(server) ||
+					server <= 0 ||
+					!region
+				) {
+					return Response.json(
+						{
+							ok: false,
+							error: 'Required query params: alliance_id, server, region',
+							example:
+								'/alliance-roster/ping?alliance_id=123&server=108&region=EU',
+						},
+						{ status: 400, headers: { 'Cache-Control': 'no-store' } },
+					);
+				}
 				const started = Date.now();
 				const scrape = await scrapeAllianceById(allianceId, server, region);
 				return Response.json(
@@ -331,8 +361,8 @@ Endpoints:
 - GET /gateway/status — Discord Gateway DO connection status
 - POST /gateway/wake — Force Gateway reconnect
 - GET /stfc-session/status — Anonymous stfc.pro session / token cache status
-- GET /stfc-session/ping — HTML player lookup smoke test
-- GET /alliance-roster/ping — Alliance HTML roster scrape smoke test (?persist=1&guild_id=…)
+- GET /stfc-session/ping — HTML player lookup (?server=&region=&search= required)
+- GET /alliance-roster/ping — Alliance HTML scrape (?alliance_id=&server=&region= required; ?persist=1&guild_id=…)
 
 Discord commands:
 - /lookup, /table, /tablehelp — coordinate lookup and tables

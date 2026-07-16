@@ -468,9 +468,20 @@ Change sections (joins, leaves, moves, ops, rank, renames) and the morning **Pla
 
 ### Requirements
 
-- Mode: **`single_alliance`** with `alliance_tag`, or **`multi_alliance`** with at least one tracked tag (verified players and/or diplomacy map).
+- Mode: **`single_alliance`** with `alliance_tag`, or **`multi_alliance`** with at least one tracked tag (verified players, diplomacy map, and/or `/alliance track`).
 - Audit channel configured (`/channels audit`).
 - Single-alliance: `stfc_alliance_id` (shown on `/server status`; auto-discovered from a verified profile if missing).
+
+### Multi-alliance: track + link suggestions
+
+```
+/alliance track tag:KWSN          # scrape now into D1 + keep in morning sync
+/alliance suggest tag:KWSN        # match unverified Discord nicks → roster
+/alliance list                    # explicit + diplomacy + combined tags
+/alliance untrack tag:KWSN        # drop from explicit list only
+```
+
+Unlinked STFC players stay in the alliance roster cache (`/roster missing-verify`). Suggestions prefer nicks like `[TAG] Name` / `[TAG] (Adm) Name`. Link with `/server verify user:@Them link:https://stfc.pro/players/ID`.
 
 ### Verify / guests
 

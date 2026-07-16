@@ -8,7 +8,7 @@ Release log for the STFC Discord bot (Cloudflare Worker). Versions use **MAJOR.M
 | **MINOR** | New user-facing capability (new slash area, cron product, admin workflow) |
 | **INCREMENTAL** | Fixes, polish, docs, refactors, small command option tweaks |
 
-**Current version:** **1.9.6**
+**Current version:** **1.10.0**
 
 **Sources of truth**
 
@@ -27,6 +27,17 @@ Bump all three together when cutting a release. Prefer a short entry under the n
 Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. **1.0.0** marks the alliance-management product that was prepared for public use. Later **1.x** minors track feature areas shipped in Jul 2026 (git history + migrations `001`–`027`).
 
 ---
+
+## 1.10.0 — Multi-alliance track + link suggest (2026-07-16)
+
+- `/alliance track tag:` — scrape alliance roster now into D1 and keep it in morning sync (`tracked_alliance_tags`)
+- `/alliance suggest [tag:]` — match unverified Discord members to unlinked roster (esp. `[TAG] Name` nicks)
+- `/alliance list` / `untrack` — manage explicit track list
+- Migration `035_tracked_alliance_tags.sql`
+
+## 1.9.7 — Diagnostic pings require explicit params (2026-07-16)
+
+- `/stfc-session/ping` and `/alliance-roster/ping` no longer bake in guild defaults, KWSN alliance id, or a hardcoded player id
 
 ## 1.9.6 — Configurable nickname display ranks (2026-07-16)
 

@@ -43,6 +43,7 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		diplomacy_category_map: {},
 		diplomacy_archive_category_id: null,
 		diplomacy_channel_map: {},
+		tracked_alliance_tags: [],
 		diplomacy_everyone_can_view: true,
 		diplomacy_view_role_ids: [],
 		diplomacy_write_role_ids: [],

@@ -521,9 +521,9 @@ Configured in `generate-config.js` → `wrangler.json`:
 
 | Path | Purpose |
 |------|---------|
-| `GET /alliance-roster/ping` | Scrape alliance HTML (`?alliance_id=&server=&region=`) |
-| `GET /alliance-roster/ping?persist=1&guild_id=` | Scrape + write D1 roster for a single-alliance guild (returns diff counts) |
-| `GET /stfc-session/ping` | HTML player lookup smoke test |
+| `GET /alliance-roster/ping` | Scrape alliance HTML — **requires** `?alliance_id=&server=&region=` |
+| `GET /alliance-roster/ping?persist=1&guild_id=` | Scrape + write D1 roster for that guild (auth required) |
+| `GET /stfc-session/ping` | HTML player lookup — **requires** `?server=&region=&search=` |
 | `GET /gateway/status` | Discord Gateway DO status |
 
 ---

@@ -102,6 +102,10 @@ export function collectTrackedAllianceTags(
 		const t = tag.trim();
 		if (t) tags.add(t.toUpperCase());
 	}
+	for (const tag of config.tracked_alliance_tags ?? []) {
+		const t = tag.trim();
+		if (t) tags.add(t.toUpperCase());
+	}
 	return tags;
 }
 

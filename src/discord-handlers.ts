@@ -3384,6 +3384,10 @@ async function dispatchDiscordInteraction(
 		if (data.name === 'roster') {
 			return handleRosterCommand(env, ctx, interaction as any, data);
 		}
+		if (data.name === 'alliance') {
+			const { handleAllianceCommand } = await import('./alliance-handlers');
+			return handleAllianceCommand(env, ctx, interaction as any);
+		}
 
 		if (data.name === 'verify') {
 			return handleVerifyCommand(env, ctx, interaction, data);

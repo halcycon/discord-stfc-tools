@@ -17,6 +17,7 @@ import type {
 import { parseDeployMode } from './deploy-mode';
 import { parseNicknameDisplayRanks } from './nickname-utils';
 import { parsePersonalChannelPermTemplate } from './personal-channel-perm-template';
+import { parseTrackedAllianceTags } from './tracked-alliance-tags';
 
 function parseDemotionPolicy(value: string | null | undefined): DemotionPolicy {
 	return value === 'yolo' ? 'yolo' : 'approval';
@@ -97,6 +98,7 @@ function mapGuildConfig(row: any): GuildConfig {
 		diplomacy_category_map: parseJsonObject(row.diplomacy_category_map),
 		diplomacy_archive_category_id: row.diplomacy_archive_category_id ?? null,
 		diplomacy_channel_map: parseJsonObject(row.diplomacy_channel_map),
+		tracked_alliance_tags: parseTrackedAllianceTags(row.tracked_alliance_tags),
 		diplomacy_everyone_can_view: row.diplomacy_everyone_can_view === undefined || row.diplomacy_everyone_can_view === null
 			? true
 			: Boolean(row.diplomacy_everyone_can_view),
@@ -246,6 +248,7 @@ export async function upsertGuildConfig(
 		await upsertAgreementConfigFields(db, config);
 		await upsertDemotionPolicyField(db, config);
 		await upsertNicknameDisplayRanksField(db, config);
+		await upsertTrackedAllianceTagsField(db, config);
 		// Brand-new guilds start in testing unless explicitly set.
 		await upsertDeployModeField(db, {
 			guild_id: config.guild_id,
@@ -507,6 +510,7 @@ async function upsertDiplomacyConfigFields(
 	await upsertAgreementConfigFields(db, config);
 	await upsertDemotionPolicyField(db, config);
 	await upsertNicknameDisplayRanksField(db, config);
+	await upsertTrackedAllianceTagsField(db, config);
 	await upsertDeployModeField(db, config);
 	await upsertWelcomeDmConfigFields(db, config);
 	await upsertWebAdminRoleIdsField(db, config);
@@ -526,6 +530,23 @@ async function upsertNicknameDisplayRanksField(
 			 WHERE guild_id = ?`,
 		)
 		.bind(JSON.stringify(ranks), config.guild_id)
+		.run();
+}
+
+async function upsertTrackedAllianceTagsField(
+	db: D1Database,
+	config: Partial<GuildConfig> & { guild_id: string },
+): Promise<void> {
+	if (!Object.prototype.hasOwnProperty.call(config, 'tracked_alliance_tags')) return;
+	const tags = parseTrackedAllianceTags(config.tracked_alliance_tags);
+	await db
+		.prepare(
+			`UPDATE guild_configs SET
+			 tracked_alliance_tags = ?,
+			 updated_at = datetime('now')
+			 WHERE guild_id = ?`,
+		)
+		.bind(JSON.stringify(tags), config.guild_id)
 		.run();
 }
 
