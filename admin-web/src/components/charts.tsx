@@ -15,6 +15,14 @@ const ALLIANCE_COLORS = [
 	'var(--lcars-a7)',
 ];
 
+function formatPowerTick(value: number): string {
+	if (!Number.isFinite(value)) return '0';
+	if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(value >= 10_000_000_000 ? 0 : 1)}B`;
+	if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
+	if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K`;
+	return Math.round(value).toLocaleString();
+}
+
 export function GradePolarChart({
 	rows,
 	centerLabel = 'players',
@@ -256,10 +264,11 @@ export function PowerLineChart({
 	const yMax = max + pad;
 	const w = 420;
 	const h = 160;
-	const left = 8;
+	const left = 42;
 	const right = 8;
 	const top = 12;
 	const bottom = 24;
+	const ticks = [yMax, yMin + (yMax - yMin) * 0.5, yMin];
 
 	const xAt = (i: number) => left + (i / Math.max(days.length - 1, 1)) * (w - left - right);
 	const yAt = (v: number) =>
@@ -295,6 +304,24 @@ export function PowerLineChart({
 	return (
 		<div className="chart-line-wrap">
 			<svg viewBox={`0 0 ${w} ${h}`} className="chart-line" role="img" aria-label="Power over time">
+				{ticks.map((tick) => {
+					const y = yAt(tick);
+					return (
+						<g key={tick}>
+							<line
+								x1={left}
+								y1={y}
+								x2={w - right}
+								y2={y}
+								stroke="color-mix(in srgb, var(--lcars-a3) 35%, transparent)"
+								strokeWidth="1"
+							/>
+							<text x={left - 4} y={y + 3} textAnchor="end" className="chart-axis">
+								{formatPowerTick(tick)}
+							</text>
+						</g>
+					);
+				})}
 				<line
 					x1={left}
 					y1={h - bottom}
@@ -321,16 +348,17 @@ export function PowerLineChart({
 					{days[days.length - 1]}
 				</text>
 			</svg>
-			{series && series.length > 1 ? (
-				<ul className="chart-legend">
-					{lines.map((l) => (
-						<li key={l.tag}>
-							<span className="chart-swatch" style={{ background: l.color }} />
-							[{l.tag}]
-						</li>
-					))}
-				</ul>
-			) : null}
+			<ul className="chart-legend">
+				{lines.map((l) => (
+					<li key={l.tag}>
+						<span className="chart-swatch" style={{ background: l.color }} />
+						{l.tag === 'Total' ? 'Total guild power' : `[${l.tag}]`}
+					</li>
+				))}
+				<li>
+					Range: <strong>{formatPowerTick(yMin)}</strong> to <strong>{formatPowerTick(yMax)}</strong>
+				</li>
+			</ul>
 		</div>
 	);
 }

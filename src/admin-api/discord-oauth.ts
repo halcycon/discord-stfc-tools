@@ -1,6 +1,7 @@
 import { ADMINISTRATOR, isGuildAdministrator } from '../discord-admin';
 import type { GuildConfig } from '../types';
 import type { AdminSession } from './session';
+import { listGuildRoles } from '../discord-api';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 
@@ -123,16 +124,54 @@ export async function userCanAccessGuild(
 	config: GuildConfig,
 	oauthGuild: DiscordOAuthGuild | undefined,
 ): Promise<GuildAccessOk | { ok: false; reason: string }> {
+	const guildId = config.guild_id;
+	const botToken = env.DISCORD_BOT_TOKEN?.trim();
+	let botCanConfigure = false;
+
+	// If OAuth perms are missing/expired, fall back to computing the member's permission bits
+	// from role permissions (requires bot token + role cache from Discord).
+	if (
+		botToken &&
+		(!oauthGuild || oauthGuild.owner || !isGuildAdministrator(oauthGuild.permissions))
+	) {
+		try {
+			const [memberRoles, roles] = await Promise.all([
+				fetchMemberRoleIds(botToken, guildId, session.userId),
+				listGuildRoles(botToken, guildId),
+			]);
+
+			const memberRoleSet = new Set(memberRoles ?? []);
+			const everyone = roles.find((r) => r.id === guildId);
+			let perms = BigInt(everyone?.permissions ?? '0');
+			for (const role of roles) {
+				if (memberRoleSet.has(role.id)) {
+					perms |= BigInt(role.permissions ?? '0');
+				}
+			}
+			botCanConfigure = (perms & ADMINISTRATOR) !== 0n;
+		} catch {
+			// If fallback fails, preserve old behavior (OAuth-based).
+			botCanConfigure = false;
+		}
+	}
+
 	if (oauthGuild && isGuildAdministrator(oauthGuild.permissions)) {
+		return { ok: true, via: 'administrator', can_configure: true };
+	}
+	if (oauthGuild?.owner) {
+		return { ok: true, via: 'administrator', can_configure: true };
+	}
+
+	if (botCanConfigure) {
 		return { ok: true, via: 'administrator', can_configure: true };
 	}
 	// Owner often has admin; permissions bit should already cover it.
 
 	const roleIds = config.web_admin_role_ids ?? [];
-	if (roleIds.length && env.DISCORD_BOT_TOKEN) {
+	if (roleIds.length && botToken) {
 		const memberRoles = await fetchMemberRoleIds(
-			env.DISCORD_BOT_TOKEN,
-			config.guild_id,
+			botToken,
+			guildId,
 			session.userId,
 		);
 		if (memberRoles && roleIds.some((id) => memberRoles.includes(id))) {

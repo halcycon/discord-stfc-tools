@@ -96,7 +96,9 @@ export function DashboardPage() {
 			<section className="grid">
 				<LcarsPanel label="At a glance" cap="a5">
 					<p className="stat">{status.stats.verified_total}</p>
-					<p className="muted">Verified / guest on Discord</p>
+					<p className="muted">Verified alliance players on Discord</p>
+					<p className="stat stat--sm">{status.stats.guest_total}</p>
+					<p className="muted">Guests on Discord</p>
 					<p className="stat stat--sm">{status.stats.unlinked_total}</p>
 					<p className="muted">On alliance roster, not Discord</p>
 					<ul className="plain">

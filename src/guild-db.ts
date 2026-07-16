@@ -1382,12 +1382,15 @@ export async function cleanupStaleDmSessions(db: D1Database): Promise<number> {
 export async function countPlayersByGrade(
 	db: D1Database,
 	guildId: string,
+	opts?: { includeGuests?: boolean },
 ): Promise<Array<{ grade: number; count: number }>> {
+	const includeGuests = opts?.includeGuests !== false;
+	const statuses = includeGuests ? `('verified', 'active', 'guest')` : `('verified', 'active')`;
 	const { results } = await db
 		.prepare(
 			`SELECT grade, COUNT(*) AS count FROM verified_players
 			 WHERE guild_id = ?
-			 AND verification_status IN ('verified', 'active', 'guest')
+			 AND verification_status IN ${statuses}
 			 AND grade IS NOT NULL
 			 GROUP BY grade
 			 ORDER BY grade`,
@@ -1403,7 +1406,10 @@ export async function countPlayersByGrade(
 export async function countPlayersByGradeAndAlliance(
 	db: D1Database,
 	guildId: string,
+	opts?: { includeGuests?: boolean },
 ): Promise<Array<{ alliance_tag: string; grade: number; count: number }>> {
+	const includeGuests = opts?.includeGuests !== false;
+	const statuses = includeGuests ? `('verified', 'active', 'guest')` : `('verified', 'active')`;
 	const { results } = await db
 		.prepare(
 			`SELECT COALESCE(NULLIF(TRIM(alliance_tag), ''), '—') AS alliance_tag,
@@ -1411,7 +1417,7 @@ export async function countPlayersByGradeAndAlliance(
 			        COUNT(*) AS count
 			 FROM verified_players
 			 WHERE guild_id = ?
-			 AND verification_status IN ('verified', 'active', 'guest')
+			 AND verification_status IN ${statuses}
 			 AND grade IS NOT NULL
 			 GROUP BY COALESCE(NULLIF(TRIM(alliance_tag), ''), '—'), grade
 			 ORDER BY alliance_tag COLLATE NOCASE, grade`,
@@ -1445,13 +1451,16 @@ export async function countPlayersForGrade(
 export async function countPlayersByAlliance(
 	db: D1Database,
 	guildId: string,
+	opts?: { includeGuests?: boolean },
 ): Promise<Array<{ alliance_tag: string; count: number }>> {
+	const includeGuests = opts?.includeGuests !== false;
+	const statuses = includeGuests ? `('verified', 'active', 'guest')` : `('verified', 'active')`;
 	const { results } = await db
 		.prepare(
 			`SELECT COALESCE(alliance_tag, '—') AS alliance_tag, COUNT(*) AS count
 			 FROM verified_players
 			 WHERE guild_id = ?
-			 AND verification_status IN ('verified', 'active', 'guest')
+			 AND verification_status IN ${statuses}
 			 GROUP BY alliance_tag
 			 ORDER BY count DESC`,
 		)
@@ -1582,6 +1591,7 @@ export type RosterPlayerFilters = {
 	opsMax?: number;
 	allianceRank?: string;
 	status?: VerificationStatus;
+	includeGuests?: boolean;
 	daysInactiveMin?: number;
 	limit?: number;
 	offset?: number;
@@ -1592,9 +1602,12 @@ function rosterPlayerWhere(
 	guildId: string,
 	filters?: Omit<RosterPlayerFilters, 'limit' | 'offset' | 'sort'>,
 ): { clauses: string[]; binds: Array<string | number> } {
+	const includeGuests = filters?.includeGuests !== false;
 	const clauses = [
 		`guild_id = ?`,
-		`verification_status IN ('verified', 'active', 'guest')`,
+		includeGuests
+			? `verification_status IN ('verified', 'active', 'guest')`
+			: `verification_status IN ('verified', 'active')`,
 	];
 	const binds: Array<string | number> = [guildId];
 
@@ -2712,7 +2725,10 @@ export async function sumGuildPowerByDay(
 	db: D1Database,
 	guildId: string,
 	days = 90,
+	opts?: { includeGuests?: boolean },
 ): Promise<Array<{ day: string; total_power: number; sample_count: number }>> {
+	const includeGuests = opts?.includeGuests !== false;
+	const statuses = includeGuests ? `('verified', 'active', 'guest')` : `('verified', 'active')`;
 	const limitDays = Math.min(Math.max(Math.floor(days) || 90, 7), 366);
 	const { results } = await db
 		.prepare(
@@ -2722,7 +2738,7 @@ export async function sumGuildPowerByDay(
 			 FROM player_stats_history h
 			 INNER JOIN verified_players vp ON vp.id = h.verified_player_id
 			 WHERE vp.guild_id = ?
-			   AND vp.verification_status IN ('verified', 'active', 'guest')
+			   AND vp.verification_status IN ${statuses}
 			   AND h.recorded_at >= datetime('now', ?)
 			 GROUP BY date(h.recorded_at)
 			 ORDER BY day ASC`,
@@ -2744,7 +2760,10 @@ export async function sumGuildPowerByDayAndAlliance(
 	db: D1Database,
 	guildId: string,
 	days = 90,
+	opts?: { includeGuests?: boolean },
 ): Promise<Array<{ day: string; alliance_tag: string; total_power: number; sample_count: number }>> {
+	const includeGuests = opts?.includeGuests !== false;
+	const statuses = includeGuests ? `('verified', 'active', 'guest')` : `('verified', 'active')`;
 	const limitDays = Math.min(Math.max(Math.floor(days) || 90, 7), 366);
 	const { results } = await db
 		.prepare(
@@ -2755,7 +2774,7 @@ export async function sumGuildPowerByDayAndAlliance(
 			 FROM player_stats_history h
 			 INNER JOIN verified_players vp ON vp.id = h.verified_player_id
 			 WHERE vp.guild_id = ?
-			   AND vp.verification_status IN ('verified', 'active', 'guest')
+			   AND vp.verification_status IN ${statuses}
 			   AND h.recorded_at >= datetime('now', ?)
 			 GROUP BY date(h.recorded_at), COALESCE(NULLIF(TRIM(h.alliance_tag), ''), '—')
 			 ORDER BY day ASC, alliance_tag COLLATE NOCASE`,

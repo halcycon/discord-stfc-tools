@@ -388,20 +388,23 @@ export async function handleAdminApi(
 		if ((rest === '' || rest === '/' || rest === '/status') && request.method === 'GET') {
 			const [byGrade, byGradeAlliance, byStatus, byAlliance, gateway, unlinkedCount, powerByDay, powerByAlliance] =
 				await Promise.all([
-					countPlayersByGrade(env.STFC_DB, guildId),
+					countPlayersByGrade(env.STFC_DB, guildId, { includeGuests: false }),
 					config.mode === 'multi_alliance'
-						? countPlayersByGradeAndAlliance(env.STFC_DB, guildId)
+						? countPlayersByGradeAndAlliance(env.STFC_DB, guildId, { includeGuests: false })
 						: Promise.resolve([]),
 					countPlayersByStatus(env.STFC_DB, guildId),
-					countPlayersByAlliance(env.STFC_DB, guildId),
+					countPlayersByAlliance(env.STFC_DB, guildId, { includeGuests: false }),
 					getDiscordGatewayStatus(env),
 					countAllianceMembersMissingVerify(env.STFC_DB, guildId),
-					sumGuildPowerByDay(env.STFC_DB, guildId, 90),
+					sumGuildPowerByDay(env.STFC_DB, guildId, 90, { includeGuests: false }),
 					config.mode === 'multi_alliance'
-						? sumGuildPowerByDayAndAlliance(env.STFC_DB, guildId, 90)
+						? sumGuildPowerByDayAndAlliance(env.STFC_DB, guildId, 90, { includeGuests: false })
 						: Promise.resolve([]),
 				]);
-			const verified = byStatus.reduce((n, r) => n + r.count, 0);
+			const verified = byStatus
+				.filter((r) => r.verification_status !== 'guest')
+				.reduce((n, r) => n + r.count, 0);
+			const guestCount = byStatus.find((r) => r.verification_status === 'guest')?.count ?? 0;
 			return jsonCors(request, env, {
 				guild_id: guildId,
 				bot_version: BOT_VERSION,
@@ -410,6 +413,7 @@ export async function handleAdminApi(
 				config: publicConfig(config),
 				stats: {
 					verified_total: verified,
+					guest_total: guestCount,
 					unlinked_total: unlinkedCount,
 					by_grade: byGrade,
 					by_status: byStatus,
@@ -438,6 +442,7 @@ export async function handleAdminApi(
 			}
 			const players = await listRosterPlayers(env.STFC_DB, guildId, {
 				grade,
+				includeGuests: false,
 				limit: 200,
 				sort: 'ops',
 			});
@@ -477,6 +482,7 @@ export async function handleAdminApi(
 			if (includeUnlinked) {
 				const players = await listMergedRosterPlayers(env.STFC_DB, guildId, {
 					grade,
+					includeGuests: false,
 					daysInactiveMin: Number.isFinite(daysInactiveMin as number)
 						? daysInactiveMin
 						: undefined,
@@ -499,6 +505,7 @@ export async function handleAdminApi(
 
 			const players = await listRosterPlayers(env.STFC_DB, guildId, {
 				grade,
+				includeGuests: false,
 				daysInactiveMin: Number.isFinite(daysInactiveMin as number)
 					? daysInactiveMin
 					: undefined,

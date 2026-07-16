@@ -108,7 +108,7 @@ export function PermissionsPage() {
 				<RoleChecklist
 					{...shared}
 					label="Roster / DM query roles"
-					hint="Also used by `/server assistant` — Discord `/roster` reads and DM roster Q&A (in addition to WebUI staff)."
+					hint="Used by `/server assistant` for DM roster Q&A. Discord `/roster` also allows these roles (along with WebUI staff)."
 					selected={dmQuery}
 					onChange={setDmQuery}
 				/>
@@ -122,7 +122,7 @@ export function PermissionsPage() {
 				<RoleChecklist
 					{...shared}
 					label="Survey results viewers"
-					hint="View survey results / log access beyond creators and Administrators."
+					hint="Also allows viewing `/survey results` / survey log access beyond Administrators and the survey creator (in addition to any per-survey viewer roles)."
 					selected={surveyResults}
 					onChange={setSurveyResults}
 				/>

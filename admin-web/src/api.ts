@@ -80,6 +80,7 @@ export type GuildStatus = {
 	config: Record<string, unknown>;
 	stats: {
 		verified_total: number;
+		guest_total: number;
 		unlinked_total: number;
 		by_grade: Array<{ grade: number; count: number }>;
 		by_status: Array<{ verification_status: string; count: number }>;
