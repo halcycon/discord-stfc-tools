@@ -65,9 +65,15 @@ npm run admin-web:deploy     # local Vite build (reads admin-web/.env) + wrangle
 
 ## Access control
 
-- Discord **Administrator** always has access (server Admin permission bit).
-- Optionally, members of roles listed in `guild_configs.web_admin_role_ids` (empty by default = **Administrators only** — not all guild members).
-- Guild dashboard: **List roles** loads Discord roles via the bot; tick roles to grant web access. **Suggest leadership** selects Premier/Commodore/Admiral roles already configured in `/server setup`.
+| Capability | Who |
+|------------|-----|
+| Guild list + Dashboard / Reports / Surveys | Discord **Administrator**, or any role in `web_admin_role_ids` (empty = Administrators only) |
+| Server Config / Permissions / Exchange Setup (mutate) | Discord **Administrator** only |
+| Discord `/roster` reporting | Administrator, or `dm_query_role_ids`, or `web_admin_role_ids` |
+
+**Permissions page** (Admin): edit WebUI staff, Roster/DM query, Survey creators/results, Exchange admins (multi). Same lists as the corresponding slash commands.
+
+**Guild nav:** Dashboard · Reports · Surveys · *(Admin)* Server Config · Permissions · Exchange (multi-alliance only).
 
 ## Auth (Pages + Worker)
 

@@ -45,9 +45,12 @@ function canUseRoster(
 	config: GuildConfig,
 ): boolean {
 	if (isGuildAdministrator(interaction.member?.permissions)) return true;
-	const allowed = config.dm_query_role_ids;
-	if (!allowed.length) return false;
 	const roles = new Set(interaction.member?.roles ?? []);
+	const allowed = [
+		...(config.dm_query_role_ids ?? []),
+		...(config.web_admin_role_ids ?? []),
+	];
+	if (!allowed.length) return false;
 	return allowed.some((id) => roles.has(id));
 }
 

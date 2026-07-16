@@ -110,14 +110,21 @@ export function oauthRedirectUri(env: { WORKER_URL?: string }, requestUrl: URL):
 	return `${base}/api/admin/auth/callback`;
 }
 
+export type GuildAccessOk = {
+	ok: true;
+	via: 'administrator' | 'web_admin_role';
+	/** Discord Administrator only — can mutate config / permissions / exchange setup. */
+	can_configure: boolean;
+};
+
 export async function userCanAccessGuild(
 	env: { DISCORD_BOT_TOKEN?: string },
 	session: AdminSession,
 	config: GuildConfig,
 	oauthGuild: DiscordOAuthGuild | undefined,
-): Promise<{ ok: true; via: 'administrator' | 'web_admin_role' } | { ok: false; reason: string }> {
+): Promise<GuildAccessOk | { ok: false; reason: string }> {
 	if (oauthGuild && isGuildAdministrator(oauthGuild.permissions)) {
-		return { ok: true, via: 'administrator' };
+		return { ok: true, via: 'administrator', can_configure: true };
 	}
 	// Owner often has admin; permissions bit should already cover it.
 
@@ -129,7 +136,7 @@ export async function userCanAccessGuild(
 			session.userId,
 		);
 		if (memberRoles && roleIds.some((id) => memberRoles.includes(id))) {
-			return { ok: true, via: 'web_admin_role' };
+			return { ok: true, via: 'web_admin_role', can_configure: false };
 		}
 	}
 

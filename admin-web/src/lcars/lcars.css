@@ -393,6 +393,7 @@ a:hover { color: var(--lcars-a2); }
 .lcars-text-bar--a2 { background: var(--lcars-a2); }
 .lcars-text-bar--a5 { background: var(--lcars-a5); }
 .lcars-text-bar--a6 { background: var(--lcars-a6); }
+.lcars-text-bar--a7 { background: var(--lcars-a7); }
 .lcars-text-bar--a8 { background: var(--lcars-a8); }
 
 .lcars-section-body { padding: 0.1rem 0.15rem 0.35rem; color: var(--lcars-text); }
@@ -1014,4 +1015,240 @@ code {
 	font-size: 0.7rem;
 	color: var(--lcars-text-dim);
 	justify-self: end;
+}
+
+.stat--sm {
+	font-size: 1.75rem;
+	margin-top: 0.75rem;
+}
+
+.grid--charts {
+	margin-top: 1rem;
+	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.chart-polar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 1rem;
+}
+
+.chart-center-label {
+	fill: var(--lcars-a5);
+	font-size: 1.35rem;
+	font-weight: 700;
+	font-family: inherit;
+}
+
+.chart-center-sub {
+	fill: var(--lcars-text-dim);
+	font-size: 0.65rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	font-family: inherit;
+}
+
+.chart-legend {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: 0.25rem;
+	font-size: 0.85rem;
+	letter-spacing: 0.03em;
+}
+
+.chart-swatch {
+	display: inline-block;
+	width: 0.65rem;
+	height: 0.65rem;
+	border-radius: 50%;
+	margin-right: 0.4rem;
+	vertical-align: middle;
+}
+
+.chart-line-wrap {
+	width: 100%;
+}
+
+.chart-line {
+	width: 100%;
+	height: auto;
+	max-height: 180px;
+}
+
+.chart-axis {
+	fill: var(--lcars-text-dim);
+	font-size: 0.55rem;
+	font-family: inherit;
+	letter-spacing: 0.04em;
+}
+
+.report-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	align-items: end;
+	margin-bottom: 0.75rem;
+}
+
+.report-toolbar label {
+	display: grid;
+	gap: 0.25rem;
+	font-size: 0.85rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--lcars-a2);
+}
+
+.report-toolbar select {
+	font: inherit;
+	padding: 0.4rem 0.55rem;
+	border: 0;
+	border-bottom: 3px solid var(--lcars-a3);
+	background: color-mix(in srgb, var(--lcars-a3) 12%, transparent);
+	color: var(--lcars-text);
+}
+
+.sort-th {
+	appearance: none;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	cursor: pointer;
+	padding: 0;
+}
+
+.sort-th:hover,
+.sort-th--active {
+	color: var(--lcars-a5);
+}
+
+.survey-list {
+	list-style: none;
+	margin: 0.75rem 0 0;
+	padding: 0;
+	display: grid;
+	gap: 0.45rem;
+}
+
+.survey-card {
+	border-bottom: 1px solid color-mix(in srgb, var(--lcars-a3) 40%, transparent);
+}
+
+.survey-card-head {
+	appearance: none;
+	width: 100%;
+	display: flex;
+	justify-content: space-between;
+	gap: 0.75rem;
+	align-items: baseline;
+	padding: 0.55rem 0.15rem;
+	border: 0;
+	background: transparent;
+	color: var(--lcars-text);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.survey-card-head:hover {
+	color: var(--lcars-a5);
+}
+
+.survey-card-body {
+	padding: 0 0.15rem 0.75rem;
+}
+
+.chart-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem 1.5rem;
+	align-items: end;
+	margin-bottom: 0.25rem;
+}
+
+.chart-controls label {
+	display: grid;
+	gap: 0.25rem;
+	font-size: 0.85rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--lcars-a2);
+}
+
+.chart-controls select {
+	font: inherit;
+	padding: 0.4rem 0.55rem;
+	border: 0;
+	border-bottom: 3px solid var(--lcars-a3);
+	background: color-mix(in srgb, var(--lcars-a3) 12%, transparent);
+	color: var(--lcars-text);
+	text-transform: none;
+	letter-spacing: 0.02em;
+}
+
+.chart-toggles {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.65rem 1rem;
+	align-items: center;
+}
+
+.chart-stacked-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: 0.45rem;
+}
+
+.chart-stacked-row {
+	display: grid;
+	grid-template-columns: 5.5rem 1fr 2rem;
+	gap: 0.5rem;
+	align-items: center;
+	font-size: 0.85rem;
+}
+
+.chart-stacked-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--lcars-text-dim);
+	letter-spacing: 0.03em;
+}
+
+.chart-stacked-bar {
+	display: flex;
+	height: 1.1rem;
+	min-width: 0;
+	background: color-mix(in srgb, var(--lcars-a3) 15%, transparent);
+	border-radius: 2px;
+	overflow: hidden;
+}
+
+.chart-stacked-seg {
+	display: block;
+	height: 100%;
+	min-width: 2px;
+}
+
+.chart-stacked-total {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	color: var(--lcars-a5);
+	font-weight: 700;
+}
+
+.chart-legend--inline {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1rem;
+	margin-top: 0.65rem;
 }

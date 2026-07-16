@@ -148,7 +148,7 @@ export function LcarsFrame({
 
 type PanelProps = {
 	label: string;
-	cap?: 'a1' | 'a2' | 'a5' | 'a6' | 'a8';
+	cap?: 'a1' | 'a2' | 'a5' | 'a6' | 'a7' | 'a8';
 	children: ReactNode;
 };
 

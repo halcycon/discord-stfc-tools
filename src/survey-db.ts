@@ -239,3 +239,38 @@ export async function getSurveyResponseForUser(
 		.first();
 	return row ? mapResponse(row) : null;
 }
+
+/** Response counts grouped by option text for a survey. */
+export async function countSurveyResponsesByOption(
+	db: D1Database,
+	surveyId: number,
+): Promise<Array<{ response: string; count: number }>> {
+	const { results } = await db
+		.prepare(
+			`SELECT response, COUNT(*) AS count
+			 FROM survey_responses
+			 WHERE survey_id = ?
+			 GROUP BY response
+			 ORDER BY count DESC, response COLLATE NOCASE`,
+		)
+		.bind(surveyId)
+		.all();
+	return (results ?? []).map((row) => {
+		const r = row as Record<string, unknown>;
+		return {
+			response: String(r.response ?? ''),
+			count: Number(r.count ?? 0) || 0,
+		};
+	});
+}
+
+export async function countSurveyResponses(
+	db: D1Database,
+	surveyId: number,
+): Promise<number> {
+	const row = await db
+		.prepare(`SELECT COUNT(*) AS c FROM survey_responses WHERE survey_id = ?`)
+		.bind(surveyId)
+		.first();
+	return Number((row as { c?: number } | null)?.c ?? 0);
+}

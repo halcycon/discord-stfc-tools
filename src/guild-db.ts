@@ -1400,6 +1400,31 @@ export async function countPlayersByGrade(
 	}));
 }
 
+export async function countPlayersByGradeAndAlliance(
+	db: D1Database,
+	guildId: string,
+): Promise<Array<{ alliance_tag: string; grade: number; count: number }>> {
+	const { results } = await db
+		.prepare(
+			`SELECT COALESCE(NULLIF(TRIM(alliance_tag), ''), '—') AS alliance_tag,
+			        grade,
+			        COUNT(*) AS count
+			 FROM verified_players
+			 WHERE guild_id = ?
+			 AND verification_status IN ('verified', 'active', 'guest')
+			 AND grade IS NOT NULL
+			 GROUP BY COALESCE(NULLIF(TRIM(alliance_tag), ''), '—'), grade
+			 ORDER BY alliance_tag COLLATE NOCASE, grade`,
+		)
+		.bind(guildId)
+		.all();
+	return (results ?? []).map((r) => ({
+		alliance_tag: String((r as { alliance_tag: string }).alliance_tag),
+		grade: Number((r as { grade: number }).grade),
+		count: Number((r as { count: number }).count),
+	}));
+}
+
 export async function countPlayersForGrade(
 	db: D1Database,
 	guildId: string,
@@ -1638,7 +1663,7 @@ export async function listRosterPlayers(
 	filters?: RosterPlayerFilters,
 ): Promise<VerifiedPlayer[]> {
 	const { clauses, binds } = rosterPlayerWhere(guildId, filters);
-	const limit = Math.min(Math.max(filters?.limit ?? 50, 1), 200);
+	const limit = Math.min(Math.max(filters?.limit ?? 50, 1), 500);
 	const offset = Math.max(0, Math.floor(filters?.offset ?? 0));
 	const orderBy = rosterPlayerOrderBy(filters?.sort, filters?.daysInactiveMin);
 
@@ -1660,6 +1685,7 @@ export type MergedRosterRow = {
 	alliance_tag: string | null;
 	alliance_rank: string | null;
 	ops_level: number | null;
+	power: number | null;
 	grade: number | null;
 	activity_streak: number | null;
 	days_inactive: number;
@@ -1697,6 +1723,7 @@ function mapMergedRosterRow(row: Record<string, unknown>): MergedRosterRow {
 		alliance_tag: row.alliance_tag != null ? String(row.alliance_tag) : null,
 		alliance_rank: row.alliance_rank != null ? String(row.alliance_rank) : null,
 		ops_level: row.ops_level != null ? Number(row.ops_level) : null,
+		power: row.power != null ? Number(row.power) : null,
 		grade: row.grade != null ? Number(row.grade) : null,
 		activity_streak: row.activity_streak != null ? Number(row.activity_streak) : null,
 		days_inactive: Number(row.days_inactive ?? 0) || 0,
@@ -1774,7 +1801,7 @@ export async function listMergedRosterPlayers(
 	filters?: MergedRosterFilters,
 ): Promise<MergedRosterRow[]> {
 	const includeUnlinked = filters?.includeUnlinked === true;
-	const limit = Math.min(Math.max(filters?.limit ?? 50, 1), 200);
+	const limit = Math.min(Math.max(filters?.limit ?? 50, 1), 500);
 	const offset = Math.max(0, Math.floor(filters?.offset ?? 0));
 	const orderBy = mergedRosterOrderBy(filters?.sort, filters?.daysInactiveMin);
 
@@ -1785,6 +1812,7 @@ export async function listMergedRosterPlayers(
 			alliance_tag: p.alliance_tag,
 			alliance_rank: p.alliance_rank,
 			ops_level: p.ops_level,
+			power: p.power,
 			grade: p.grade,
 			activity_streak: p.activity_streak,
 			days_inactive: p.days_inactive,
@@ -1827,6 +1855,7 @@ export async function listMergedRosterPlayers(
 					vp.alliance_tag AS alliance_tag,
 					vp.alliance_rank AS alliance_rank,
 					vp.ops_level AS ops_level,
+					vp.power AS power,
 					vp.grade AS grade,
 					vp.activity_streak AS activity_streak,
 					vp.days_inactive AS days_inactive,
@@ -1842,6 +1871,7 @@ export async function listMergedRosterPlayers(
 					arm.alliance_tag AS alliance_tag,
 					arm.alliance_rank AS alliance_rank,
 					arm.ops_level AS ops_level,
+					arm.power AS power,
 					arm.grade AS grade,
 					arm.activity_streak AS activity_streak,
 					arm.days_inactive AS days_inactive,
@@ -2675,4 +2705,70 @@ export async function cleanupExpiredRosterListSessions(db: D1Database): Promise<
 		.prepare(`DELETE FROM roster_list_sessions WHERE expires_at < datetime('now')`)
 		.run();
 	return result.meta?.changes ?? 0;
+}
+
+/** Daily sum of recorded power for verified players in a guild (from player_stats_history). */
+export async function sumGuildPowerByDay(
+	db: D1Database,
+	guildId: string,
+	days = 90,
+): Promise<Array<{ day: string; total_power: number; sample_count: number }>> {
+	const limitDays = Math.min(Math.max(Math.floor(days) || 90, 7), 366);
+	const { results } = await db
+		.prepare(
+			`SELECT date(h.recorded_at) AS day,
+			        SUM(COALESCE(h.power, 0)) AS total_power,
+			        COUNT(*) AS sample_count
+			 FROM player_stats_history h
+			 INNER JOIN verified_players vp ON vp.id = h.verified_player_id
+			 WHERE vp.guild_id = ?
+			   AND vp.verification_status IN ('verified', 'active', 'guest')
+			   AND h.recorded_at >= datetime('now', ?)
+			 GROUP BY date(h.recorded_at)
+			 ORDER BY day ASC`,
+		)
+		.bind(guildId, `-${limitDays} days`)
+		.all();
+	return (results ?? []).map((row) => {
+		const r = row as Record<string, unknown>;
+		return {
+			day: String(r.day ?? ''),
+			total_power: Number(r.total_power ?? 0) || 0,
+			sample_count: Number(r.sample_count ?? 0) || 0,
+		};
+	});
+}
+
+/** Daily sum of power broken down by alliance_tag (multi-alliance dashboards). */
+export async function sumGuildPowerByDayAndAlliance(
+	db: D1Database,
+	guildId: string,
+	days = 90,
+): Promise<Array<{ day: string; alliance_tag: string; total_power: number; sample_count: number }>> {
+	const limitDays = Math.min(Math.max(Math.floor(days) || 90, 7), 366);
+	const { results } = await db
+		.prepare(
+			`SELECT date(h.recorded_at) AS day,
+			        COALESCE(NULLIF(TRIM(h.alliance_tag), ''), '—') AS alliance_tag,
+			        SUM(COALESCE(h.power, 0)) AS total_power,
+			        COUNT(*) AS sample_count
+			 FROM player_stats_history h
+			 INNER JOIN verified_players vp ON vp.id = h.verified_player_id
+			 WHERE vp.guild_id = ?
+			   AND vp.verification_status IN ('verified', 'active', 'guest')
+			   AND h.recorded_at >= datetime('now', ?)
+			 GROUP BY date(h.recorded_at), COALESCE(NULLIF(TRIM(h.alliance_tag), ''), '—')
+			 ORDER BY day ASC, alliance_tag COLLATE NOCASE`,
+		)
+		.bind(guildId, `-${limitDays} days`)
+		.all();
+	return (results ?? []).map((row) => {
+		const r = row as Record<string, unknown>;
+		return {
+			day: String(r.day ?? ''),
+			alliance_tag: String(r.alliance_tag ?? '—'),
+			total_power: Number(r.total_power ?? 0) || 0,
+			sample_count: Number(r.sample_count ?? 0) || 0,
+		};
+	});
 }

@@ -8,7 +8,7 @@ Release log for the STFC Discord bot (Cloudflare Worker). Versions use **MAJOR.M
 | **MINOR** | New user-facing capability (new slash area, cron product, admin workflow) |
 | **INCREMENTAL** | Fixes, polish, docs, refactors, small command option tweaks |
 
-**Current version:** **1.8.19**
+**Current version:** **1.9.1**
 
 **Sources of truth**
 
@@ -27,6 +27,19 @@ Bump all three together when cutting a release. Prefer a short entry under the n
 Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. **1.0.0** marks the alliance-management product that was prepared for public use. Later **1.x** minors track feature areas shipped in Jul 2026 (git history + migrations `001`–`027`).
 
 ---
+
+## 1.9.1 — Multi-alliance dashboard chart scope (2026-07-16)
+
+- Dashboard charts: multi-alliance defaults to **by alliance** (membership polar, grades stacked by alliance, power lines per tag)
+- Toggle **by players** for guild-total grade polar + collective power; checkboxes to show/hide each chart
+
+## 1.9.0 — Admin web staff pages + config gate (2026-07-16)
+
+- **Access split:** `web_admin_role_ids` = Dashboard / Reports / Surveys; Discord Administrator required for Config / Permissions / Exchange PATCH
+- Guild SPA nav: Dashboard, Reports (sortable), Surveys (read-only), Server Config, Permissions, Exchange (multi only)
+- Dashboard: unlinked roster count, grade polar chart, collective power timeline (by alliance in multi mode)
+- `/roster` queries also accept `web_admin_role_ids` (union with `dm_query_role_ids`)
+- **Hardening:** web-staff roles can no longer Save Config via the web UI
 
 ## 1.8.19 — Mobile admin OAuth session (2026-07-15)
 

@@ -1,12 +1,23 @@
 import {
+	countAllianceMembersMissingVerify,
 	countPlayersByAlliance,
 	countPlayersByGrade,
+	countPlayersByGradeAndAlliance,
 	countPlayersByStatus,
 	getGuildConfig,
 	listConfiguredGuilds,
+	listMergedRosterPlayers,
 	listRosterPlayers,
+	sumGuildPowerByDay,
+	sumGuildPowerByDayAndAlliance,
 	upsertGuildConfig,
 } from '../guild-db';
+import {
+	countSurveyResponses,
+	countSurveyResponsesByOption,
+	getSurvey,
+	listSurveys,
+} from '../survey-db';
 import { getDiscordGatewayStatus } from '../discord-gateway/wake';
 import { listGuildRoles } from '../discord-api';
 import { AuditColor, postAuditLog } from '../audit-log';
@@ -22,6 +33,7 @@ import {
 	oauthRedirectUri,
 	userCanAccessGuild,
 	type DiscordOAuthGuild,
+	type GuildAccessOk,
 } from './discord-oauth';
 import {
 	clearSessionCookieHeader,
@@ -66,7 +78,10 @@ async function requireGuildAccess(
 	env: Env,
 	session: AdminSession,
 	guildId: string,
-): Promise<{ config: GuildConfig; oauthGuild?: DiscordOAuthGuild } | Response> {
+): Promise<
+	| { config: GuildConfig; oauthGuild?: DiscordOAuthGuild; access: GuildAccessOk }
+	| Response
+> {
 	const config = await getGuildConfig(env.STFC_DB, guildId);
 	if (!config) {
 		return jsonCors(request, env, { error: 'Guild not configured for this bot' }, { status: 404 });
@@ -77,7 +92,26 @@ async function requireGuildAccess(
 	if (!access.ok) {
 		return jsonCors(request, env, { error: access.reason }, { status: 403 });
 	}
-	return { config, oauthGuild };
+	return { config, oauthGuild, access };
+}
+
+function requireConfigure(
+	request: Request,
+	env: Env,
+	access: GuildAccessOk,
+): Response | null {
+	if (access.can_configure) return null;
+	return jsonCors(
+		request,
+		env,
+		{ error: 'Discord Administrator required to change guild configuration' },
+		{ status: 403 },
+	);
+}
+
+function parseRoleIdArray(val: unknown): string[] {
+	if (!Array.isArray(val)) return [];
+	return val.map(String).filter((id) => /^\d{15,20}$/.test(id));
 }
 
 function publicConfig(config: GuildConfig) {
@@ -109,7 +143,6 @@ function publicConfig(config: GuildConfig) {
 		audit_log_channel_id: config.audit_log_channel_id,
 		urgent_notify_channel_id: config.urgent_notify_channel_id,
 		web_admin_role_ids: config.web_admin_role_ids,
-		/** Leadership rank roles already configured via /server (Premier/Commodore/Admiral) — UI can suggest these. */
 		suggested_web_admin_role_ids: Array.from(
 			new Set([
 				...config.premier_role_ids,
@@ -118,6 +151,12 @@ function publicConfig(config: GuildConfig) {
 			]),
 		),
 		dm_query_role_ids: config.dm_query_role_ids,
+		survey_creator_role_ids: config.survey_creator_role_ids,
+		survey_results_role_ids: config.survey_results_role_ids,
+		exchange_layout: config.exchange_layout,
+		exchange_hub_channel_id: config.exchange_hub_channel_id,
+		exchange_category_id: config.exchange_category_id,
+		exchange_admin_role_ids: config.exchange_admin_role_ids,
 	};
 }
 
@@ -130,9 +169,11 @@ function publicRosterPlayer(p: {
 	grade: number | null;
 	activity_streak: number | null;
 	days_inactive: number;
-	verification_status: string;
-	discord_user_id: string;
+	verification_status?: string;
+	status?: string;
+	discord_user_id: string | null;
 	player_id: number | null;
+	on_discord?: boolean;
 }) {
 	return {
 		player_name: p.player_name,
@@ -143,9 +184,10 @@ function publicRosterPlayer(p: {
 		grade: p.grade,
 		activity_streak: p.activity_streak,
 		days_inactive: p.days_inactive,
-		verification_status: p.verification_status,
+		verification_status: p.verification_status ?? p.status ?? '—',
 		discord_user_id: p.discord_user_id,
 		player_id: p.player_id,
+		on_discord: p.on_discord ?? Boolean(p.discord_user_id),
 	};
 }
 
@@ -163,7 +205,22 @@ const CONFIG_PATCH_KEYS = [
 	'agreement_version',
 	'welcome_dm_enabled',
 	'web_admin_role_ids',
+	'dm_query_role_ids',
+	'survey_creator_role_ids',
+	'survey_results_role_ids',
+	'exchange_layout',
+	'exchange_hub_channel_id',
+	'exchange_category_id',
+	'exchange_admin_role_ids',
 ] as const;
+
+const ROLE_ARRAY_KEYS = new Set([
+	'web_admin_role_ids',
+	'dm_query_role_ids',
+	'survey_creator_role_ids',
+	'survey_results_role_ids',
+	'exchange_admin_role_ids',
+]);
 
 export async function handleAdminApi(
 	request: Request,
@@ -188,7 +245,6 @@ export async function handleAdminApi(
 		if (!authorize) {
 			return jsonCors(request, env, { error: 'Missing Discord client id' }, { status: 503 });
 		}
-		// Return URL for SPA, or redirect if ?redirect=1
 		if (url.searchParams.get('redirect') === '1') {
 			const headers = new Headers(corsHeadersFrom(request, env));
 			headers.set('Location', authorize);
@@ -248,8 +304,6 @@ export async function handleAdminApi(
 			exp: newSessionExpiry(),
 		};
 		const sealed = await sealSession(session, env.ADMIN_SESSION_SECRET!);
-		// Hand session to the SPA via query (cookie alone fails on mobile Safari as third-party).
-		// AuthCallback stores it in sessionStorage and strips the URL.
 		const headers = new Headers({
 			Location: `${frontend}/auth/callback?stfc_session=${encodeURIComponent(sealed)}`,
 		});
@@ -300,6 +354,7 @@ export async function handleAdminApi(
 			alliance_tag: string | null;
 			mode: string;
 			via: string;
+			can_configure: boolean;
 		}> = [];
 		for (const config of configured) {
 			const og = oauthById.get(config.guild_id);
@@ -312,6 +367,7 @@ export async function handleAdminApi(
 				alliance_tag: config.alliance_tag,
 				mode: config.mode,
 				via: access.via,
+				can_configure: access.can_configure,
 			});
 		}
 		return jsonCors(request, env, { guilds: accessible });
@@ -326,32 +382,49 @@ export async function handleAdminApi(
 		const session = sessionOrRes;
 		const accessOrRes = await requireGuildAccess(request, env, session, guildId);
 		if (accessOrRes instanceof Response) return accessOrRes;
-		const { config } = accessOrRes;
+		const { config, access } = accessOrRes;
 
 		// GET .../status
 		if ((rest === '' || rest === '/' || rest === '/status') && request.method === 'GET') {
-			const [byGrade, byStatus, byAlliance, gateway] = await Promise.all([
-				countPlayersByGrade(env.STFC_DB, guildId),
-				countPlayersByStatus(env.STFC_DB, guildId),
-				countPlayersByAlliance(env.STFC_DB, guildId),
-				getDiscordGatewayStatus(env),
-			]);
+			const [byGrade, byGradeAlliance, byStatus, byAlliance, gateway, unlinkedCount, powerByDay, powerByAlliance] =
+				await Promise.all([
+					countPlayersByGrade(env.STFC_DB, guildId),
+					config.mode === 'multi_alliance'
+						? countPlayersByGradeAndAlliance(env.STFC_DB, guildId)
+						: Promise.resolve([]),
+					countPlayersByStatus(env.STFC_DB, guildId),
+					countPlayersByAlliance(env.STFC_DB, guildId),
+					getDiscordGatewayStatus(env),
+					countAllianceMembersMissingVerify(env.STFC_DB, guildId),
+					sumGuildPowerByDay(env.STFC_DB, guildId, 90),
+					config.mode === 'multi_alliance'
+						? sumGuildPowerByDayAndAlliance(env.STFC_DB, guildId, 90)
+						: Promise.resolve([]),
+				]);
 			const verified = byStatus.reduce((n, r) => n + r.count, 0);
 			return jsonCors(request, env, {
 				guild_id: guildId,
 				bot_version: BOT_VERSION,
+				can_configure: access.can_configure,
+				via: access.via,
 				config: publicConfig(config),
 				stats: {
 					verified_total: verified,
+					unlinked_total: unlinkedCount,
 					by_grade: byGrade,
 					by_status: byStatus,
 					by_alliance: byAlliance,
+				},
+				charts: {
+					power_by_day: powerByDay,
+					power_by_day_alliance: powerByAlliance,
+					by_grade_alliance: byGradeAlliance,
 				},
 				gateway: gateway ?? null,
 			});
 		}
 
-		// GET .../players?grade=N
+		// GET .../players?grade=N (legacy grade drill-down)
 		if (rest === '/players' && request.method === 'GET') {
 			const gradeRaw = url.searchParams.get('grade');
 			const grade = gradeRaw != null ? Number(gradeRaw) : NaN;
@@ -376,7 +449,130 @@ export async function handleAdminApi(
 			});
 		}
 
-		// GET .../roles — Discord guild roles via bot token
+		// GET .../reports/players
+		if (rest === '/reports/players' && request.method === 'GET') {
+			const gradeRaw = url.searchParams.get('grade');
+			const grade =
+				gradeRaw != null && gradeRaw !== '' ? Number(gradeRaw) : undefined;
+			if (grade != null && (!Number.isInteger(grade) || grade < 3 || grade > 7)) {
+				return jsonCors(request, env, { error: 'Invalid grade' }, { status: 400 });
+			}
+			const includeUnlinked = url.searchParams.get('include_unlinked') === '1';
+			const daysInactiveMinRaw = url.searchParams.get('days_inactive_min');
+			const daysInactiveMin =
+				daysInactiveMinRaw != null && daysInactiveMinRaw !== ''
+					? Number(daysInactiveMinRaw)
+					: undefined;
+			const sortRaw = url.searchParams.get('sort') || 'ops';
+			const sort =
+				sortRaw === 'name' ||
+				sortRaw === 'streak' ||
+				sortRaw === 'inactive' ||
+				sortRaw === 'grade' ||
+				sortRaw === 'ops'
+					? sortRaw
+					: 'ops';
+			const limit = Math.min(Math.max(Number(url.searchParams.get('limit') || 200) || 200, 1), 500);
+
+			if (includeUnlinked) {
+				const players = await listMergedRosterPlayers(env.STFC_DB, guildId, {
+					grade,
+					daysInactiveMin: Number.isFinite(daysInactiveMin as number)
+						? daysInactiveMin
+						: undefined,
+					includeUnlinked: true,
+					limit,
+					sort,
+				});
+				return jsonCors(request, env, {
+					guild_id: guildId,
+					count: players.length,
+					include_unlinked: true,
+					players: players.map((p) =>
+						publicRosterPlayer({
+							...p,
+							verification_status: p.status,
+						}),
+					),
+				});
+			}
+
+			const players = await listRosterPlayers(env.STFC_DB, guildId, {
+				grade,
+				daysInactiveMin: Number.isFinite(daysInactiveMin as number)
+					? daysInactiveMin
+					: undefined,
+				limit,
+				sort,
+			});
+			return jsonCors(request, env, {
+				guild_id: guildId,
+				count: players.length,
+				include_unlinked: false,
+				players: players.map(publicRosterPlayer),
+			});
+		}
+
+		// GET .../surveys
+		if (rest === '/surveys' && request.method === 'GET') {
+			const surveys = await listSurveys(env.STFC_DB, guildId, 50);
+			const summaries = await Promise.all(
+				surveys.map(async (s) => {
+					const [response_count, by_option] = await Promise.all([
+						countSurveyResponses(env.STFC_DB, s.id),
+						countSurveyResponsesByOption(env.STFC_DB, s.id),
+					]);
+					return {
+						id: s.id,
+						title: s.title,
+						question: s.question,
+						status: s.status,
+						delivery: s.delivery,
+						options: s.options,
+						target_count: s.target_count,
+						response_count,
+						by_option,
+						sent_at: s.sent_at,
+						closed_at: s.closed_at,
+						created_at: s.created_at,
+					};
+				}),
+			);
+			return jsonCors(request, env, { guild_id: guildId, surveys: summaries });
+		}
+
+		// GET .../surveys/:id
+		const surveyMatch = /^\/surveys\/(\d+)$/.exec(rest);
+		if (surveyMatch && request.method === 'GET') {
+			const surveyId = Number(surveyMatch[1]);
+			const survey = await getSurvey(env.STFC_DB, surveyId);
+			if (!survey || survey.guild_id !== guildId) {
+				return jsonCors(request, env, { error: 'Survey not found' }, { status: 404 });
+			}
+			const [response_count, by_option] = await Promise.all([
+				countSurveyResponses(env.STFC_DB, surveyId),
+				countSurveyResponsesByOption(env.STFC_DB, surveyId),
+			]);
+			return jsonCors(request, env, {
+				guild_id: guildId,
+				survey: {
+					id: survey.id,
+					title: survey.title,
+					question: survey.question,
+					status: survey.status,
+					delivery: survey.delivery,
+					options: survey.options,
+					target_count: survey.target_count,
+					response_count,
+					by_option,
+					sent_at: survey.sent_at,
+					closed_at: survey.closed_at,
+					created_at: survey.created_at,
+				},
+			});
+		}
+
+		// GET .../roles — Discord guild roles via bot token (view OK; used by Permissions)
 		if (rest === '/roles' && request.method === 'GET') {
 			const token = env.DISCORD_BOT_TOKEN?.trim();
 			if (!token) {
@@ -385,7 +581,7 @@ export async function handleAdminApi(
 			try {
 				const roles = await listGuildRoles(token, guildId);
 				const publicRoles = roles
-					.filter((r) => r.id !== guildId) // @everyone
+					.filter((r) => r.id !== guildId)
 					.sort((a, b) => b.position - a.position)
 					.map((r) => ({
 						id: r.id,
@@ -404,6 +600,7 @@ export async function handleAdminApi(
 							...config.admiral_role_ids,
 						]),
 					),
+					can_configure: access.can_configure,
 				});
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
@@ -418,9 +615,14 @@ export async function handleAdminApi(
 
 		// GET/PATCH .../config
 		if (rest === '/config' && request.method === 'GET') {
-			return jsonCors(request, env, { config: publicConfig(config) });
+			return jsonCors(request, env, {
+				config: publicConfig(config),
+				can_configure: access.can_configure,
+			});
 		}
 		if (rest === '/config' && request.method === 'PATCH') {
+			const denied = requireConfigure(request, env, access);
+			if (denied) return denied;
 			let body: Record<string, unknown>;
 			try {
 				body = (await request.json()) as Record<string, unknown>;
@@ -431,11 +633,14 @@ export async function handleAdminApi(
 			for (const key of CONFIG_PATCH_KEYS) {
 				if (!Object.prototype.hasOwnProperty.call(body, key)) continue;
 				const val = body[key];
-				if (key === 'web_admin_role_ids') {
-					patch.web_admin_role_ids = Array.isArray(val)
-						? val.map(String).filter((id) => /^\d{15,20}$/.test(id))
-						: [];
-				} else if (key === 'verification_enabled' || key === 'data_consent_enabled' || key === 'agreement_enabled' || key === 'welcome_dm_enabled') {
+				if (ROLE_ARRAY_KEYS.has(key)) {
+					(patch as Record<string, unknown>)[key] = parseRoleIdArray(val);
+				} else if (
+					key === 'verification_enabled' ||
+					key === 'data_consent_enabled' ||
+					key === 'agreement_enabled' ||
+					key === 'welcome_dm_enabled'
+				) {
 					(patch as Record<string, unknown>)[key] = Boolean(val);
 				} else if (key === 'poll_interval_hours') {
 					const n = Number(val);
@@ -446,6 +651,10 @@ export async function handleAdminApi(
 					if (val === 'approval' || val === 'yolo') patch.demotion_policy = val;
 				} else if (key === 'agreement_timing') {
 					if (val === 'after_verify' || val === 'before_verify') patch.agreement_timing = val;
+				} else if (key === 'exchange_layout') {
+					if (val === 'hub' || val === 'category' || val === null) {
+						patch.exchange_layout = val as 'hub' | 'category' | null;
+					}
 				} else if (typeof val === 'string' || val === null) {
 					(patch as Record<string, unknown>)[key] = val;
 				}
@@ -464,7 +673,10 @@ export async function handleAdminApi(
 						.map((k) => ({ name: k, value: String(body[k]).slice(0, 100), inline: true })),
 				}),
 			);
-			return jsonCors(request, env, { config: publicConfig(refreshed!) });
+			return jsonCors(request, env, {
+				config: publicConfig(refreshed!),
+				can_configure: true,
+			});
 		}
 	}
 

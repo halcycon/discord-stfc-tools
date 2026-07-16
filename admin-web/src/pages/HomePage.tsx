@@ -89,6 +89,7 @@ export function HomePage() {
 										<span className="muted">
 											{g.alliance_tag ? `[${g.alliance_tag}] · ` : ''}
 											{g.mode} · via {g.via}
+											{g.can_configure ? ' · configure' : ' · view'}
 										</span>
 									</span>
 								</Link>

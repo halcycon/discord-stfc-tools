@@ -680,7 +680,7 @@ Mock Discord REST and stfc.pro in Worker tests; use D1 local binding for integra
 | `docs/COMMANDS.md` | **Slash commands** — single vs multi-alliance behaviour |
 | `docs/PRIVACY_POLICY.md` | Privacy policy template (customise before publishing) |
 | `docs/TERMS_OF_SERVICE.md` | Terms of service template (customise before publishing) |
-| `docs/ADMIN_WEB.md` | Admin web UI (Pages + Discord OAuth) |
+| `docs/ADMIN_WEB.md` | Admin web UI — staff view vs Admin-only config; Pages + Discord OAuth |
 | `docs/BOT_MIGRATION.md` | New Discord app cutover + reuse D1 |
 | `AGENTS.md` | Architecture, alliance roster sync, roadmap, coding guidelines |
 | `ENVIRONMENT_SETUP.md` | `.env` and `generate-config.js` overview |
