@@ -74,7 +74,7 @@ describe('formatGoLiveDmPreview', () => {
 		expect(text).toContain('<@222>');
 		expect(text).toContain('Ada');
 		expect(text).toContain('≤5 min');
-		expect(text).toContain('06:00 UTC');
+		expect(text).toContain('batches of 40');
 	});
 
 	it('notes when verification or welcome is off', () => {

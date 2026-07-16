@@ -416,7 +416,7 @@ Activity streak / days inactive still update in testing (non-destructive counter
 | Pending DM | When it fires after live |
 |------------|--------------------------|
 | Verification invites | Next member poll (≤5 minutes) |
-| Welcome DMs | Next morning daily sync (~06:00 UTC), for full members who never got welcome |
+| Welcome DMs | Same member poll (≤5 minutes; up to 40 per poll if the backlog is large). Morning sync still retries leftovers. |
 
 CoC / consent DMs are **not** a go-live backlog (they fire on verify/join flows). Already verified/guest members and the exclude list are skipped for invites.
 

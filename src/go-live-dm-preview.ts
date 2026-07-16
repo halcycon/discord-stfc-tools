@@ -99,17 +99,18 @@ export function formatGoLiveDmPreview(preview: GoLiveDmPreview): string {
 		`${headline}\n\n` +
 		`**Verification invites** (${preview.inviteCount}) — next member poll (≤5 min after live)\n` +
 		`${inviteNote}\n\n` +
-		`**Welcome DMs** (${preview.welcomeCount}) — next morning daily sync (~06:00 UTC) for full members\n` +
+		`**Welcome DMs** (${preview.welcomeCount}) — same member poll (≤5 min; batches of 40 if large)\n` +
 		`${welcomeNote}\n\n` +
 		`_Not included: CoC / consent DMs (those fire on verify/join flows, not a go-live backlog). ` +
-		`Exclude list + already verified/guest members are skipped for invites._`;
+		`Exclude list + already verified/guest members are skipped for invites. ` +
+		`Morning sync still retries any leftover welcomes._`;
 
 	if (body.length > PREVIEW_SOFT_MAX) {
 		body =
 			`📬 **Go-live DM preview**\n` +
 			`${headline}\n\n` +
 			`**Verification invites:** **${preview.inviteCount}** (next member poll ≤5 min)\n` +
-			`**Welcome DMs:** **${preview.welcomeCount}** (next morning daily sync)\n\n` +
+			`**Welcome DMs:** **${preview.welcomeCount}** (same poll ≤5 min)\n\n` +
 			`_List truncated for Discord length — counts are complete. ` +
 			`CoC/consent DMs are not a go-live backlog._`;
 	}

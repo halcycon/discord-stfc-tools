@@ -216,3 +216,52 @@ export async function sendWelcomeDmIfNeeded(
 		};
 	}
 }
+
+/** Per member-poll batch size so large go-live backlogs drain without timing out. */
+export const WELCOME_FLUSH_PER_POLL = 40;
+
+/**
+ * Send pending welcome DMs for full members (go-live backlog + failed retries).
+ * Caps per call; remaining drain on later member polls. Morning sync still retries as a safety net.
+ */
+export async function flushPendingWelcomeDms(
+	env: Env,
+	config: GuildConfig,
+	opts?: { limit?: number },
+): Promise<{ sent: number; failed: number; remaining: number }> {
+	if (!welcomeDmConfigured(config) || shouldSkipOutboundDm(config)) {
+		return { sent: 0, failed: 0, remaining: 0 };
+	}
+
+	const { listPlayersNeedingWelcomeDm } = await import('./guild-db');
+	const { needsAgreementBeforeFullAccess } = await import('./agreement');
+
+	const candidates = await listPlayersNeedingWelcomeDm(
+		env.STFC_DB,
+		config.guild_id,
+		WELCOME_DM_MAX_AUTO_ATTEMPTS,
+	);
+	const eligible = candidates.filter((p) => !needsAgreementBeforeFullAccess(config, p));
+	const limit = Math.max(1, Math.floor(opts?.limit ?? WELCOME_FLUSH_PER_POLL));
+	const batch = eligible.slice(0, limit);
+	let sent = 0;
+	let failed = 0;
+
+	for (const player of batch) {
+		const result = await sendWelcomeDmIfNeeded(
+			env,
+			config,
+			config.guild_id,
+			player.discord_user_id,
+			player.personal_channel_id,
+		);
+		if (result.sent) sent++;
+		else if (result.note && /failed/i.test(result.note)) failed++;
+	}
+
+	return {
+		sent,
+		failed,
+		remaining: Math.max(0, eligible.length - batch.length),
+	};
+}
