@@ -517,51 +517,14 @@ export async function handleRosterCommand(
 			const setGuestRaw = getOptionValue(opts, 'set_guest') ?? getOptionValue(opts, 'demote');
 			const setGuest = setGuestRaw === true || setGuestRaw === 'true';
 
-			const [members, verifiedIds, excludedIds] = await Promise.all([
-				listAllGuildMembers(env.DISCORD_BOT_TOKEN, guildId),
-				getVerifiedDiscordUserIds(env.STFC_DB, guildId),
-				getExcludedUserIds(env.STFC_DB, guildId),
-			]);
-
-			const unverified = members.filter((m) => {
-				if (m.user.bot) return false;
-				if (verifiedIds.has(m.user.id)) return false;
-				if (excludedIds.has(m.user.id)) return false;
-				return true;
-			});
-
-			const botCount = members.filter((m) => m.user.bot).length;
-			const header =
-				`👤 **Unverified Discord members** (${unverified.length})\n` +
-				`_Excluded from this list: verified players, \`/server exclude\` list (${excludedIds.size}), Discord bots (${botCount})._\n\n`;
-
-			if (!setGuest) {
-				if (unverified.length === 0) {
-					return interactionResponse(`${header}Everyone else is verified or excluded.`, true);
-				}
-				const lines = unverified.map((m) => {
-					const nick = m.nick ? ` (${m.nick})` : '';
-					return `• <@${m.user.id}> \`${m.user.username}\`${nick}`;
-				});
-				return interactionResponse(
-					header +
-						truncateLines(lines, 50) +
-						`\n\nTo assign **guest** and remove member/rank roles: \`/roster unverified set_guest:true\` (Administrator).`,
-					true,
-				);
-			}
-
-			if (!isGuildAdministrator(interaction.member?.permissions)) {
+			if (setGuest && !isGuildAdministrator(interaction.member?.permissions)) {
 				return interactionResponse('❌ Setting unverified members to guest requires Administrator.', true);
 			}
-			if (!config.guest_role_id || !/^\d{15,20}$/.test(config.guest_role_id)) {
+			if (setGuest && (!config.guest_role_id || !/^\d{15,20}$/.test(config.guest_role_id))) {
 				return interactionResponse(
 					'❌ `guest_role` is not configured. Set it with `/server setup guest_role:…` before continuing.',
 					true,
 				);
-			}
-			if (unverified.length === 0) {
-				return interactionResponse(`${header}Nothing to update.`, true);
 			}
 
 			const appId = interaction.application_id ?? env.DISCORD_APPLICATION_ID;
@@ -569,21 +532,81 @@ export async function handleRosterCommand(
 				return interactionResponse('❌ Missing application id / interaction token for deferred update.', true);
 			}
 
+			// Must defer: listAllGuildMembers can exceed Discord's 3s interaction window.
 			const deferred = deferredResponse();
 			ctx.waitUntil(
 				(async () => {
-					let ok = 0;
-					let failed = 0;
-					const errors: string[] = [];
 					try {
+						const [members, verifiedIds, excludedIds] = await Promise.all([
+							listAllGuildMembers(env.DISCORD_BOT_TOKEN!, guildId),
+							getVerifiedDiscordUserIds(env.STFC_DB, guildId),
+							getExcludedUserIds(env.STFC_DB, guildId),
+						]);
+
+						const unverified = members.filter((m) => {
+							if (m.user.bot) return false;
+							if (verifiedIds.has(m.user.id)) return false;
+							if (excludedIds.has(m.user.id)) return false;
+							return true;
+						});
+
+						const botCount = members.filter((m) => m.user.bot).length;
+						const header =
+							`👤 **Unverified Discord members** (${unverified.length})\n` +
+							`_Excluded from this list: verified players, \`/server exclude\` list (${excludedIds.size}), Discord bots (${botCount})._\n\n`;
+
+						if (!setGuest) {
+							if (unverified.length === 0) {
+								await editInteractionResponse(
+									appId,
+									interaction.token!,
+									`${header}Everyone else is verified or excluded.`,
+									true,
+									{ config },
+								);
+								return;
+							}
+							const lines = unverified.map((m) => {
+								const display =
+									m.nick?.trim() || m.user.global_name?.trim() || null;
+								const nick = display ? ` (${display})` : '';
+								return `• <@${m.user.id}> \`${m.user.username}\`${nick}`;
+							});
+							await editInteractionResponse(
+								appId,
+								interaction.token!,
+								header +
+									truncateLines(lines, 50) +
+									`\n\nTo assign **guest** and remove member/rank roles: \`/roster unverified set_guest:true\` (Administrator).`,
+								true,
+								{ config },
+							);
+							return;
+						}
+
+						if (unverified.length === 0) {
+							await editInteractionResponse(
+								appId,
+								interaction.token!,
+								`${header}Nothing to update.`,
+								true,
+								{ config },
+							);
+							return;
+						}
+
+						let ok = 0;
+						let failed = 0;
+						const errors: string[] = [];
 						for (let i = 0; i < unverified.length; i++) {
-							const m = unverified[i];
+							const m = unverified[i]!;
 							if (i === 0 || (i + 1) % 10 === 0 || i + 1 === unverified.length) {
 								await editInteractionResponse(
 									appId,
 									interaction.token!,
 									`⏳ Setting guest ${i + 1}/${unverified.length} (ok ${ok}, failed ${failed})…`,
 									true,
+									{ config },
 								);
 							}
 							try {
@@ -612,7 +635,6 @@ export async function handleRosterCommand(
 							await sleep(350);
 						}
 
-						const { postAuditLog, AuditColor } = await import('./audit-log');
 						await postAuditLog(env, config, {
 							title: 'Bulk set guest (unverified)',
 							description:
@@ -632,16 +654,17 @@ export async function handleRosterCommand(
 								`• Guest role: <@&${config.guest_role_id}>` +
 								(errors.length ? `\n\n⚠ Errors:\n${errors.join('\n')}` : ''),
 							true,
+							{ config },
 						);
 					} catch (err) {
-						console.error('Bulk set-guest unverified aborted:', err);
+						console.error('roster unverified failed:', err);
 						const msg = err instanceof Error ? err.message : 'unknown error';
 						await editInteractionResponse(
 							appId,
 							interaction.token!,
-							`❌ **Bulk set guest aborted** after ok ${ok}, failed ${failed}.\n${msg.slice(0, 400)}` +
-								(errors.length ? `\n\n⚠ Earlier errors:\n${errors.join('\n')}` : ''),
+							`❌ **/roster unverified** failed: ${msg.slice(0, 400)}`,
 							true,
+							{ config },
 						);
 					}
 				})(),
