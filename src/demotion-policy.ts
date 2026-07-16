@@ -54,6 +54,16 @@ export function decideDemotionCandidateAction(
 	return { action: 'enqueue_approval' };
 }
 
+/**
+ * Guests are already demoted; leave them to the guest re-promote poll.
+ * Without this, daily sync re-queues / dry-runs them every morning while off-alliance.
+ */
+export function isAlreadyDemotedGuest(
+	record: Pick<VerifiedPlayer, 'verification_status'>,
+): boolean {
+	return record.verification_status === 'guest';
+}
+
 function hoursFromNow(hours: number): string {
 	return new Date(Date.now() + hours * 3600_000).toISOString();
 }
@@ -120,6 +130,7 @@ export async function handleAutomatedDemotionCandidate(
 	player: PlayerData | null,
 ): Promise<'demoted' | 'queued' | 'skipped' | 'would_demote' | 'would_queue'> {
 	if (config.mode !== 'single_alliance') return 'skipped';
+	if (isAlreadyDemotedGuest(record)) return 'skipped';
 
 	const decision = decideDemotionCandidateAction(config.demotion_policy, kind);
 	if (decision.action === 'skip') return 'skipped';

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { decideDemotionCandidateAction } from '../src/demotion-policy';
+import {
+	decideDemotionCandidateAction,
+	isAlreadyDemotedGuest,
+} from '../src/demotion-policy';
 import { playerMatchesGuildAlliance } from '../src/verification-access';
 
 describe('decideDemotionCandidateAction', () => {
@@ -19,6 +22,14 @@ describe('decideDemotionCandidateAction', () => {
 		expect(decideDemotionCandidateAction('yolo', 'player_missing')).toEqual({
 			action: 'enqueue_recheck',
 		});
+	});
+});
+
+describe('isAlreadyDemotedGuest', () => {
+	it('skips guests so daily sync does not re-queue completed demotions', () => {
+		expect(isAlreadyDemotedGuest({ verification_status: 'guest' })).toBe(true);
+		expect(isAlreadyDemotedGuest({ verification_status: 'active' })).toBe(false);
+		expect(isAlreadyDemotedGuest({ verification_status: 'verified' })).toBe(false);
 	});
 });
 
