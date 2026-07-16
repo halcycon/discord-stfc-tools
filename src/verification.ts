@@ -200,6 +200,8 @@ export async function processVerification(
 	const grade = opsLevelToGrade(player.level);
 	const now = new Date().toISOString();
 	const allianceTag = player.allianceTag?.trim() || null;
+	// Unaffiliated players have no alliance rank — ignore stale/mis-parsed rankdesc.
+	const allianceRank = allianceTag ? player.rank?.trim() || null : null;
 	const tagMatches = playerMatchesGuildAlliance(config, allianceTag);
 	const tagLabel = allianceTag ?? '—';
 
@@ -210,7 +212,7 @@ export async function processVerification(
 		player_id: player.playerId,
 		player_name: player.name,
 		alliance_tag: allianceTag,
-		alliance_rank: player.rank || null,
+		alliance_rank: allianceRank,
 		ops_level: player.level,
 		power: player.power,
 		grade,
@@ -308,12 +310,22 @@ export async function processVerification(
 				});
 			}
 
-			const roleChanges = await applyMemberRoles(token, config, guildId, discordUserId, player.rank);
+			const roleChanges = await applyMemberRoles(
+				token,
+				config,
+				guildId,
+				discordUserId,
+				allianceRank ?? undefined,
+			);
 			const roleNote = formatRoleChangeNote(roleChanges);
 			notes.push(roleNote);
 			auditNotes.push(roleNote);
 
-			const nick = nicknameForPlayer(config, player);
+			const nick = nicknameForPlayer(config, {
+				...player,
+				allianceTag: allianceTag ?? '',
+				rank: allianceRank ?? '',
+			});
 			try {
 				await setGuildMemberNickname(token, guildId, discordUserId, nick);
 				notes.push(t(locale, 'verify.note.nick', { nick }));
@@ -609,12 +621,18 @@ export async function syncVerifiedPlayer(
 	const token = env.DISCORD_BOT_TOKEN;
 	const previous = await getVerifiedPlayer(env.STFC_DB, guildId, discordUserId);
 	const allianceTag = (player.allianceTag ?? '').trim();
+	const allianceRank = allianceTag ? player.rank?.trim() || null : null;
 	const tagMatches = playerMatchesGuildAlliance(config, allianceTag);
 	const autoDemote = opts?.autoDemoteOnMismatch !== false;
 	const deferAudit = opts?.deferSyncAudit === true;
 
 	const grade = opsLevelToGrade(player.level);
 	const now = new Date().toISOString();
+	const playerForRoles: PlayerData = {
+		...player,
+		allianceTag,
+		rank: allianceRank ?? '',
+	};
 	const nextStatus = tagMatches ? 'active' : 'guest';
 
 	const applyObservedActivity = async (): Promise<
@@ -658,7 +676,7 @@ export async function syncVerifiedPlayer(
 				discord_user_id: discordUserId,
 				player_name: player.name,
 				alliance_tag: allianceTag || null,
-				alliance_rank: player.rank || null,
+				alliance_rank: allianceRank,
 				ops_level: player.level,
 				power: player.power,
 				grade,
@@ -670,7 +688,7 @@ export async function syncVerifiedPlayer(
 
 		const demote = await demotePlayerToGuest(env, config, guildId, discordUserId, {
 			reason: 'alliance_mismatch',
-			player,
+			player: playerForRoles,
 			source: 'cron',
 			skipAudit: true,
 		});
@@ -693,7 +711,7 @@ export async function syncVerifiedPlayer(
 		discord_user_id: discordUserId,
 		player_name: player.name,
 		alliance_tag: allianceTag || null,
-		alliance_rank: player.rank || null,
+		alliance_rank: allianceRank,
 		ops_level: player.level,
 		power: player.power,
 		grade,
@@ -710,8 +728,10 @@ export async function syncVerifiedPlayer(
 	if (previous?.alliance_tag && previous.alliance_tag !== allianceTag) {
 		changes.push(`alliance ${previous.alliance_tag} → ${allianceTag || '(none)'}`);
 	}
-	if (previous?.alliance_rank && player.rank && previous.alliance_rank !== player.rank) {
-		changes.push(`rank ${previous.alliance_rank} → ${player.rank}`);
+	if ((previous?.alliance_rank || null) !== allianceRank) {
+		if (previous?.alliance_rank || allianceRank) {
+			changes.push(`rank ${previous?.alliance_rank ?? '—'} → ${allianceRank ?? '—'}`);
+		}
 	}
 
 	let welcomeNote: string | undefined;
@@ -725,13 +745,24 @@ export async function syncVerifiedPlayer(
 			changes.push('held at guest until agreement');
 		}
 	} else {
-		const roleChanges = await applyMemberRoles(token, config, guildId, discordUserId, player.rank);
+		const roleChanges = await applyMemberRoles(
+			token,
+			config,
+			guildId,
+			discordUserId,
+			allianceRank ?? undefined,
+		);
 		const roleNote = formatRoleChangeNote(roleChanges);
 		if (roleChanges.added.length > 0 || roleChanges.removed.length > 0) {
 			changes.push(roleNote);
 		}
 		try {
-			await setGuildMemberNickname(token, guildId, discordUserId, nicknameForPlayer(config, player));
+			await setGuildMemberNickname(
+				token,
+				guildId,
+				discordUserId,
+				nicknameForPlayer(config, playerForRoles),
+			);
 		} catch (nickErr) {
 			console.error('Nickname sync failed:', nickErr);
 		}

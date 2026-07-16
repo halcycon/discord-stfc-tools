@@ -32,6 +32,7 @@ Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. 
 
 - On **`multi_alliance`**, players with no alliance tag can verify (member roles/nick/channel; no diplomacy channel)
 - **`single_alliance`** still requires a matching home-alliance tag
+- Unaffiliated players get **no alliance-rank role** (ignores stale/mis-parsed Premier etc. from stfc.pro)
 
 ## 1.10.5 — Paginated `/roster unverified` table (2026-07-16)
 

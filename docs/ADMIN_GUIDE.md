@@ -94,7 +94,7 @@ Role fields accept **IDs**, **@mentions**, or **names** (with `create_missing_ro
 | Mode | Behaviour |
 |------|-----------|
 | `single_alliance` | Tag must match `alliance_tag`. Else guest role + periodic re-check. Personal channels can auto-create. **Morning alliance roster** caches the full member list for daily sync + verify (see § Daily alliance roster). |
-| `multi_alliance` | Any alliance **or no alliance** verifies as active. No guest gating. Personal auto-create is off (link existing channels instead). **Morning multi roster**: server directory + batched scrapes of verified ∪ diplomacy tags; day-over-day moves report; live player-page fallback for untracked/empty tags. Switching from single → multi clears the single-alliance roster cache. |
+| `multi_alliance` | Any alliance **or no alliance** verifies as active. No guest gating. Unaffiliated players get member roles only (no Premier/Operative/etc. rank). Personal auto-create is off (link existing channels instead). **Morning multi roster**: server directory + batched scrapes of verified ∪ diplomacy tags; day-over-day moves report; live player-page fallback for untracked/empty tags. Switching from single → multi clears the single-alliance roster cache. |
 
 Check config anytime:
 

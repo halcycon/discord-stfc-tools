@@ -100,10 +100,16 @@ export function mapRawPlayer(player: any, server: number, region: string, allian
 			: Number.isFinite(Number(streakRaw))
 				? Math.max(0, Math.floor(Number(streakRaw)))
 				: null;
+	const allianceTagOut = String(allianceTag || player.tag || player.alliance_tag || '').trim();
+	// Prefer textual rankdesc; bare `rank` is often a numeric code and can mis-map.
+	const rankRaw = String(
+		player.rankdesc || player.alliance_rank || player.rank_name || '',
+	).trim();
 	return {
 		playerId: player.playerid || player.player_id || player.playerId || 0,
 		name: player.owner || player.name || player.player_name || '',
-		rank: player.rank || player.alliance_rank || player.rankdesc || '',
+		// No alliance ⇒ no in-game alliance rank (avoids stale/wrong Premier etc.).
+		rank: allianceTagOut ? rankRaw : '',
 		level: player.level || player.player_level || 0,
 		helps: String(player.helps || player.ahelps || player.daily_helps || ''),
 		rss: String(player.rss || player.power || player.player_power || ''),
@@ -112,7 +118,7 @@ export function mapRawPlayer(player: any, server: number, region: string, allian
 		iso: String(player.iso || player.tritanium || ''),
 		joinDate: String(player.ajoined || player.joinDate || player.join_date || ''),
 		allianceId: String(player.allianceid || player.allianceId || player.alliance_id || ''),
-		allianceTag: allianceTag || player.tag || player.alliance_tag || '',
+		allianceTag: allianceTagOut,
 		server,
 		region,
 		consecutiveDaysActive,
@@ -208,9 +214,13 @@ export function extractInitialPlayerFromHtml(
 		if (mapped.playerId) {
 			const server = Number(obj.server ?? mapped.server);
 			const region = String(obj.region ?? mapped.region).toUpperCase();
+			const tag = (mapped.allianceTag || '').trim();
+			const rankDesc = String(obj.rankdesc ?? '').trim();
 			return {
 				...mapped,
-				rank: String(obj.rankdesc ?? mapped.rank ?? ''),
+				allianceTag: tag,
+				// Only trust textual rankdesc when the player is in an alliance.
+				rank: tag ? rankDesc || mapped.rank : '',
 				server: Number.isFinite(server) ? server : fallbackServer,
 				region: region || fallbackRegion,
 			};
@@ -225,7 +235,8 @@ export function extractInitialPlayerFromHtml(
 	if (!playerId) return null;
 
 	const name = extractStringNearKey(html, start, 'owner') ?? extractStringNearKey(html, start, 'name') ?? '';
-	const rank = extractStringNearKey(html, start, 'rankdesc') ?? extractStringNearKey(html, start, 'rank') ?? '';
+	// Prefer rankdesc only — bare `rank` is often numeric and not an alliance rank name.
+	const rankDesc = extractStringNearKey(html, start, 'rankdesc') ?? '';
 	const level = extractNumberNearKey(html, start, 'level') ?? 0;
 
 	const helps =
@@ -242,7 +253,9 @@ export function extractInitialPlayerFromHtml(
 
 	const allianceId =
 		extractStringNearKey(html, start, 'allianceid') ?? extractStringNearKey(html, start, 'alliance_id') ?? '';
-	const allianceTag = extractStringNearKey(html, start, 'tag') ?? extractStringNearKey(html, start, 'alliance_tag') ?? '';
+	const allianceTag = (
+		extractStringNearKey(html, start, 'tag') ?? extractStringNearKey(html, start, 'alliance_tag') ?? ''
+	).trim();
 
 	const server = extractNumberNearKey(html, start, 'server') ?? fallbackServer;
 	const region = (extractStringNearKey(html, start, 'region') ?? fallbackRegion).toUpperCase();
@@ -250,7 +263,7 @@ export function extractInitialPlayerFromHtml(
 	return {
 		playerId,
 		name,
-		rank,
+		rank: allianceTag ? rankDesc : '',
 		level,
 		helps,
 		rss,

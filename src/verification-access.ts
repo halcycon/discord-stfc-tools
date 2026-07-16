@@ -416,7 +416,10 @@ export async function applyMemberRoles(
 	userId: string,
 	playerRank: string | undefined,
 ): Promise<RoleChangeResult> {
-	const desired = getMemberRoleIdsForRank(config, playerRank).filter((id) => /^\d{15,20}$/.test(id));
+	const desired = new Set(
+		getMemberRoleIdsForRank(config, playerRank).filter((id) => /^\d{15,20}$/.test(id)),
+	);
+	const managed = getAllMemberRoleIds(config).filter((id) => /^\d{15,20}$/.test(id));
 	const member = await getGuildMember(token, guildId, userId);
 	const current = new Set(member?.roles ?? []);
 
@@ -436,6 +439,18 @@ export async function applyMemberRoles(
 		} catch (err) {
 			// Hierarchy / owner / missing Manage Roles — keep going (bulk backfill must not stall).
 			console.warn(`Failed to add role ${roleId} to ${userId}:`, err);
+		}
+	}
+
+	// Drop managed rank/overlay roles that no longer apply (e.g. unaffiliated → no Premier).
+	for (const roleId of managed) {
+		if (desired.has(roleId) || !current.has(roleId)) continue;
+		try {
+			await removeGuildMemberRole(token, guildId, userId, roleId);
+			removed.push(roleId);
+			current.delete(roleId);
+		} catch (err) {
+			console.warn(`Failed to remove role ${roleId} from ${userId}:`, err);
 		}
 	}
 
