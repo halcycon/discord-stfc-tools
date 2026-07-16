@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	buildLinkSuggestComponents,
+	discordDisplayNick,
 	formatLinkSuggestions,
 	parseDiscordNick,
 	suggestRosterDiscordLinks,
@@ -58,6 +59,31 @@ describe('suggestRosterDiscordLinks', () => {
 		expect(suggestions[0]!.serverNick).toBe('[KWSN] Ada');
 	});
 
+	it('shows global display name in Nick when server nick is unset', () => {
+		expect(
+			discordDisplayNick({ serverNick: null, globalName: 'AbInitio' }),
+		).toBe('AbInitio');
+		expect(
+			discordDisplayNick({ serverNick: '[KOBY] Ada', globalName: 'AbInitio' }),
+		).toBe('[KOBY] Ada');
+		const text = formatLinkSuggestions([
+			{
+				discordUserId: '9',
+				discordLabel: 'AbInitio',
+				serverNick: null,
+				globalName: 'AbInitio',
+				username: 'optimusslim3',
+				playerId: 1,
+				playerName: 'AbInitio',
+				allianceTag: 'KOBY',
+				confidence: 'high',
+				reason: 'exact name',
+			},
+		]);
+		expect(text).toContain('AbInitio');
+		expect(text).toContain('optimusslim3');
+	});
+
 	it('does not double-assign the same player', () => {
 		const suggestions = suggestRosterDiscordLinks(
 			[
@@ -81,6 +107,7 @@ describe('suggestRosterDiscordLinks', () => {
 				discordUserId: '9',
 				discordLabel: '[KWSN] Ada',
 				serverNick: '[KWSN] Ada',
+				globalName: null,
 				username: 'ada_user',
 				playerId: 1,
 				playerName: 'Ada',
@@ -105,6 +132,7 @@ describe('suggestRosterDiscordLinks', () => {
 					discordUserId: '111111111111111111',
 					discordLabel: '[KWSN] Ada',
 					serverNick: '[KWSN] Ada',
+					globalName: null,
 					username: 'ada',
 					playerId: 42,
 					playerName: 'Ada',
@@ -116,6 +144,7 @@ describe('suggestRosterDiscordLinks', () => {
 					discordUserId: '222222222222222222',
 					discordLabel: 'BobX',
 					serverNick: null,
+					globalName: 'BobX',
 					username: 'bobx',
 					playerId: 43,
 					playerName: 'Bob',
@@ -127,6 +156,7 @@ describe('suggestRosterDiscordLinks', () => {
 					discordUserId: '333333333333333333',
 					discordLabel: 'Car',
 					serverNick: 'Car',
+					globalName: null,
 					username: 'cara',
 					playerId: 44,
 					playerName: 'Cara',
@@ -152,6 +182,7 @@ describe('suggestRosterDiscordLinks', () => {
 			discordUserId: String(111111111111111111n + BigInt(i)),
 			discordLabel: `P${i}`,
 			serverNick: `P${i}`,
+			globalName: null as string | null,
 			username: `u${i}`,
 			playerId: i + 1,
 			playerName: `P${i}`,

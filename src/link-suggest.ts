@@ -71,6 +71,8 @@ export type LinkSuggestion = {
 	discordLabel: string;
 	/** Guild nickname, or null if they have none. */
 	serverNick: string | null;
+	/** Discord display name (global_name); mentions often show this when nick is unset. */
+	globalName: string | null;
 	username: string;
 	playerId: number;
 	playerName: string;
@@ -78,6 +80,20 @@ export type LinkSuggestion = {
 	confidence: LinkSuggestionConfidence;
 	reason: string;
 };
+
+/**
+ * What Discord typically shows for a member mention:
+ * server nick → global display name (not the @username).
+ */
+export function discordDisplayNick(s: {
+	serverNick?: string | null;
+	globalName?: string | null;
+}): string | null {
+	const nick = s.serverNick?.trim() || null;
+	if (nick) return nick;
+	const global = s.globalName?.trim() || null;
+	return global || null;
+}
 
 /** Short code used in `alink:grp:` / `alink:more:` custom_ids. */
 export type ConfidenceCode = 'h' | 'm' | 'l';
@@ -144,6 +160,7 @@ export function suggestRosterDiscordLinks(
 			discordUserId: m.discordUserId,
 			discordLabel: display,
 			serverNick,
+			globalName,
 			username: username || display,
 		};
 
@@ -209,6 +226,7 @@ export function suggestRosterDiscordLinks(
 			discordUserId: c.discordUserId,
 			discordLabel: c.discordLabel,
 			serverNick: c.serverNick,
+			globalName: c.globalName,
 			username: c.username,
 			playerId: c.playerId,
 			playerName: c.playerName,
@@ -244,7 +262,8 @@ export function formatLinkSuggestionsTable(
 	const rows: TableData[] = suggestions.map((s, i) => ({
 		'#': String(i + 1),
 		'●': confidenceDot(s.confidence),
-		Nick: playerCell(s.serverNick),
+		// Same name Discord shows on <@user> (guild nick, else global display name).
+		Nick: playerCell(discordDisplayNick(s)),
 		User: playerCell(s.username),
 		Player: playerCell(s.playerName, s.playerId),
 		Id: String(s.playerId),
@@ -318,7 +337,7 @@ export function formatLinkSuggestions(
 	}
 	return (
 		`🔗 **Link suggestions**${tagNote} (${suggestions.length}) — ${tally}\n` +
-		`_● = H/M/L · **Nick** = server nick (— if none) · **User** = Discord username._\n` +
+		`_● = H/M/L · **Nick** = what mentions show (server nick or display name) · **User** = @username._\n` +
 		table +
 		footer
 	);
