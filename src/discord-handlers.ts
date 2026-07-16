@@ -3324,7 +3324,7 @@ async function dispatchDiscordInteraction(
 		}
 		if (customId?.startsWith('rst:')) {
 			const { handleRosterListComponent } = await import('./roster-list-view');
-			return handleRosterListComponent(env, interaction);
+			return handleRosterListComponent(env, ctx, interaction);
 		}
 		if (customId?.startsWith('actc:')) {
 			const { handleActivityConfirmComponent } = await import('./activity-adjust');

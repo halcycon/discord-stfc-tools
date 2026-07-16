@@ -3,11 +3,11 @@
  */
 
 import {
+	deferredComponentResponse,
 	editInteractionResponse,
 	interactionResponse,
 	interactionResponseWithComponents,
 	sendMessageWithComponents,
-	updateMessageResponse,
 	type DiscordActionRow,
 } from './discord-api';
 import type { GuildConfig } from './types';
@@ -506,7 +506,10 @@ export async function finishDeferredRosterListReply(
 
 export async function handleRosterListComponent(
 	env: Env,
+	ctx: ExecutionContext,
 	interaction: {
+		application_id?: string;
+		token?: string;
 		guild_id?: string;
 		channel_id?: string;
 		member?: { user?: { id: string } };
@@ -523,6 +526,8 @@ export async function handleRosterListComponent(
 	const action = m[2]!.toLowerCase() as 'prev' | 'next' | 'list' | 'table' | 'publish';
 	const userId = interaction.member?.user?.id ?? interaction.user?.id;
 	const guildId = interaction.guild_id;
+	const appId = interaction.application_id;
+	const interactionToken = interaction.token;
 
 	const session = await getRosterListSession(env.STFC_DB, token);
 	if (!session || !guildId || session.guild_id !== guildId) {
@@ -539,86 +544,127 @@ export async function handleRosterListComponent(
 		if (vis !== 'private') {
 			return interactionResponse('❌ This report is already public.', true);
 		}
-		const channelId = interaction.channel_id;
-		if (!channelId || !env.DISCORD_BOT_TOKEN) {
-			return interactionResponse('❌ Cannot post to channel (missing channel or bot token).', true);
-		}
-
-		const publicPayload: RosterListSessionPayload = {
-			...session.payload,
-			visibility: 'public',
-		};
-		const rendered = await renderRosterListContent(env.STFC_DB, guildId, publicPayload);
-		const publicSession = await createRosterListSession(env.STFC_DB, {
-			guildId,
-			userId: session.user_id,
-			payload: rendered.payload,
-		});
-
-		try {
-			await sendMessageWithComponents(env.DISCORD_BOT_TOKEN, channelId, {
-				content: rendered.content,
-				components: buildComponents(
-					publicSession.token,
-					rendered.payload.page,
-					rendered.totalPages,
-					rendered.payload.format,
-					'public',
-				),
-			});
-		} catch (err) {
-			console.error('Roster post to channel failed:', err);
-			return interactionResponse(
-				'❌ Failed to post to channel (check bot Send Messages permission here).',
-				true,
-			);
-		}
-
-		const privateRendered = await renderRosterListContent(env.STFC_DB, guildId, session.payload);
-		return updateMessageResponse(
-			`${privateRendered.content}\n\n✅ **Posted to channel** (public copy — anyone can use Prev/Next there).`,
-			{
-				components: buildComponents(
-					token,
-					privateRendered.payload.page,
-					privateRendered.totalPages,
-					privateRendered.payload.format,
-					'private',
-					{ publishDisabled: true },
-				),
-			},
-		);
-	}
-
-	// prev / next / list / table
-	if (vis === 'private' && !isOwner) {
+	} else if (vis === 'private' && !isOwner) {
 		return interactionResponse('❌ Only the person who ran the command can use these buttons.', true);
 	}
-	// public: anyone in the channel may paginate
 
-	const payload = { ...session.payload, visibility: vis };
-	if (action === 'prev') payload.page = Math.max(1, payload.page - 1);
-	else if (action === 'next') payload.page = payload.page + 1;
-	else if (action === 'list') {
-		payload.format = 'list';
-		payload.page = 1;
-	} else if (action === 'table') {
-		payload.format = 'table';
-		payload.page = 1;
+	if (!appId || !interactionToken) {
+		return interactionResponse('❌ Missing application id / interaction token.', true);
 	}
 
-	const rendered = await renderRosterListContent(env.STFC_DB, guildId, payload);
-	await updateRosterListSessionPayload(env.STFC_DB, token, rendered.payload);
+	// Discord requires an ACK within 3s; D1 page renders (esp. large public lists) can exceed that.
+	ctx.waitUntil(
+		(async () => {
+			try {
+				if (action === 'publish') {
+					const channelId = interaction.channel_id;
+					if (!channelId || !env.DISCORD_BOT_TOKEN) {
+						await editInteractionResponse(
+							appId,
+							interactionToken,
+							'❌ Cannot post to channel (missing channel or bot token).',
+							false,
+							{ components: [] },
+						);
+						return;
+					}
 
-	return updateMessageResponse(rendered.content, {
-		components: buildComponents(
-			token,
-			rendered.payload.page,
-			rendered.totalPages,
-			rendered.payload.format,
-			visibilityOf(rendered.payload),
-		),
-	});
+					const publicPayload: RosterListSessionPayload = {
+						...session.payload,
+						visibility: 'public',
+					};
+					const rendered = await renderRosterListContent(env.STFC_DB, guildId, publicPayload);
+					const publicSession = await createRosterListSession(env.STFC_DB, {
+						guildId,
+						userId: session.user_id,
+						payload: rendered.payload,
+					});
+
+					try {
+						await sendMessageWithComponents(env.DISCORD_BOT_TOKEN, channelId, {
+							content: rendered.content,
+							components: buildComponents(
+								publicSession.token,
+								rendered.payload.page,
+								rendered.totalPages,
+								rendered.payload.format,
+								'public',
+							),
+						});
+					} catch (err) {
+						console.error('Roster post to channel failed:', err);
+						await editInteractionResponse(
+							appId,
+							interactionToken,
+							'❌ Failed to post to channel (check bot Send Messages permission here).',
+							false,
+							{ components: [] },
+						);
+						return;
+					}
+
+					const privateRendered = await renderRosterListContent(env.STFC_DB, guildId, session.payload);
+					await editInteractionResponse(
+						appId,
+						interactionToken,
+						`${privateRendered.content}\n\n✅ **Posted to channel** (public copy — anyone can use Prev/Next there).`,
+						false,
+						{
+							components: buildComponents(
+								token,
+								privateRendered.payload.page,
+								privateRendered.totalPages,
+								privateRendered.payload.format,
+								'private',
+								{ publishDisabled: true },
+							),
+						},
+					);
+					return;
+				}
+
+				// prev / next / list / table (public: anyone in the channel may paginate)
+				const payload = { ...session.payload, visibility: vis };
+				if (action === 'prev') payload.page = Math.max(1, payload.page - 1);
+				else if (action === 'next') payload.page = payload.page + 1;
+				else if (action === 'list') {
+					payload.format = 'list';
+					payload.page = 1;
+				} else if (action === 'table') {
+					payload.format = 'table';
+					payload.page = 1;
+				}
+
+				const rendered = await renderRosterListContent(env.STFC_DB, guildId, payload);
+				await updateRosterListSessionPayload(env.STFC_DB, token, rendered.payload);
+
+				await editInteractionResponse(appId, interactionToken, rendered.content, false, {
+					components: buildComponents(
+						token,
+						rendered.payload.page,
+						rendered.totalPages,
+						rendered.payload.format,
+						visibilityOf(rendered.payload),
+					),
+				});
+			} catch (err) {
+				console.error('Roster list button failed:', err);
+				try {
+					await editInteractionResponse(
+						appId,
+						interactionToken,
+						`❌ Roster list update failed: ${err instanceof Error ? err.message : String(err)}\n_Re-run \`/roster\` if buttons stop working._`,
+						false,
+						{ components: [] },
+					);
+				} catch (editErr) {
+					console.error('Roster list: failed to report error', err, editErr);
+				}
+			}
+		})(),
+	);
+
+	return deferredComponentResponse();
 }
 
 export function parseRosterSort(
