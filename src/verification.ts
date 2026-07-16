@@ -106,7 +106,9 @@ export async function lookupPlayerFromUrl(
 		};
 	}
 
-	if (!player.allianceTag) {
+	// Single-alliance: membership in the home tag is required.
+	// Multi-alliance: unaffiliated players may verify (member roles; no diplomacy channel).
+	if (!player.allianceTag?.trim() && config.mode !== 'multi_alliance') {
 		return { player: null, error: t(locale, 'verify.error.no_alliance') };
 	}
 
@@ -197,7 +199,9 @@ export async function processVerification(
 
 	const grade = opsLevelToGrade(player.level);
 	const now = new Date().toISOString();
-	const tagMatches = playerMatchesGuildAlliance(config, player.allianceTag);
+	const allianceTag = player.allianceTag?.trim() || null;
+	const tagMatches = playerMatchesGuildAlliance(config, allianceTag);
+	const tagLabel = allianceTag ?? '—';
 
 	const status = tagMatches ? 'active' : 'guest';
 	await upsertVerifiedPlayer(env.STFC_DB, {
@@ -205,7 +209,7 @@ export async function processVerification(
 		discord_user_id: discordUserId,
 		player_id: player.playerId,
 		player_name: player.name,
-		alliance_tag: player.allianceTag,
+		alliance_tag: allianceTag,
 		alliance_rank: player.rank || null,
 		ops_level: player.level,
 		power: player.power,
@@ -286,7 +290,7 @@ export async function processVerification(
 				await postLog('active', auditNotes);
 				await postAuditLog(env, config, {
 					title: 'Member verified (awaiting agreement)',
-					description: `<@${discordUserId}> → **${player.name}** [${player.allianceTag}] — lounge/guest until agreement`,
+					description: `<@${discordUserId}> → **${player.name}** [${tagLabel}] — lounge/guest until agreement`,
 					actorId: opts?.manualByUserId ?? discordUserId,
 					source: opts?.manualByUserId ? 'admin' : 'member',
 					color: AuditColor.warn,
@@ -298,7 +302,7 @@ export async function processVerification(
 				await finishLocale();
 				return t(locale, 'verify.result.needs_agreement', {
 					name: player.name,
-					tag: player.allianceTag,
+					tag: tagLabel,
 					level: player.level,
 					summary,
 				});
@@ -339,13 +343,9 @@ export async function processVerification(
 				auditNotes.push(`Channel <#${channelResult.channelId}>`);
 			}
 
-			const diplomacyId = await applyDiplomacyForAlliance(
-				env,
-				token,
-				config,
-				guildId,
-				player.allianceTag,
-			);
+			const diplomacyId = allianceTag
+				? await applyDiplomacyForAlliance(env, token, config, guildId, allianceTag)
+				: null;
 			if (diplomacyId) {
 				notes.push(t(locale, 'verify.note.diplomacy', { channelId: diplomacyId }));
 				auditNotes.push(`Diplomacy <#${diplomacyId}>`);
@@ -373,7 +373,7 @@ export async function processVerification(
 			await postLog('active', auditNotes);
 			await postAuditLog(env, config, {
 				title: 'Member verified (active)',
-				description: `<@${discordUserId}> → **${player.name}** [${player.allianceTag}]`,
+				description: `<@${discordUserId}> → **${player.name}** [${tagLabel}]`,
 				actorId: opts?.manualByUserId ?? discordUserId,
 				source: opts?.manualByUserId ? 'admin' : 'member',
 				color: AuditColor.success,
@@ -387,7 +387,7 @@ export async function processVerification(
 			const notesBlock = notes.map((n) => `• ${n}`).join('\n');
 			return t(locale, 'verify.result.active', {
 				name: player.name,
-				tag: player.allianceTag,
+				tag: tagLabel,
 				level: player.level,
 				notes: notesBlock,
 				summary,

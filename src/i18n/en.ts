@@ -34,7 +34,8 @@ export const en = {
 		'Could not determine STFC server. Include server in the URL or ask an admin to run `/server setup`.',
 	'verify.error.no_player_id': 'Could not extract a player ID or name from that URL.',
 	'verify.error.player_not_found': 'No player found on server {server} ({region}) for that link.',
-	'verify.error.no_alliance': 'Player found but has no alliance — you must be in an alliance to verify.',
+	'verify.error.no_alliance':
+		'Player found but has no alliance — on a single-alliance server you must be in the home alliance to verify.',
 	'verify.error.lookup_failed': 'Player lookup failed.',
 
 	'verify.result.not_configured':

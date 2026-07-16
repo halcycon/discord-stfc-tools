@@ -18,7 +18,7 @@ Deep setup (roles, channel perms, cron details) lives in [ADMIN_GUIDE.md](./ADMI
 
 | | **single_alliance** | **multi_alliance** |
 |--|---------------------|--------------------|
-| Who verifies as “member” | Tag matches `alliance_tag` | Any alliance (no guest gating on tag mismatch) |
+| Who verifies as “member” | Tag matches `alliance_tag` (must be in an alliance) | Any alliance **or no alliance** (no guest gating on tag) |
 | Wrong / left alliance | Guest role + demotion policy | No auto-guest for tag change; use `/roster set-guest` |
 | Morning roster | One alliance page (`alliance_tag` / `stfc_alliance_id`) | Server directory + scrapes of **tracked** tags (verified tags ∪ diplomacy map), max **40**/run |
 | Unlinked roster players | Everyone on that one alliance page | Everyone on **successfully scraped tracked** alliances only |
