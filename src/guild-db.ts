@@ -1439,6 +1439,40 @@ export async function countMergedPlayersByGrade(
 	}));
 }
 
+/** Alliance tag counts including roster members not on Discord; excludes guests. */
+export async function countMergedPlayersByAlliance(
+	db: D1Database,
+	guildId: string,
+): Promise<Array<{ alliance_tag: string; count: number }>> {
+	const { results } = await db
+		.prepare(
+			`SELECT alliance_tag, COUNT(*) AS count FROM (
+				SELECT COALESCE(NULLIF(TRIM(vp.alliance_tag), ''), '—') AS alliance_tag
+				FROM verified_players vp
+				WHERE vp.guild_id = ?
+				  AND vp.verification_status IN ('verified', 'active')
+				UNION ALL
+				SELECT COALESCE(NULLIF(TRIM(arm.alliance_tag), ''), '—') AS alliance_tag
+				FROM alliance_roster_members arm
+				WHERE arm.guild_id = ?
+				  AND NOT EXISTS (
+				    SELECT 1 FROM verified_players vp2
+				    WHERE vp2.guild_id = arm.guild_id
+				      AND vp2.player_id = arm.player_id
+				      AND vp2.verification_status IN ('verified', 'active', 'guest')
+				  )
+			)
+			GROUP BY alliance_tag
+			ORDER BY count DESC`,
+		)
+		.bind(guildId, guildId)
+		.all();
+	return (results ?? []).map((r) => ({
+		alliance_tag: String((r as { alliance_tag: string }).alliance_tag),
+		count: Number((r as { count: number }).count),
+	}));
+}
+
 export async function countPlayersByGradeAndAlliance(
 	db: D1Database,
 	guildId: string,

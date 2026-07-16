@@ -79,6 +79,7 @@ export type GuildStatus = {
 	via: string;
 	config: Record<string, unknown>;
 	stats: {
+		alliance_total: number;
 		verified_total: number;
 		guest_total: number;
 		unlinked_total: number;

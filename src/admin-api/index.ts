@@ -1,6 +1,6 @@
 import {
 	countAllianceMembersMissingVerify,
-	countPlayersByAlliance,
+	countMergedPlayersByAlliance,
 	countMergedPlayersByGrade,
 	countPlayersByGradeAndAlliance,
 	countPlayersByStatus,
@@ -393,7 +393,7 @@ export async function handleAdminApi(
 						? countPlayersByGradeAndAlliance(env.STFC_DB, guildId, { includeGuests: false })
 						: Promise.resolve([]),
 					countPlayersByStatus(env.STFC_DB, guildId),
-					countPlayersByAlliance(env.STFC_DB, guildId, { includeGuests: false }),
+					countMergedPlayersByAlliance(env.STFC_DB, guildId),
 					getDiscordGatewayStatus(env),
 					countAllianceMembersMissingVerify(env.STFC_DB, guildId),
 					sumGuildPowerByDay(env.STFC_DB, guildId, 90, { includeGuests: false }),
@@ -405,6 +405,7 @@ export async function handleAdminApi(
 				.filter((r) => r.verification_status !== 'guest')
 				.reduce((n, r) => n + r.count, 0);
 			const guestCount = byStatus.find((r) => r.verification_status === 'guest')?.count ?? 0;
+			const allianceTotal = verified + unlinkedCount;
 			return jsonCors(request, env, {
 				guild_id: guildId,
 				bot_version: BOT_VERSION,
@@ -412,6 +413,7 @@ export async function handleAdminApi(
 				via: access.via,
 				config: publicConfig(config),
 				stats: {
+					alliance_total: allianceTotal,
 					verified_total: verified,
 					guest_total: guestCount,
 					unlinked_total: unlinkedCount,
