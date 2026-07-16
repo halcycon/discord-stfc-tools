@@ -3,12 +3,14 @@
  */
 
 import {
+	editInteractionResponse,
 	interactionResponse,
 	interactionResponseWithComponents,
 	sendMessageWithComponents,
 	updateMessageResponse,
 	type DiscordActionRow,
 } from './discord-api';
+import type { GuildConfig } from './types';
 import {
 	countAllianceMembersMissingVerify,
 	countMergedRosterPlayers,
@@ -21,6 +23,7 @@ import {
 	type MergedRosterRow,
 	type RosterListSessionPayload,
 	type RosterPlayerSort,
+	type UnverifiedDiscordMemberRow,
 } from './guild-db';
 import {
 	formatReportTable,
@@ -28,6 +31,7 @@ import {
 	ReportCols,
 	tagCell,
 } from './report-table';
+import type { TableColumn } from './tableUtils';
 
 const TABLE_PAGE_SIZE = 15;
 const LIST_PAGE_SIZE = 80;
@@ -87,6 +91,52 @@ function missingDenseLine(m: AllianceRosterMemberRow): string {
 	const ops = m.ops_level != null ? String(m.ops_level) : '—';
 	const rank = m.alliance_rank || '—';
 	return `${name} · ${tag} · ${ops} · ${rank} · \`${m.player_id}\` · no Discord`;
+}
+
+function unverifiedDenseLine(m: UnverifiedDiscordMemberRow): string {
+	const nick = m.displayNick?.trim();
+	return nick
+		? `<@${m.discordUserId}> \`${m.username}\` (${nick})`
+		: `<@${m.discordUserId}> \`${m.username}\``;
+}
+
+function sortUnverifiedMembers(
+	members: UnverifiedDiscordMemberRow[],
+	sort: RosterListSessionPayload['sort'],
+): UnverifiedDiscordMemberRow[] {
+	const key = (m: UnverifiedDiscordMemberRow) =>
+		(m.displayNick || m.username || '').toLowerCase();
+	const sorted = [...members];
+	sorted.sort((a, b) => {
+		const cmp = key(a).localeCompare(key(b));
+		return sort === 'name' ? cmp : cmp;
+	});
+	return sorted;
+}
+
+const UNVERIFIED_COLS: TableColumn[] = [
+	{ header: '#', width: 3, align: 'right' },
+	{ header: 'Nick', width: 14 },
+	{ header: 'User', width: 12 },
+	{ header: 'Discord ID', width: 18 },
+];
+
+function unverifiedTableBody(
+	rows: UnverifiedDiscordMemberRow[],
+	pageStartIndex: number,
+	maxRows: number,
+	maxChars: number,
+): string {
+	return formatReportTable(
+		rows.map((m, i) => ({
+			'#': String(pageStartIndex + i + 1),
+			Nick: playerCell(m.displayNick),
+			User: playerCell(m.username),
+			'Discord ID': m.discordUserId,
+		})),
+		UNVERIFIED_COLS,
+		{ maxRows, maxChars },
+	);
 }
 
 function mergedTableBody(players: MergedRosterRow[], maxRows: number, maxChars: number): string {
@@ -248,6 +298,18 @@ async function loadPage(
 		return { total, body, shown: Math.min(rows.length, pageSize), pageSize };
 	}
 
+	if (payload.kind === 'unverified') {
+		const sorted = sortUnverifiedMembers(payload.members ?? [], payload.sort);
+		const total = sorted.length;
+		const rows = sorted.slice(offset, offset + pageSize);
+		if (format === 'list') {
+			const packed = packLines(rows.map(unverifiedDenseLine), bodyBudget);
+			return { total, body: packed.text, shown: packed.shown, pageSize };
+		}
+		const body = unverifiedTableBody(rows, offset, pageSize, bodyBudget);
+		return { total, body, shown: Math.min(rows.length, pageSize), pageSize };
+	}
+
 	const filters = {
 		grade: payload.filters.grade,
 		opsMin: payload.filters.opsMin,
@@ -298,14 +360,19 @@ export async function renderRosterListContent(
 	const from = loaded.total === 0 ? 0 : (page - 1) * loaded.pageSize + 1;
 	const to = loaded.total === 0 ? 0 : Math.min(loaded.total, from + loaded.shown - 1);
 	const vis = visibilityOf(working);
+	const isUnverified = working.kind === 'unverified';
 	const footer =
 		`Showing **${from}–${to}** of **${loaded.total}**` +
 		` · sorted by ${sortLabel(working.sort)}` +
 		` · format **${working.format}**` +
 		` · **${vis}**` +
-		(includeUnlinkedOf(working) ? ' · +unlinked' : '') +
+		(!isUnverified && includeUnlinkedOf(working) ? ' · +unlinked' : '') +
 		(totalPages > 1 ? ` · page **${page}/${totalPages}**` : '') +
-		(includeUnlinkedOf(working) ? `\n_DC **no** = on alliance roster, not linked in Discord._` : '');
+		(!isUnverified && includeUnlinkedOf(working)
+			? `\n_DC **no** = on alliance roster, not linked in Discord._`
+			: isUnverified
+				? `\n_Nick = server nick or Discord display name (mentions show this). Use \`set_guest:true\` to bulk-assign guest._`
+				: '');
 
 	const content = `${working.title}\n${loaded.body}\n\n_${footer}_`;
 	return {
@@ -333,14 +400,20 @@ export async function startRosterListReply(
 		includeUnlinked: opts.payload.includeUnlinked !== false,
 		page: Math.max(1, opts.payload.page ?? 1),
 	};
-	const total = await (initial.kind === 'missing-verify'
-		? countAllianceMembersMissingVerify(env.STFC_DB, opts.guildId)
-		: countMergedRosterPlayers(env.STFC_DB, opts.guildId, {
-				...initial.filters,
-				includeUnlinked: includeUnlinkedOf(initial),
-			}));
+	const total =
+		initial.kind === 'unverified'
+			? (initial.members?.length ?? 0)
+			: initial.kind === 'missing-verify'
+				? await countAllianceMembersMissingVerify(env.STFC_DB, opts.guildId)
+				: await countMergedRosterPlayers(env.STFC_DB, opts.guildId, {
+						...initial.filters,
+						includeUnlinked: includeUnlinkedOf(initial),
+					});
 	if (total === 0) {
-		return interactionResponse(`${initial.title}\n\nNo matching players.`, true);
+		return interactionResponse(
+			`${initial.title}\n\n${initial.kind === 'unverified' ? 'Everyone else is verified or excluded.' : 'No matching players.'}`,
+			true,
+		);
 	}
 
 	const rendered = await renderRosterListContent(env.STFC_DB, opts.guildId, initial);
@@ -361,6 +434,74 @@ export async function startRosterListReply(
 			vis,
 		),
 	});
+}
+
+/**
+ * Finish a deferred `/roster unverified` (or similar) list after members are loaded.
+ * Edits the original deferred interaction with the paginated table + buttons.
+ */
+export async function finishDeferredRosterListReply(
+	env: Env,
+	opts: {
+		applicationId: string;
+		interactionToken: string;
+		guildId: string;
+		userId: string;
+		payload: RosterListSessionPayload;
+		config?: Pick<GuildConfig, 'deploy_mode'> | null;
+	},
+): Promise<void> {
+	const initial: RosterListSessionPayload = {
+		...opts.payload,
+		visibility: opts.payload.visibility === 'public' ? 'public' : 'private',
+		includeUnlinked: opts.payload.includeUnlinked !== false,
+		page: Math.max(1, opts.payload.page || 1),
+	};
+
+	const total =
+		initial.kind === 'unverified'
+			? (initial.members?.length ?? 0)
+			: initial.kind === 'missing-verify'
+				? await countAllianceMembersMissingVerify(env.STFC_DB, opts.guildId)
+				: await countMergedRosterPlayers(env.STFC_DB, opts.guildId, {
+						...initial.filters,
+						includeUnlinked: includeUnlinkedOf(initial),
+					});
+
+	if (total === 0) {
+		await editInteractionResponse(
+			opts.applicationId,
+			opts.interactionToken,
+			`${initial.title}\n\n${initial.kind === 'unverified' ? 'Everyone else is verified or excluded.' : 'No matching players.'}`,
+			true,
+			{ components: [], config: opts.config },
+		);
+		return;
+	}
+
+	const rendered = await renderRosterListContent(env.STFC_DB, opts.guildId, initial);
+	const session = await createRosterListSession(env.STFC_DB, {
+		guildId: opts.guildId,
+		userId: opts.userId,
+		payload: rendered.payload,
+	});
+	const vis = visibilityOf(rendered.payload);
+	await editInteractionResponse(
+		opts.applicationId,
+		opts.interactionToken,
+		rendered.content,
+		vis === 'private',
+		{
+			components: buildComponents(
+				session.token,
+				rendered.payload.page,
+				rendered.totalPages,
+				rendered.payload.format,
+				vis,
+			),
+			config: opts.config,
+		},
+	);
 }
 
 export async function handleRosterListComponent(

@@ -114,7 +114,7 @@ List subcommands (`grade`, `ops`, `rank`, `inactive`, `missing-verify`) share op
 | `set-streak` / `set-inactive` | Admin backfill. `value:` + `user:` **or** `player:`. Near-miss names → **Did you mean?** Yes/No. Updates Discord row and/or alliance cache. | ✓ | ✓ |
 | `missing-verify` | Alliance-cache players with no Discord link. | Home alliance after morning scrape. | All tracked caches after morning scrape. |
 | `/alliance track|suggest|list|untrack` | — | — | Track+scrape now; nick-based link suggestions |
-| `unverified` | Discord members with no STFC link. Optional `set_guest:true` (Admin). | ✓ | ✓ |
+| `unverified` | Discord members with no STFC link (paginated table + Prev/Next). Optional `format:` / `visibility:` / `set_guest:true` (Admin). | ✓ | ✓ |
 | `set-guest` | Force guest (Admin). Blocked in deploy **testing**. | Common. | Manual only when needed. |
 | `status` | Counts by verification status. | ✓ | ✓ |
 | `alliances` | Counts by alliance tag. | Usually one row. | Breakdown across tags. |

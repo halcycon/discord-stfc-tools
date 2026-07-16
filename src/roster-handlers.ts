@@ -23,12 +23,14 @@ import {
 } from './activity-adjust';
 import { formatReportTable, ReportCols } from './report-table';
 import {
+	finishDeferredRosterListReply,
 	parseRosterFormat,
 	parseRosterIncludeUnlinked,
 	parseRosterSort,
 	parseRosterVisibility,
 	startRosterListReply,
 } from './roster-list-view';
+import type { UnverifiedDiscordMemberRow } from './guild-db';
 import {
 	isGuildAdministrator,
 	resolveRequiredUserOption,
@@ -37,8 +39,6 @@ import {
 import { demotePlayerToGuest } from './verification-access';
 import { AuditColor, postAuditLog } from './audit-log';
 import type { GuildConfig } from './types';
-
-const LIST_CAP = 40;
 
 function canUseRoster(
 	interaction: { member?: { permissions?: string; roles?: string[] } },
@@ -52,12 +52,6 @@ function canUseRoster(
 	];
 	if (!allowed.length) return false;
 	return allowed.some((id) => roles.has(id));
-}
-
-function truncateLines(lines: string[], cap = LIST_CAP): string {
-	if (lines.length <= cap) return lines.join('\n');
-	const shown = lines.slice(0, cap);
-	return `${shown.join('\n')}\n…and **${lines.length - cap}** more`;
 }
 
 function getOptionValue(
@@ -531,6 +525,14 @@ export async function handleRosterCommand(
 			if (!appId || !interaction.token) {
 				return interactionResponse('❌ Missing application id / interaction token for deferred update.', true);
 			}
+			if (!setGuest && !actorId) {
+				return interactionResponse('❌ Could not resolve your Discord user id.', true);
+			}
+
+			const format = parseRosterFormat(getOptionValue(opts, 'format'));
+			const visibility = parseRosterVisibility(getOptionValue(opts, 'visibility'));
+			const pageRaw = Number(getOptionValue(opts, 'page'));
+			const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1;
 
 			// Must defer: listAllGuildMembers can exceed Discord's 3s interaction window.
 			const deferred = deferredResponse();
@@ -543,7 +545,7 @@ export async function handleRosterCommand(
 							getExcludedUserIds(env.STFC_DB, guildId),
 						]);
 
-						const unverified = members.filter((m) => {
+						const unverifiedMembers = members.filter((m) => {
 							if (m.user.bot) return false;
 							if (verifiedIds.has(m.user.id)) return false;
 							if (excludedIds.has(m.user.id)) return false;
@@ -551,44 +553,43 @@ export async function handleRosterCommand(
 						});
 
 						const botCount = members.filter((m) => m.user.bot).length;
+						const cached: UnverifiedDiscordMemberRow[] = unverifiedMembers.map((m) => ({
+							discordUserId: m.user.id,
+							username: m.user.username,
+							displayNick: m.nick?.trim() || m.user.global_name?.trim() || null,
+						}));
+
 						const header =
-							`👤 **Unverified Discord members** (${unverified.length})\n` +
-							`_Excluded from this list: verified players, \`/server exclude\` list (${excludedIds.size}), Discord bots (${botCount})._\n\n`;
+							`👤 **Unverified Discord members** (${cached.length})` +
+							`\n_Excluded: verified players, \`/server exclude\` (${excludedIds.size}), Discord bots (${botCount})._`;
 
 						if (!setGuest) {
-							if (unverified.length === 0) {
-								await editInteractionResponse(
-									appId,
-									interaction.token!,
-									`${header}Everyone else is verified or excluded.`,
-									true,
-									{ config },
-								);
-								return;
-							}
-							const lines = unverified.map((m) => {
-								const display =
-									m.nick?.trim() || m.user.global_name?.trim() || null;
-								const nick = display ? ` (${display})` : '';
-								return `• <@${m.user.id}> \`${m.user.username}\`${nick}`;
+							await finishDeferredRosterListReply(env, {
+								applicationId: appId,
+								interactionToken: interaction.token!,
+								guildId,
+								userId: actorId!,
+								config,
+								payload: {
+									kind: 'unverified',
+									title: header,
+									filters: {},
+									sort: 'name',
+									format,
+									visibility,
+									includeUnlinked: false,
+									page,
+									members: cached,
+								},
 							});
-							await editInteractionResponse(
-								appId,
-								interaction.token!,
-								header +
-									truncateLines(lines, 50) +
-									`\n\nTo assign **guest** and remove member/rank roles: \`/roster unverified set_guest:true\` (Administrator).`,
-								true,
-								{ config },
-							);
 							return;
 						}
 
-						if (unverified.length === 0) {
+						if (cached.length === 0) {
 							await editInteractionResponse(
 								appId,
 								interaction.token!,
-								`${header}Nothing to update.`,
+								`${header}\n\nNothing to update.`,
 								true,
 								{ config },
 							);
@@ -598,38 +599,46 @@ export async function handleRosterCommand(
 						let ok = 0;
 						let failed = 0;
 						const errors: string[] = [];
-						for (let i = 0; i < unverified.length; i++) {
-							const m = unverified[i]!;
-							if (i === 0 || (i + 1) % 10 === 0 || i + 1 === unverified.length) {
+						for (let i = 0; i < cached.length; i++) {
+							const m = cached[i]!;
+							if (i === 0 || (i + 1) % 10 === 0 || i + 1 === cached.length) {
 								await editInteractionResponse(
 									appId,
 									interaction.token!,
-									`⏳ Setting guest ${i + 1}/${unverified.length} (ok ${ok}, failed ${failed})…`,
+									`⏳ Setting guest ${i + 1}/${cached.length} (ok ${ok}, failed ${failed})…`,
 									true,
 									{ config },
 								);
 							}
 							try {
-								const result = await demotePlayerToGuest(env, config, guildId, m.user.id, {
-									reason: 'unverified_bulk',
-									actorId,
-									source: 'admin',
-									requireGuestRole: true,
-									skipAudit: true,
-								});
+								const result = await demotePlayerToGuest(
+									env,
+									config,
+									guildId,
+									m.discordUserId,
+									{
+										reason: 'unverified_bulk',
+										actorId,
+										source: 'admin',
+										requireGuestRole: true,
+										skipAudit: true,
+									},
+								);
 								if (result.ok) ok++;
 								else {
 									failed++;
 									if (errors.length < 8) {
-										errors.push(`<@${m.user.id}>: ${result.error ?? 'unknown'}`);
+										errors.push(
+											`<@${m.discordUserId}>: ${result.error ?? 'unknown'}`,
+										);
 									}
 								}
 							} catch (err) {
 								failed++;
-								console.error(`Bulk set-guest failed for ${m.user.id}:`, err);
+								console.error(`Bulk set-guest failed for ${m.discordUserId}:`, err);
 								if (errors.length < 8) {
 									const msg = err instanceof Error ? err.message : 'unknown error';
-									errors.push(`<@${m.user.id}>: ${msg.slice(0, 180)}`);
+									errors.push(`<@${m.discordUserId}>: ${msg.slice(0, 180)}`);
 								}
 							}
 							await sleep(350);

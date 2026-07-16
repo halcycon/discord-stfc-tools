@@ -2756,9 +2756,17 @@ export async function getServerAllianceIdByTag(
 	return row ? String((row as { alliance_id: string }).alliance_id) : null;
 }
 
+/** Compact Discord row cached on unverified roster list sessions. */
+export type UnverifiedDiscordMemberRow = {
+	discordUserId: string;
+	username: string;
+	/** Server nick or global display name (what mentions show). */
+	displayNick: string | null;
+};
+
 /** Payload for /roster paginated list button sessions. */
 export type RosterListSessionPayload = {
-	kind: 'grade' | 'rank' | 'ops' | 'inactive' | 'missing-verify';
+	kind: 'grade' | 'rank' | 'ops' | 'inactive' | 'missing-verify' | 'unverified';
 	/** Header lines without page footer (markdown). */
 	title: string;
 	filters: {
@@ -2775,6 +2783,11 @@ export type RosterListSessionPayload = {
 	/** Include alliance-cache members with no Discord link (flagged in the table). */
 	includeUnlinked: boolean;
 	page: number;
+	/**
+	 * Cached Discord members for `kind: 'unverified'` (avoids re-fetching the
+	 * guild member list on every Prev/Next click).
+	 */
+	members?: UnverifiedDiscordMemberRow[];
 };
 
 export type RosterListSession = {

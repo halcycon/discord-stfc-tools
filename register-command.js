@@ -328,6 +328,34 @@ const commands = [
 				description: 'Discord members not linked to a verified player (excludes bots + exclude list)',
 				options: [
 					{
+						type: 3,
+						name: 'format',
+						description: 'table (default) or dense list (more rows / mentions)',
+						required: false,
+						choices: [
+							{ name: 'Table', value: 'table' },
+							{ name: 'Full list', value: 'list' },
+						],
+					},
+					{
+						type: 3,
+						name: 'visibility',
+						description: 'private (default, only you) or public (channel + anyone can paginate)',
+						required: false,
+						choices: [
+							{ name: 'Private', value: 'private' },
+							{ name: 'Public', value: 'public' },
+						],
+					},
+					{
+						type: 4,
+						name: 'page',
+						description: 'Page number (default 1; or use Previous/Next buttons)',
+						required: false,
+						min_value: 1,
+						max_value: 100,
+					},
+					{
 						type: 5,
 						name: 'set_guest',
 						description: 'Admin: assign guest role and remove member/rank roles for all listed',

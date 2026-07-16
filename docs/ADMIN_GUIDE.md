@@ -836,7 +836,8 @@ Urgent digest buttons: **Approve all** / **Reject all**. Individuals: `/roster s
 ### Unverified members (any mode)
 
 ```
-/roster unverified                      # Discord members with no STFC link (Admin or assistant roles)
+/roster unverified                      # Discord members with no STFC link (paginated table; Admin or assistant roles)
+/roster unverified format:list          # Dense list with mentions (more rows per page)
 /roster unverified set_guest:true       # Admin: assign guest_role + remove member/rank roles for everyone listed
 ```
 
