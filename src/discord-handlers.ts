@@ -564,6 +564,10 @@ async function handleServerDeployCommand(
 		return interactionResponse('❌ Server not configured. Run `/server setup` first.', true);
 	}
 
+	const { collectGoLiveDmPreview, formatGoLiveDmPreview } = await import('./go-live-dm-preview');
+	const previewRaw = getOptionValue(sub.options, 'preview');
+	const wantPreview = previewRaw === true || previewRaw === 'true';
+
 	const modeRaw = getOptionValue(sub.options, 'mode') as string | undefined;
 	if (modeRaw === 'testing' || modeRaw === 'live') {
 		const mode = modeRaw as DeployMode;
@@ -584,27 +588,50 @@ async function handleServerDeployCommand(
 						`• Automated demotions / leave queues are dry-run only (morning cron still reports + lists would-have actions)\n` +
 						`• Outbound DMs are off — use \`/test-dm\` to preview to yourself or a nominated user\n` +
 						`• Manual \`/roster set-guest\` is blocked until you go live\n\n` +
+						`Litmus test: \`/server deploy preview:true\`\n` +
 						`When ready: \`/server deploy mode:live\``,
 					true,
 				);
 			}
+			const preview = await collectGoLiveDmPreview(env.STFC_DB, { ...config, deploy_mode: 'live' });
+			const backlog =
+				preview.inviteCount + preview.welcomeCount > 0
+					? `\n\n${formatGoLiveDmPreview(preview)}`
+					: `\n\n📬 No invite/welcome DMs pending in D1 — member poll and morning sync will only DM new activity.`;
 			return interactionResponse(
 				`✅ Deploy mode: **live**\n` +
-					`Full automation is on (demotions follow your leave-detection policy; invite/welcome DMs resume).`,
+					`Full automation is on (demotions follow your leave-detection policy; invite/welcome DMs resume).` +
+					backlog,
 				true,
 			);
 		});
 	}
 
-	return interactionResponse(
-		`🚀 **Deploy mode:** **${config.deploy_mode}**\n` +
-			(config.deploy_mode === 'testing'
-				? `• Safe setup: no automated demotions; replies prefixed \`[TESTING]\`\n` +
-					`• Outbound DMs off — preview with \`/test-dm\`\n` +
-					`• Morning cron still syncs/reports and lists actions it **would** take\n`
-				: `• Full automation enabled\n`) +
-			`\nSet: \`/server deploy mode:testing\` or \`mode:live\``,
-		true,
+	const preview = await collectGoLiveDmPreview(env.STFC_DB, config);
+	const previewBlock = `\n\n${formatGoLiveDmPreview(preview)}`;
+
+	if (wantPreview) {
+		return withDeployModeContext(config, async () =>
+			interactionResponse(
+				`🚀 **Deploy mode:** **${config.deploy_mode}**\n` + previewBlock.trimStart(),
+				true,
+			),
+		);
+	}
+
+	return withDeployModeContext(config, async () =>
+		interactionResponse(
+			`🚀 **Deploy mode:** **${config.deploy_mode}**\n` +
+				(config.deploy_mode === 'testing'
+					? `• Safe setup: no automated demotions; replies prefixed \`[TESTING]\`\n` +
+						`• Outbound DMs off — preview with \`/test-dm\`\n` +
+						`• Morning cron still syncs/reports and lists actions it **would** take\n`
+					: `• Full automation enabled\n`) +
+				`\nSet: \`/server deploy mode:testing\` or \`mode:live\`` +
+				`\nLitmus test: \`/server deploy preview:true\`` +
+				previewBlock,
+			true,
+		),
 	);
 }
 

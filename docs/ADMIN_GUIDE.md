@@ -405,10 +405,20 @@ New guilds start in **testing** after `/server setup`. Existing guilds stay **li
 Activity streak / days inactive still update in testing (non-destructive counters) so you can validate the morning report before go-live.
 
 ```
-/server deploy                 # show current mode
+/server deploy                 # show current mode + go-live DM preview
+/server deploy preview:true    # litmus test only (who would get invite/welcome DMs)
 /server deploy mode:testing    # safe setup
-/server deploy mode:live       # go live when happy (usually after a morning cron dry-run)
+/server deploy mode:live       # go live (reply includes pending DM backlog)
 ```
+
+**Go-live DM litmus test:** while in **testing**, members are still recorded but invites are not sent (`verification_invited_at` stays null). `/server deploy` (or `preview:true`) lists:
+
+| Pending DM | When it fires after live |
+|------------|--------------------------|
+| Verification invites | Next member poll (≤5 minutes) |
+| Welcome DMs | Next morning daily sync (~06:00 UTC), for full members who never got welcome |
+
+CoC / consent DMs are **not** a go-live backlog (they fire on verify/join flows). Already verified/guest members and the exclude list are skipped for invites.
 
 Shown on `/server status`.
 

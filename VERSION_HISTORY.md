@@ -8,7 +8,7 @@ Release log for the STFC Discord bot (Cloudflare Worker). Versions use **MAJOR.M
 | **MINOR** | New user-facing capability (new slash area, cron product, admin workflow) |
 | **INCREMENTAL** | Fixes, polish, docs, refactors, small command option tweaks |
 
-**Current version:** **1.9.2**
+**Current version:** **1.9.3**
 
 **Sources of truth**
 
@@ -27,6 +27,11 @@ Bump all three together when cutting a release. Prefer a short entry under the n
 Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. **1.0.0** marks the alliance-management product that was prepared for public use. Later **1.x** minors track feature areas shipped in Jul 2026 (git history + migrations `001`–`027`).
 
 ---
+
+## 1.9.3 — Go-live DM litmus test (2026-07-16)
+
+- `/server deploy` shows pending verification-invite + welcome DM backlog from D1
+- `/server deploy preview:true` for litmus-only; `mode:live` confirmation includes the same preview
 
 ## 1.9.2 — Skip already-demoted guests in daily demotion pass (2026-07-16)
 

@@ -1252,6 +1252,31 @@ export async function getMembersNeedingInvite(db: D1Database, guildId: string): 
 	return (results ?? []) as unknown as GuildMemberRecord[];
 }
 
+/**
+ * Active/verified players who still qualify for the hybrid welcome DM auto-send
+ * (no success stamp yet; under the attempt cap). Caller should also filter CoC hold.
+ */
+export async function listPlayersNeedingWelcomeDm(
+	db: D1Database,
+	guildId: string,
+	maxAttempts = 2,
+): Promise<VerifiedPlayer[]> {
+	const cap = Math.max(0, Math.floor(Number(maxAttempts) || 0));
+	const { results } = await db
+		.prepare(
+			`SELECT * FROM verified_players
+			 WHERE guild_id = ?
+			   AND verification_status IN ('verified', 'active')
+			   AND player_id IS NOT NULL
+			   AND welcome_dm_sent_at IS NULL
+			   AND COALESCE(welcome_dm_attempts, 0) < ?
+			 ORDER BY LOWER(COALESCE(player_name, discord_user_id))`,
+		)
+		.bind(guildId, cap)
+		.all();
+	return (results ?? []).map(mapVerifiedPlayer);
+}
+
 /** Verified / active / guest rows for a Discord user across all guilds. */
 export async function listVerifiedGuildsForUser(
 	db: D1Database,

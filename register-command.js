@@ -502,6 +502,12 @@ const commands = [
 							{ name: 'Live (full automation)', value: 'live' },
 						],
 					},
+					{
+						type: 5,
+						name: 'preview',
+						description: 'Litmus test: list users who would get invite/welcome DMs after go-live',
+						required: false,
+					},
 				],
 			},
 			{
