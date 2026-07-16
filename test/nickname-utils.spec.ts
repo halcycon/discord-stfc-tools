@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+	abbreviateAllianceRank,
 	buildMemberNickname,
 	defaultNicknameTemplate,
 	DISCORD_NICK_MAX,
@@ -7,10 +8,20 @@ import {
 } from '../src/nickname-utils';
 
 describe('nickname-utils', () => {
-	it('normalizes alliance ranks', () => {
+	it('normalizes alliance ranks (full and abbrev)', () => {
 		expect(normalizeAllianceRank('admiral')).toBe('Admiral');
 		expect(normalizeAllianceRank(' COMMODORE ')).toBe('Commodore');
+		expect(normalizeAllianceRank('adm')).toBe('Admiral');
+		expect(normalizeAllianceRank('op')).toBe('Operative');
 		expect(normalizeAllianceRank('nope')).toBeNull();
+	});
+
+	it('abbreviates ranks for nicknames', () => {
+		expect(abbreviateAllianceRank('Admiral')).toBe('Adm');
+		expect(abbreviateAllianceRank('Commodore')).toBe('Com');
+		expect(abbreviateAllianceRank('Premier')).toBe('Pr');
+		expect(abbreviateAllianceRank('Operative')).toBe('Op');
+		expect(abbreviateAllianceRank('Agent')).toBe('Ag');
 	});
 
 	it('uses mode defaults when template is empty', () => {
@@ -27,7 +38,7 @@ describe('nickname-utils', () => {
 				allianceTag: 'HORUS',
 				rank: 'Admiral',
 			}),
-		).toBe('[Admiral] Adam');
+		).toBe('[Adm] Adam');
 
 		expect(
 			buildMemberNickname(null, 'single_alliance', {
@@ -35,7 +46,7 @@ describe('nickname-utils', () => {
 				allianceTag: 'HORUS',
 				rank: 'Commodore',
 			}),
-		).toBe('[Commodore] Adam');
+		).toBe('[Com] Adam');
 
 		expect(
 			buildMemberNickname(null, 'single_alliance', {
@@ -43,7 +54,7 @@ describe('nickname-utils', () => {
 				allianceTag: 'HORUS',
 				rank: 'Premier',
 			}),
-		).toBe('[Premier] Adam');
+		).toBe('[Pr] Adam');
 
 		expect(
 			buildMemberNickname(null, 'single_alliance', {
@@ -62,14 +73,14 @@ describe('nickname-utils', () => {
 		).toBe('Adam');
 	});
 
-	it('multi-alliance: tag plus rank paren when rank known', () => {
+	it('multi-alliance: tag plus abbreviated rank paren when rank known', () => {
 		expect(
 			buildMemberNickname(null, 'multi_alliance', {
 				name: 'Adam',
 				allianceTag: 'HORUS',
 				rank: 'Admiral',
 			}),
-		).toBe('[HORUS] (Admiral) Adam');
+		).toBe('[HORUS] (Adm) Adam');
 
 		expect(
 			buildMemberNickname(null, 'multi_alliance', {
@@ -77,7 +88,7 @@ describe('nickname-utils', () => {
 				allianceTag: 'HORUS',
 				rank: 'Operative',
 			}),
-		).toBe('[HORUS] (Operative) Adam');
+		).toBe('[HORUS] (Op) Adam');
 
 		expect(
 			buildMemberNickname(null, 'multi_alliance', {
@@ -88,13 +99,13 @@ describe('nickname-utils', () => {
 		).toBe('[HORUS] Adam');
 	});
 
-	it('supports custom templates', () => {
+	it('supports custom templates with abbreviated {rank}', () => {
 		expect(
 			buildMemberNickname('{rank} | {player_name}', 'single_alliance', {
 				name: 'Ada',
 				rank: 'Premier',
 			}),
-		).toBe('Premier | Ada');
+		).toBe('Pr | Ada');
 	});
 
 	it('truncates to Discord nick limit', () => {
@@ -104,6 +115,6 @@ describe('nickname-utils', () => {
 			rank: 'Admiral',
 		});
 		expect(nick.length).toBeLessThanOrEqual(DISCORD_NICK_MAX);
-		expect(nick.startsWith('[Admiral]')).toBe(true);
+		expect(nick.startsWith('[Adm]')).toBe(true);
 	});
 });

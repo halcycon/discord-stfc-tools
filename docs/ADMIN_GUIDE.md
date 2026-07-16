@@ -112,11 +112,11 @@ On verify (and daily sync), the bot sets the member’s nick from a template.
 
 | Mode | Pattern | Example |
 |------|---------|---------|
-| Single alliance | `{rank_prefix}{player_name}` | `[Admiral] Halcynicon` or `Halcynicon` |
-| Multi alliance | `[{alliance_tag}]{rank_paren} {player_name}` | `[KWSN] (Admiral) Halcynicon` |
+| Single alliance | `{rank_prefix}{player_name}` | `[Adm] Halcynicon` or `Halcynicon` |
+| Multi alliance | `[{alliance_tag}]{rank_paren} {player_name}` | `[KWSN] (Adm) Halcynicon` |
 
-`{rank_prefix}` is `[Premier] ` / `[Commodore] ` / `[Admiral] ` only (empty for Operative/Agent).  
-`{rank_paren}` is ` (Rank)` when rank is known.
+`{rank_prefix}` is `[Pr] ` / `[Com] ` / `[Adm] ` only (empty for Op/Ag).  
+`{rank_paren}` is ` (Adm)` / ` (Com)` / ` (Pr)` / ` (Op)` / ` (Ag)` when rank is known.
 
 ### Custom template
 
@@ -128,9 +128,9 @@ On verify (and daily sync), the bot sets the member’s nick from a template.
 |-------------|---------|
 | `{player_name}` | In-game name |
 | `{alliance_tag}` | Alliance tag (no brackets) |
-| `{rank}` | Full rank or empty |
-| `{rank_prefix}` | `[Admiral] ` style for leadership ranks |
-| `{rank_paren}` | ` (Admiral)` when rank known |
+| `{rank}` | Abbreviated rank (`Adm`/`Com`/`Pr`/`Op`/`Ag`) or empty |
+| `{rank_prefix}` | `[Adm] ` style for leadership ranks |
+| `{rank_paren}` | ` (Adm)` when rank known |
 
 Nicks are truncated to Discord’s **32** character limit.
 

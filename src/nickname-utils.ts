@@ -4,25 +4,45 @@ export const DISCORD_NICK_MAX = 32;
 
 export type AllianceRankKey = 'Operative' | 'Agent' | 'Premier' | 'Commodore' | 'Admiral';
 
+/** Short forms used in Discord nicknames (32-char limit). */
+export type AllianceRankAbbrev = 'Op' | 'Ag' | 'Pr' | 'Com' | 'Adm';
+
 const LEADERSHIP_RANKS = new Set<AllianceRankKey>(['Premier', 'Commodore', 'Admiral']);
+
+const RANK_ABBREV: Record<AllianceRankKey, AllianceRankAbbrev> = {
+	Operative: 'Op',
+	Agent: 'Ag',
+	Premier: 'Pr',
+	Commodore: 'Com',
+	Admiral: 'Adm',
+};
 
 export function normalizeAllianceRank(rank: string | undefined | null): AllianceRankKey | null {
 	if (!rank) return null;
 	const r = rank.trim().toLowerCase();
 	switch (r) {
 		case 'operative':
+		case 'op':
 			return 'Operative';
 		case 'agent':
+		case 'ag':
 			return 'Agent';
 		case 'premier':
+		case 'pr':
 			return 'Premier';
 		case 'commodore':
+		case 'com':
 			return 'Commodore';
 		case 'admiral':
+		case 'adm':
 			return 'Admiral';
 		default:
 			return null;
 	}
+}
+
+export function abbreviateAllianceRank(rank: AllianceRankKey): AllianceRankAbbrev {
+	return RANK_ABBREV[rank];
 }
 
 export function isLeadershipRank(rank: AllianceRankKey | null): boolean {
@@ -48,9 +68,9 @@ export interface NicknamePlayerFields {
  * Placeholders:
  * - `{player_name}` — in-game name
  * - `{alliance_tag}` — alliance tag (no brackets)
- * - `{rank}` — normalized rank or empty
- * - `{rank_prefix}` — `[Admiral] ` / `[Commodore] ` / `[Premier] ` for leadership ranks; else empty
- * - `{rank_paren}` — ` (Admiral)` etc. when rank is known; else empty
+ * - `{rank}` — abbreviated rank (Adm/Com/Pr/Op/Ag) or empty
+ * - `{rank_prefix}` — `[Adm] ` / `[Com] ` / `[Pr] ` for leadership ranks; else empty
+ * - `{rank_paren}` — ` (Adm)` etc. when rank is known; else empty
  *
  * Result is trimmed, collapsed whitespace, and truncated to Discord's 32-char limit.
  */
@@ -61,9 +81,9 @@ export function buildMemberNickname(
 ): string {
 	const tpl = (template?.trim() || defaultNicknameTemplate(mode));
 	const rankKey = normalizeAllianceRank(player.rank);
-	const rank = rankKey ?? '';
-	const rankPrefix = isLeadershipRank(rankKey) ? `[${rankKey}] ` : '';
-	const rankParen = rankKey ? ` (${rankKey})` : '';
+	const rankAbbrev = rankKey ? abbreviateAllianceRank(rankKey) : '';
+	const rankPrefix = isLeadershipRank(rankKey) ? `[${rankAbbrev}] ` : '';
+	const rankParen = rankAbbrev ? ` (${rankAbbrev})` : '';
 	const allianceTag = (player.allianceTag ?? '').trim();
 	const playerName = (player.name ?? '').trim() || 'Unknown';
 
@@ -72,7 +92,7 @@ export function buildMemberNickname(
 		.replaceAll('{alliance_tag}', allianceTag)
 		.replaceAll('{rank_prefix}', rankPrefix)
 		.replaceAll('{rank_paren}', rankParen)
-		.replaceAll('{rank}', rank);
+		.replaceAll('{rank}', rankAbbrev);
 
 	nick = nick.replace(/\s+/g, ' ').trim();
 	// Drop empty bracket/paren leftovers from missing tag/rank, e.g. "[] Name" or "() Name"
