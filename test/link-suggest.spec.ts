@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	buildLinkSuggestComponents,
 	formatLinkSuggestions,
 	parseDiscordNick,
 	suggestRosterDiscordLinks,
@@ -75,5 +76,40 @@ describe('suggestRosterDiscordLinks', () => {
 				},
 			]),
 		).toContain('<@9>');
+		expect(formatLinkSuggestions([
+			{
+				discordUserId: '9',
+				discordLabel: '[KWSN] Ada',
+				playerId: 1,
+				playerName: 'Ada',
+				allianceTag: 'KWSN',
+				confidence: 'high',
+				reason: 'exact name + [TAG]',
+			},
+		])).toContain('buttons below');
+	});
+
+	it('builds Approve buttons including Approve-all-high', () => {
+		const rows = buildLinkSuggestComponents(
+			'123456789012345678',
+			[
+				{
+					discordUserId: '111111111111111111',
+					discordLabel: '[KWSN] Ada',
+					playerId: 42,
+					playerName: 'Ada',
+					allianceTag: 'KWSN',
+					confidence: 'high',
+					reason: 'exact',
+				},
+			],
+			'KWSN',
+		);
+		expect(rows[0]!.components[0]!.custom_id).toBe(
+			'alink:high:123456789012345678:KWSN',
+		);
+		expect(rows[1]!.components[0]!.custom_id).toBe(
+			'alink:1:123456789012345678:111111111111111111:42:KWSN',
+		);
 	});
 });

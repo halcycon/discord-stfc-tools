@@ -481,7 +481,7 @@ Change sections (joins, leaves, moves, ops, rank, renames) and the morning **Pla
 /alliance untrack tag:KWSN        # drop from explicit list only
 ```
 
-Unlinked STFC players stay in the alliance roster cache (`/roster missing-verify`). Suggestions prefer nicks like `[TAG] Name` / `[TAG] (Adm) Name`. Link with `/server verify user:@Them link:https://stfc.pro/players/ID`.
+Unlinked STFC players stay in the alliance roster cache (`/roster missing-verify`). Suggestions prefer nicks like `[TAG] Name` / `[TAG] (Adm) Name`. Use the **Approve** buttons on the suggest message (or **Approve all 🟢** for high-confidence), or `/server verify user:@Them link:https://stfc.pro/players/ID`.
 
 ### Verify / guests
 

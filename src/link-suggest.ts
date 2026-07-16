@@ -2,6 +2,7 @@
  * Parse Discord display names / nicks for STFC-style prefixes and suggest
  * Discord member ↔ alliance-roster links.
  */
+import type { DiscordActionRow } from './discord-api';
 import { findNearestMatch, normalizePlayerName } from './player-name-match';
 
 export type ParsedDiscordNick = {
@@ -190,17 +191,89 @@ export function formatLinkSuggestions(
 			`_No confident matches._ Ensure the alliance was scraped (\`/alliance track\`) and members use \`[TAG] Name\` nicks or matching display names.`
 		);
 	}
-	const lines = suggestions.map((s) => {
+	const lines = suggestions.map((s, i) => {
 		const conf =
 			s.confidence === 'high' ? '🟢' : s.confidence === 'medium' ? '🟡' : '🟠';
 		return (
-			`${conf} <@${s.discordUserId}> \`${s.discordLabel}\` → **${s.playerName}** ` +
+			`${conf} **${i + 1}.** <@${s.discordUserId}> \`${s.discordLabel}\` → **${s.playerName}** ` +
 			`(\`${s.playerId}\`) [${s.allianceTag}] — ${s.reason}`
 		);
 	});
+	const highCount = suggestions.filter((s) => s.confidence === 'high').length;
+	const buttonCap = maxLinkSuggestButtons(highCount > 0);
+	let footer =
+		`\n\nUse the buttons below to link` +
+		(highCount ? ` (or **Approve all 🟢** for ${highCount} high-confidence)` : '') +
+		`.`;
+	if (suggestions.length > buttonCap) {
+		footer +=
+			`\n_Buttons for first **${buttonCap}** only — ` +
+			`\`/server verify user:@Them link:https://stfc.pro/players/ID\` for the rest._`;
+	}
 	return (
 		`🔗 **Link suggestions**${tagNote} (${suggestions.length})\n` +
 		lines.join('\n') +
-		`\n\nLink with \`/server verify user:@Them link:https://stfc.pro/players/ID\` (use the player id above).`
+		footer
 	);
+}
+
+/** Discord allows 5 action rows; Approve-all uses one when present. */
+export function maxLinkSuggestButtons(hasApproveAllHigh: boolean): number {
+	return hasApproveAllHigh ? 20 : 25;
+}
+
+/** Discord button rows for approving suggested links. */
+export function buildLinkSuggestComponents(
+	guildId: string,
+	suggestions: LinkSuggestion[],
+	tagFilter?: string | null,
+): DiscordActionRow[] {
+	if (suggestions.length === 0) return [];
+
+	const rows: DiscordActionRow[] = [];
+	const high = suggestions.filter((s) => s.confidence === 'high');
+	const tagKey = (tagFilter?.trim().toUpperCase() || '_').slice(0, 12);
+
+	if (high.length > 0) {
+		rows.push({
+			type: 1,
+			components: [
+				{
+					type: 2,
+					style: 3,
+					label: `Approve all 🟢 (${high.length})`.slice(0, 80),
+					custom_id: `alink:high:${guildId}:${tagKey}`,
+				},
+			],
+		});
+	}
+
+	const forButtons = suggestions.slice(0, maxLinkSuggestButtons(high.length > 0));
+	for (let i = 0; i < forButtons.length; i += 5) {
+		const chunk = forButtons.slice(i, i + 5);
+		rows.push({
+			type: 1,
+			components: chunk.map((s, j) => {
+				const n = i + j + 1;
+				const label = `${n} ✓ ${s.playerName}`.slice(0, 80);
+				return {
+					type: 2,
+					style: s.confidence === 'high' ? 3 : s.confidence === 'medium' ? 1 : 2,
+					label,
+					custom_id: `alink:1:${guildId}:${s.discordUserId}:${s.playerId}:${tagKey}`,
+				};
+			}),
+		});
+	}
+
+	// Discord max 5 action rows
+	return rows.slice(0, 5);
+}
+
+export function stfcProPlayerUrl(playerId: number, server?: number, region?: string): string {
+	const base = `https://stfc.pro/players/${playerId}`;
+	if (server && region) {
+		return `${base}?server=${server}&region=${encodeURIComponent(region)}`;
+	}
+	return base;
 }

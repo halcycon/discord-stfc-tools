@@ -141,7 +141,7 @@ List subcommands (`grade`, `ops`, `rank`, `inactive`, `missing-verify`) share op
 | Subcommand | Notes |
 |------------|-------|
 | `track` | `tag:` and/or `alliance_id:` — scrape HTML now, store roster, add to morning tracked set |
-| `suggest` | Optional `tag:` — match unverified Discord members to unlinked roster (nick `[TAG] Name`) |
+| `suggest` | Optional `tag:` — match unverified Discord members to unlinked roster; **Approve** buttons to link |
 | `list` | Explicit + diplomacy + combined tracked tags |
 | `untrack` | Remove from explicit list (diplomacy/verified tags still track) |
 
