@@ -23,6 +23,86 @@ function formatPowerTick(value: number): string {
 	return Math.round(value).toLocaleString();
 }
 
+/** Generic donut chart for counts or summed metrics (e.g. power). */
+export function ValuePolarChart({
+	rows,
+	centerLabel = 'total',
+	formatLegendValue = (v) => v.toLocaleString(),
+}: {
+	rows: Array<{ label: string; value: number }>;
+	centerLabel?: string;
+	formatLegendValue?: (v: number) => string;
+}) {
+	const filtered = rows.filter((r) => r.value > 0);
+	const total = filtered.reduce((n, r) => n + r.value, 0);
+	if (total === 0) {
+		return <p className="muted tiny">No data</p>;
+	}
+	const size = 180;
+	const cx = size / 2;
+	const cy = size / 2;
+	const rOuter = 78;
+	const rInner = 36;
+	let angle = -Math.PI / 2;
+	const wedges: Array<{ d: string; color: string; label: string }> = [];
+	filtered.forEach((row, i) => {
+		const slice = (row.value / total) * Math.PI * 2;
+		const a0 = angle;
+		const a1 = angle + slice;
+		angle = a1;
+		const x0 = cx + rOuter * Math.cos(a0);
+		const y0 = cy + rOuter * Math.sin(a0);
+		const x1 = cx + rOuter * Math.cos(a1);
+		const y1 = cy + rOuter * Math.sin(a1);
+		const xi0 = cx + rInner * Math.cos(a0);
+		const yi0 = cy + rInner * Math.sin(a0);
+		const xi1 = cx + rInner * Math.cos(a1);
+		const yi1 = cy + rInner * Math.sin(a1);
+		const large = slice > Math.PI ? 1 : 0;
+		const d = [
+			`M ${x0} ${y0}`,
+			`A ${rOuter} ${rOuter} 0 ${large} 1 ${x1} ${y1}`,
+			`L ${xi1} ${yi1}`,
+			`A ${rInner} ${rInner} 0 ${large} 0 ${xi0} ${yi0}`,
+			'Z',
+		].join(' ');
+		wedges.push({
+			d,
+			color: ALLIANCE_COLORS[i % ALLIANCE_COLORS.length],
+			label: row.label,
+		});
+	});
+
+	return (
+		<div className="chart-polar">
+			<svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} role="img" aria-label="Breakdown">
+				{wedges.map((w) => (
+					<path key={w.label} d={w.d} fill={w.color} stroke="#000" strokeWidth="2" />
+				))}
+				<text x={cx} y={cy - 4} textAnchor="middle" className="chart-center-label">
+					{formatLegendValue(total)}
+				</text>
+				<text x={cx} y={cy + 14} textAnchor="middle" className="chart-center-sub">
+					{centerLabel}
+				</text>
+			</svg>
+			<ul className="chart-legend">
+				{filtered.map((r, i) => (
+					<li key={r.label}>
+						<span
+							className="chart-swatch"
+							style={{ background: ALLIANCE_COLORS[i % ALLIANCE_COLORS.length] }}
+						/>
+						{r.label}: <strong>{formatLegendValue(r.value)}</strong>
+					</li>
+				))}
+			</ul>
+		</div>
+	);
+}
+
+export { formatPowerTick };
+
 export function GradePolarChart({
 	rows,
 	centerLabel = 'players',

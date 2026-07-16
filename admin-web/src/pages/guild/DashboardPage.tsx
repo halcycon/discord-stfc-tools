@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type GradePlayersResponse, type RosterPlayerRow } from '../../api';
+import { api, type ReportsPlayersResponse, type RosterPlayerRow } from '../../api';
 import {
 	AlliancePolarChart,
+	formatPowerTick,
 	GradeByAllianceChart,
 	GradePolarChart,
 	PowerLineChart,
+	ValuePolarChart,
 } from '../../components/charts';
 import { useGuild } from '../../guild/GuildContext';
 import { LcarsPanel } from '../../lcars/LcarsFrame';
@@ -18,9 +20,31 @@ type ChartVisibility = {
 	power: boolean;
 };
 
-function fmtNum(n: number | null | undefined): string {
-	if (n == null || !Number.isFinite(n)) return '—';
-	return n.toLocaleString();
+function segmentKey(player: RosterPlayerRow, multi: boolean): string {
+	if (multi) {
+		const tag = player.alliance_tag?.trim();
+		return tag ? `[${tag}]` : '—';
+	}
+	if (player.on_discord === false) return 'Not on Discord';
+	const rank = player.alliance_rank?.trim();
+	return rank || '—';
+}
+
+function aggregateRoster(
+	players: RosterPlayerRow[],
+	multi: boolean,
+	mode: 'count' | 'power',
+): Array<{ label: string; value: number }> {
+	const buckets = new Map<string, number>();
+	for (const p of players) {
+		const key = segmentKey(p, multi);
+		const add = mode === 'count' ? 1 : Math.max(0, p.power ?? 0);
+		buckets.set(key, (buckets.get(key) ?? 0) + add);
+	}
+	return Array.from(buckets.entries())
+		.map(([label, value]) => ({ label, value }))
+		.filter((r) => r.value > 0)
+		.sort((a, b) => b.value - a.value);
 }
 
 export function DashboardPage() {
@@ -50,8 +74,13 @@ export function DashboardPage() {
 		setGradeLoading(true);
 		setGradeError(null);
 		void (async () => {
-			const res = await api<GradePlayersResponse>(
-				`/api/admin/guilds/${guildId}/players?grade=${selectedGrade}`,
+			const qs = new URLSearchParams({
+				grade: String(selectedGrade),
+				include_unlinked: '1',
+				limit: '500',
+			});
+			const res = await api<ReportsPlayersResponse>(
+				`/api/admin/guilds/${guildId}/reports/players?${qs}`,
 			);
 			if (cancelled) return;
 			setGradeLoading(false);
@@ -61,7 +90,7 @@ export function DashboardPage() {
 			}
 			if (res.error || !res.data) {
 				setGradePlayers(null);
-				setGradeError(res.error || 'Failed to load players');
+				setGradeError(res.error || 'Failed to load grade breakdown');
 				return;
 			}
 			setGradePlayers(res.data.players);
@@ -70,6 +99,16 @@ export function DashboardPage() {
 			cancelled = true;
 		};
 	}, [guildId, selectedGrade, navigate]);
+
+	const gradeMakeup = useMemo(() => {
+		if (!gradePlayers) return [];
+		return aggregateRoster(gradePlayers, multi, 'count');
+	}, [gradePlayers, multi]);
+
+	const gradePower = useMemo(() => {
+		if (!gradePlayers) return [];
+		return aggregateRoster(gradePlayers, multi, 'power');
+	}, [gradePlayers, multi]);
 
 	const powerSeries = useMemo(() => {
 		if (!multi || chartScope !== 'alliance') return undefined;
@@ -85,11 +124,17 @@ export function DashboardPage() {
 	}, [multi, chartScope, status.charts.power_by_day_alliance]);
 
 	const allianceMode = multi && chartScope === 'alliance';
+	const gradeFilterActive = selectedGrade != null;
 	const anyChartVisible = showCharts.membership || showCharts.grades || showCharts.power;
 
 	function toggleChart(key: keyof ChartVisibility) {
 		setShowCharts((prev) => ({ ...prev, [key]: !prev[key] }));
 	}
+
+	const makeupLabel = multi ? 'by alliance' : 'by rank / Discord';
+	const gradeSegmentHint = multi
+		? 'Includes roster members not on Discord. Segments by alliance tag.'
+		: 'Includes roster members not on Discord. Segments by in-game rank; unlinked shown separately.';
 
 	return (
 		<>
@@ -132,7 +177,8 @@ export function DashboardPage() {
 						)}
 					</ul>
 					<p className="muted tiny" style={{ marginTop: '0.65rem' }}>
-						Click a grade for a quick list, or open Reports for full tables
+						Click a grade to filter charts below (includes unlinked roster). Open Reports for
+						sortable tables.
 					</p>
 				</LcarsPanel>
 				<LcarsPanel label="Gateway" cap="a6">
@@ -160,129 +206,120 @@ export function DashboardPage() {
 				</LcarsPanel>
 			</section>
 
-			<LcarsPanel label="Charts" cap="a1">
-				<div className="chart-controls">
-					{multi ? (
-						<label>
-							Breakdown
-							<select
-								value={chartScope}
-								onChange={(e) => setChartScope(e.target.value as ChartScope)}
-							>
-								<option value="alliance">By alliance</option>
-								<option value="players">By players (guild total)</option>
-							</select>
-						</label>
-					) : null}
-					<div className="chart-toggles">
-						{allianceMode ? (
-							<label className="check">
-								<input
-									type="checkbox"
-									checked={showCharts.membership}
-									onChange={() => toggleChart('membership')}
-								/>
-								Alliance membership
-							</label>
-						) : null}
-						<label className="check">
-							<input
-								type="checkbox"
-								checked={showCharts.grades}
-								onChange={() => toggleChart('grades')}
-							/>
-							{allianceMode ? 'Grades by alliance' : 'Grades'}
-						</label>
-						<label className="check">
-							<input
-								type="checkbox"
-								checked={showCharts.power}
-								onChange={() => toggleChart('power')}
-							/>
-							{allianceMode ? 'Power by alliance' : 'Collective power'}
-						</label>
-					</div>
-				</div>
-			</LcarsPanel>
-
-			{anyChartVisible ? (
-				<section className="grid grid--charts">
-					{showCharts.membership && allianceMode ? (
-						<LcarsPanel label="Alliance membership" cap="a8">
-							<AlliancePolarChart rows={status.stats.by_alliance} />
-						</LcarsPanel>
-					) : null}
-					{showCharts.grades ? (
-						<LcarsPanel
-							label={allianceMode ? 'Grades by alliance' : 'Grades'}
-							cap="a5"
-						>
-							{allianceMode ? (
-								<GradeByAllianceChart rows={status.charts.by_grade_alliance ?? []} />
-							) : (
-								<GradePolarChart rows={status.stats.by_grade} />
-							)}
-						</LcarsPanel>
-					) : null}
-					{showCharts.power ? (
-						<LcarsPanel
-							label={allianceMode ? 'Power by alliance' : 'Collective power'}
-							cap="a1"
-						>
-							{allianceMode && powerSeries && powerSeries.length > 0 ? (
-								<PowerLineChart series={powerSeries} />
-							) : (
-								<PowerLineChart points={status.charts.power_by_day} />
-							)}
-						</LcarsPanel>
-					) : null}
-				</section>
-			) : (
-				<p className="muted tiny">No charts selected — use the toggles above.</p>
-			)}
-
-			{selectedGrade != null ? (
-				<LcarsPanel label={`Grade G${selectedGrade}`} cap="a5">
-					{gradeLoading ? <p className="lcars-status">Loading players…</p> : null}
+			{gradeFilterActive ? (
+				<>
+					<p className="muted tiny" style={{ marginBottom: '0.75rem' }}>
+						<strong>G{selectedGrade}</strong> — {gradeSegmentHint}
+					</p>
+					{gradeLoading ? <p className="lcars-status">Loading grade breakdown…</p> : null}
 					{gradeError ? <p className="error">{gradeError}</p> : null}
 					{!gradeLoading && !gradeError && gradePlayers ? (
 						gradePlayers.length === 0 ? (
 							<p className="muted">No players in this grade.</p>
 						) : (
-							<div className="roster-table-wrap">
-								<table className="roster-table">
-									<thead>
-										<tr>
-											<th>Nickname</th>
-											<th>Alliance</th>
-											<th>Rank</th>
-											<th>Ops</th>
-											<th>Power</th>
-											<th>Streak</th>
-											<th>Inactive</th>
-											<th>Status</th>
-										</tr>
-									</thead>
-									<tbody>
-										{gradePlayers.map((p) => (
-											<tr key={p.discord_user_id ?? `${p.player_id}`}>
-												<td>{p.player_name ?? '—'}</td>
-												<td>{p.alliance_tag ? `[${p.alliance_tag}]` : '—'}</td>
-												<td>{p.alliance_rank ?? '—'}</td>
-												<td>{fmtNum(p.ops_level)}</td>
-												<td>{fmtNum(p.power)}</td>
-												<td>{fmtNum(p.activity_streak)}</td>
-												<td>{fmtNum(p.days_inactive)}</td>
-												<td>{p.verification_status}</td>
-											</tr>
-										))}
-									</tbody>
-								</table>
-							</div>
+							<section className="grid grid--charts">
+								<LcarsPanel label={`G${selectedGrade} players ${makeupLabel}`} cap="a8">
+									<ValuePolarChart
+										rows={gradeMakeup}
+										centerLabel="players"
+										formatLegendValue={(v) => String(v)}
+									/>
+								</LcarsPanel>
+								<LcarsPanel label={`G${selectedGrade} power ${makeupLabel}`} cap="a1">
+									<ValuePolarChart
+										rows={gradePower}
+										centerLabel="power"
+										formatLegendValue={formatPowerTick}
+									/>
+								</LcarsPanel>
+							</section>
 						)
 					) : null}
-				</LcarsPanel>
-			) : null}
+				</>
+			) : (
+				<>
+					<LcarsPanel label="Charts" cap="a1">
+						<div className="chart-controls">
+							{multi ? (
+								<label>
+									Breakdown
+									<select
+										value={chartScope}
+										onChange={(e) => setChartScope(e.target.value as ChartScope)}
+									>
+										<option value="alliance">By alliance</option>
+										<option value="players">By players (guild total)</option>
+									</select>
+								</label>
+							) : null}
+							<div className="chart-toggles">
+								{allianceMode ? (
+									<label className="check">
+										<input
+											type="checkbox"
+											checked={showCharts.membership}
+											onChange={() => toggleChart('membership')}
+										/>
+										Alliance membership
+									</label>
+								) : null}
+								<label className="check">
+									<input
+										type="checkbox"
+										checked={showCharts.grades}
+										onChange={() => toggleChart('grades')}
+									/>
+									{allianceMode ? 'Grades by alliance' : 'Grades'}
+								</label>
+								<label className="check">
+									<input
+										type="checkbox"
+										checked={showCharts.power}
+										onChange={() => toggleChart('power')}
+									/>
+									{allianceMode ? 'Power by alliance' : 'Collective power'}
+								</label>
+							</div>
+						</div>
+					</LcarsPanel>
+
+					{anyChartVisible ? (
+						<section className="grid grid--charts">
+							{showCharts.membership && allianceMode ? (
+								<LcarsPanel label="Alliance membership" cap="a8">
+									<AlliancePolarChart rows={status.stats.by_alliance} />
+								</LcarsPanel>
+							) : null}
+							{showCharts.grades ? (
+								<LcarsPanel
+									label={allianceMode ? 'Grades by alliance' : 'Grades'}
+									cap="a5"
+								>
+									{allianceMode ? (
+										<GradeByAllianceChart rows={status.charts.by_grade_alliance ?? []} />
+									) : (
+										<GradePolarChart rows={status.stats.by_grade} />
+									)}
+								</LcarsPanel>
+							) : null}
+							{showCharts.power ? (
+								<LcarsPanel
+									label={allianceMode ? 'Power by alliance' : 'Collective power'}
+									cap="a1"
+								>
+									{allianceMode && powerSeries && powerSeries.length > 0 ? (
+										<PowerLineChart series={powerSeries} />
+									) : (
+										<PowerLineChart points={status.charts.power_by_day} />
+									)}
+								</LcarsPanel>
+							) : null}
+						</section>
+					) : (
+						<p className="muted tiny">No charts selected — use the toggles above.</p>
+					)}
+				</>
+			)}
 		</>
 	);
 }

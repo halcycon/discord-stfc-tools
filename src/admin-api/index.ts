@@ -1,7 +1,7 @@
 import {
 	countAllianceMembersMissingVerify,
 	countPlayersByAlliance,
-	countPlayersByGrade,
+	countMergedPlayersByGrade,
 	countPlayersByGradeAndAlliance,
 	countPlayersByStatus,
 	getGuildConfig,
@@ -388,7 +388,7 @@ export async function handleAdminApi(
 		if ((rest === '' || rest === '/' || rest === '/status') && request.method === 'GET') {
 			const [byGrade, byGradeAlliance, byStatus, byAlliance, gateway, unlinkedCount, powerByDay, powerByAlliance] =
 				await Promise.all([
-					countPlayersByGrade(env.STFC_DB, guildId, { includeGuests: false }),
+					countMergedPlayersByGrade(env.STFC_DB, guildId),
 					config.mode === 'multi_alliance'
 						? countPlayersByGradeAndAlliance(env.STFC_DB, guildId, { includeGuests: false })
 						: Promise.resolve([]),

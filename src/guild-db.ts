@@ -1403,6 +1403,42 @@ export async function countPlayersByGrade(
 	}));
 }
 
+/** Grade counts including alliance-roster members not on Discord; excludes guests. */
+export async function countMergedPlayersByGrade(
+	db: D1Database,
+	guildId: string,
+): Promise<Array<{ grade: number; count: number }>> {
+	const { results } = await db
+		.prepare(
+			`SELECT grade, COUNT(*) AS count FROM (
+				SELECT vp.grade
+				FROM verified_players vp
+				WHERE vp.guild_id = ?
+				  AND vp.verification_status IN ('verified', 'active')
+				  AND vp.grade IS NOT NULL
+				UNION ALL
+				SELECT arm.grade
+				FROM alliance_roster_members arm
+				WHERE arm.guild_id = ?
+				  AND arm.grade IS NOT NULL
+				  AND NOT EXISTS (
+				    SELECT 1 FROM verified_players vp2
+				    WHERE vp2.guild_id = arm.guild_id
+				      AND vp2.player_id = arm.player_id
+				      AND vp2.verification_status IN ('verified', 'active', 'guest')
+				  )
+			)
+			GROUP BY grade
+			ORDER BY grade`,
+		)
+		.bind(guildId, guildId)
+		.all();
+	return (results ?? []).map((r) => ({
+		grade: Number((r as { grade: number }).grade),
+		count: Number((r as { count: number }).count),
+	}));
+}
+
 export async function countPlayersByGradeAndAlliance(
 	db: D1Database,
 	guildId: string,
