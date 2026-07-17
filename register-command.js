@@ -1347,6 +1347,20 @@ const commands = [
 			},
 			{
 				type: 1,
+				name: 'defer-untracked-admirals',
+				description:
+					'Multi: skip Admiral roles (and diplomacy) for untracked alliances until /alliance track',
+				options: [
+					{
+						type: 5,
+						name: 'enabled',
+						description: 'Turn deferral on or off (omit to show current setting)',
+						required: false,
+					},
+				],
+			},
+			{
+				type: 1,
 				name: 'untrack',
 				description: 'Remove a tag from the explicit track list',
 				options: [

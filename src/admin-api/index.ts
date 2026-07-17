@@ -140,6 +140,7 @@ function publicConfig(config: GuildConfig) {
 		agreement_timing: config.agreement_timing,
 		agreement_version: config.agreement_version,
 		welcome_dm_enabled: config.welcome_dm_enabled,
+		defer_untracked_admiral_roles: config.defer_untracked_admiral_roles,
 		verification_log_channel_id: config.verification_log_channel_id,
 		audit_log_channel_id: config.audit_log_channel_id,
 		urgent_notify_channel_id: config.urgent_notify_channel_id,
@@ -206,6 +207,7 @@ const CONFIG_PATCH_KEYS = [
 	'agreement_timing',
 	'agreement_version',
 	'welcome_dm_enabled',
+	'defer_untracked_admiral_roles',
 	'web_admin_role_ids',
 	'dm_query_role_ids',
 	'survey_creator_role_ids',
@@ -650,7 +652,8 @@ export async function handleAdminApi(
 					key === 'verification_enabled' ||
 					key === 'data_consent_enabled' ||
 					key === 'agreement_enabled' ||
-					key === 'welcome_dm_enabled'
+					key === 'welcome_dm_enabled' ||
+					key === 'defer_untracked_admiral_roles'
 				) {
 					(patch as Record<string, unknown>)[key] = Boolean(val);
 				} else if (key === 'poll_interval_hours') {

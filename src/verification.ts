@@ -37,6 +37,10 @@ import { postVerificationLog } from './verification-log';
 import { AuditColor, postAuditLog } from './audit-log';
 import { postUrgentNotify } from './urgent-notify';
 import { DEFAULT_LOCALE, resolveLocale, t } from './i18n';
+import {
+	shouldDeferUntrackedAdmiralRoles,
+	shouldDeferUntrackedDiplomacy,
+} from './tracked-alliance-tags';
 import { ensureLocaleAfterVerify, sendLanguagePickerDm } from './i18n/language-picker';
 import {
 	needsAgreementBeforeFullAccess,
@@ -448,10 +452,28 @@ export async function processVerification(
 				guildId,
 				discordUserId,
 				allianceRank ?? undefined,
+				allianceTag,
 			);
 			const roleNote = formatRoleChangeNote(roleChanges);
 			notes.push(roleNote);
 			auditNotes.push(roleNote);
+
+			if (shouldDeferUntrackedAdmiralRoles(config, allianceTag, allianceRank)) {
+				auditNotes.push('Admiral roles deferred (alliance not tracked)');
+				await postAuditLog(env, config, {
+					title: 'Admiral of untracked alliance',
+					description:
+						`<@${discordUserId}> → **${player.name}** [${tagLabel}] is an **Admiral** of an untracked alliance. ` +
+						`Admiral Discord roles were **not** assigned. Track with \`/alliance track tag:${tagLabel}\` to apply roles and diplomacy.`,
+					actorId: opts?.manualByUserId ?? discordUserId,
+					source: opts?.manualByUserId ? 'admin' : 'member',
+					color: AuditColor.warn,
+					fields: [
+						{ name: 'Player ID', value: String(player.playerId), inline: true },
+						{ name: 'Rank', value: allianceRank ?? 'Admiral', inline: true },
+					],
+				});
+			}
 
 			const nick = nicknameForPlayer(config, {
 				...player,
@@ -493,6 +515,12 @@ export async function processVerification(
 			if (diplomacyId) {
 				notes.push(t(locale, 'verify.note.diplomacy', { channelId: diplomacyId }));
 				auditNotes.push(`Diplomacy <#${diplomacyId}>`);
+			} else if (
+				allianceTag &&
+				config.mode === 'multi_alliance' &&
+				shouldDeferUntrackedDiplomacy(config, allianceTag)
+			) {
+				auditNotes.push('Diplomacy deferred (alliance not tracked)');
 			}
 
 			const personalChannelId =
@@ -1088,10 +1116,14 @@ export async function syncVerifiedPlayer(
 			guildId,
 			discordUserId,
 			allianceRank ?? undefined,
+			allianceTag,
 		);
 		const roleNote = formatRoleChangeNote(roleChanges);
 		if (roleChanges.added.length > 0 || roleChanges.removed.length > 0) {
 			changes.push(roleNote);
+		}
+		if (shouldDeferUntrackedAdmiralRoles(config, allianceTag, allianceRank)) {
+			changes.push('Admiral roles deferred (alliance not tracked)');
 		}
 		try {
 			await setGuildMemberNickname(

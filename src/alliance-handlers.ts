@@ -15,6 +15,7 @@ import {
 	getVerifiedDiscordUserIds,
 	listActiveVerifiedPlayers,
 	listAllianceMembersMissingVerify,
+	upsertGuildConfig,
 	type AllianceRosterMemberRow,
 } from './guild-db';
 import { collectTrackedAllianceTags, isMultiAllianceGuild } from './alliance-roster-sync';
@@ -190,8 +191,43 @@ export async function handleAllianceCommand(
 				`• Combined: ${all.length ? all.map((t) => `\`${t}\``).join(', ') : '_none_'}\n` +
 				`• Explicit (\`/alliance track\`): ${explicit.length ? explicit.map((t) => `\`${t}\``).join(', ') : '_none_'}\n` +
 				`• Diplomacy map: ${diplomacy.length ? diplomacy.map((t) => `\`${t}\``).join(', ') : '_none_'}\n` +
-				`• Plus any tags on verified players\n\n` +
+				`• Plus any tags on verified players\n` +
+				`• Defer untracked Admiral roles: **${config.defer_untracked_admiral_roles ? 'on' : 'off'}**` +
+				` (\`/alliance defer-untracked-admirals\`)\n\n` +
 				`Track + scrape now: \`/alliance track tag:TAG\``,
+			true,
+		);
+	}
+
+	if (subName === 'defer-untracked-admirals') {
+		const enabledRaw = getOptionValue(opts, 'enabled');
+		if (enabledRaw !== true && enabledRaw !== false && enabledRaw !== 'true' && enabledRaw !== 'false') {
+			return interactionResponse(
+				`⚙️ **Defer untracked Admiral roles:** **${config.defer_untracked_admiral_roles ? 'on' : 'off'}**\n\n` +
+					`When **on**, Admirals whose alliance is not yet tracked (explicit track list ∪ diplomacy map) ` +
+					`get member roles only — Admiral/overlay roles and diplomacy channels wait until ` +
+					`\`/alliance track\`.\n\n` +
+					`Toggle: \`/alliance defer-untracked-admirals enabled:true\``,
+				true,
+			);
+		}
+		const enabled = enabledRaw === true || enabledRaw === 'true';
+		await upsertGuildConfig(env.STFC_DB, {
+			guild_id: guildId,
+			defer_untracked_admiral_roles: enabled,
+		});
+		await postAuditLog(env, config, {
+			title: 'Defer untracked Admiral roles',
+			description: enabled ? 'Enabled' : 'Disabled',
+			actorId: interaction.member?.user?.id,
+			source: 'admin',
+			color: AuditColor.info,
+		});
+		return interactionResponse(
+			`✅ Defer untracked Admiral roles is now **${enabled ? 'on' : 'off'}**.` +
+				(enabled
+					? `\nAdmirals of untracked alliances will not get Admiral Discord roles until you \`/alliance track\` that tag (also creates diplomacy).`
+					: `\nAdmiral roles and diplomacy apply on verify as usual.`),
 			true,
 		);
 	}
@@ -238,7 +274,12 @@ export async function handleAllianceCommand(
 					title: 'Alliance tracked + scraped',
 					description:
 						`**[${result.allianceTag}]** \`${result.allianceId}\` · **${result.playerCount}** players` +
-						(result.allianceName ? ` · ${result.allianceName}` : ''),
+						(result.allianceName ? ` · ${result.allianceName}` : '') +
+						(result.diplomacyChannelId ? ` · diplomacy <#${result.diplomacyChannelId}>` : '') +
+						(result.admiralsRolesApplied > 0 || result.admiralsRolesFailed > 0
+							? ` · Admiral roles: **${result.admiralsRolesApplied}** applied` +
+								(result.admiralsRolesFailed ? `, **${result.admiralsRolesFailed}** failed` : '')
+							: ''),
 					actorId: interaction.member?.user?.id,
 					source: 'admin',
 					color: AuditColor.success,
@@ -254,7 +295,18 @@ export async function handleAllianceCommand(
 						`• Players on roster: **${result.playerCount}**` +
 						` (${result.alreadyVerifiedOnRoster} already verified, ~**${unlinked}** unlinked)\n` +
 						`• Guild missing-verify total: **${result.missingVerify}**\n` +
-						`• All tracked tags: ${result.trackedTags.map((t) => `\`${t}\``).join(', ') || '—'}\n\n` +
+						`• All tracked tags: ${result.trackedTags.map((t) => `\`${t}\``).join(', ') || '—'}\n` +
+						(result.diplomacyChannelId
+							? `• Diplomacy channel: <#${result.diplomacyChannelId}>\n`
+							: '') +
+						(result.admiralsRolesApplied > 0 || result.admiralsRolesFailed > 0
+							? `• Deferred Admiral roles applied: **${result.admiralsRolesApplied}**` +
+								(result.admiralsRolesFailed
+									? ` (**${result.admiralsRolesFailed}** failed)`
+									: '') +
+								`\n`
+							: '') +
+						`\n` +
 						`Next: \`/alliance suggest tag:${result.allianceTag}\` to match Discord nicks, ` +
 						`or \`/roster missing-verify\`.`,
 					true,

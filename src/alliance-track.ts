@@ -18,6 +18,12 @@ import {
 	isMultiAllianceGuild,
 } from './alliance-roster-sync';
 import { parseTrackedAllianceTags } from './tracked-alliance-tags';
+import { normalizeAllianceRank } from './nickname-utils';
+import {
+	applyDiplomacyForAlliance,
+	applyMemberRoles,
+} from './verification-access';
+import { isDeployTesting } from './deploy-mode';
 import type { GuildConfig } from './types';
 
 export { parseTrackedAllianceTags } from './tracked-alliance-tags';
@@ -32,12 +38,17 @@ export type TrackAllianceResult =
 			alreadyVerifiedOnRoster: number;
 			missingVerify: number;
 			trackedTags: string[];
+			diplomacyChannelId: string | null;
+			admiralsRolesApplied: number;
+			admiralsRolesFailed: number;
 	  }
 	| { ok: false; error: string };
 
 /**
  * Resolve tag → alliance id (refresh server directory if needed), scrape HTML,
  * persist roster, add tag to tracked_alliance_tags.
+ * When defer_untracked_admiral_roles is on: create diplomacy + assign Admiral roles
+ * for already-verified admirals of this tag.
  */
 export async function trackAndScrapeAlliance(
 	env: Env,
@@ -167,6 +178,50 @@ export async function trackAndScrapeAlliance(
 	});
 	config.tracked_alliance_tags = nextTracked;
 
+	let diplomacyChannelId: string | null = null;
+	let admiralsRolesApplied = 0;
+	let admiralsRolesFailed = 0;
+
+	const token = env.DISCORD_BOT_TOKEN;
+	if (token && !isDeployTesting(config)) {
+		diplomacyChannelId = await applyDiplomacyForAlliance(
+			env,
+			token,
+			config,
+			config.guild_id,
+			tag,
+		);
+
+		const verified = await listActiveVerifiedPlayers(env.STFC_DB, config.guild_id);
+		const admirals = verified.filter(
+			(p) =>
+				(p.alliance_tag ?? '').trim().toUpperCase() === tag &&
+				normalizeAllianceRank(p.alliance_rank) === 'Admiral' &&
+				(p.verification_status === 'active' ||
+					p.verification_status === 'verified' ||
+					p.verification_status === 'guest'),
+		);
+		for (const p of admirals) {
+			if (p.verification_status === 'guest') continue; // lounge until agreement
+			try {
+				const changes = await applyMemberRoles(
+					token,
+					config,
+					config.guild_id,
+					p.discord_user_id,
+					p.alliance_rank ?? 'Admiral',
+					tag,
+				);
+				if (changes.added.length > 0 || changes.unchanged.length > 0) {
+					admiralsRolesApplied++;
+				}
+			} catch (err) {
+				console.warn(`Admiral role backfill failed for ${p.discord_user_id}:`, err);
+				admiralsRolesFailed++;
+			}
+		}
+	}
+
 	let alreadyVerifiedOnRoster = 0;
 	if (members.length > 0) {
 		const placeholders = members.map(() => '?').join(',');
@@ -194,6 +249,9 @@ export async function trackAndScrapeAlliance(
 		alreadyVerifiedOnRoster,
 		missingVerify,
 		trackedTags: allTracked,
+		diplomacyChannelId,
+		admiralsRolesApplied,
+		admiralsRolesFailed,
 	};
 }
 

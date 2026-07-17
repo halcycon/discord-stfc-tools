@@ -99,6 +99,7 @@ function mapGuildConfig(row: any): GuildConfig {
 		diplomacy_archive_category_id: row.diplomacy_archive_category_id ?? null,
 		diplomacy_channel_map: parseJsonObject(row.diplomacy_channel_map),
 		tracked_alliance_tags: parseTrackedAllianceTags(row.tracked_alliance_tags),
+		defer_untracked_admiral_roles: Boolean(row.defer_untracked_admiral_roles ?? 0),
 		diplomacy_everyone_can_view: row.diplomacy_everyone_can_view === undefined || row.diplomacy_everyone_can_view === null
 			? true
 			: Boolean(row.diplomacy_everyone_can_view),
@@ -249,6 +250,7 @@ export async function upsertGuildConfig(
 		await upsertDemotionPolicyField(db, config);
 		await upsertNicknameDisplayRanksField(db, config);
 		await upsertTrackedAllianceTagsField(db, config);
+		await upsertDeferUntrackedAdmiralRolesField(db, config);
 		// Brand-new guilds start in testing unless explicitly set.
 		await upsertDeployModeField(db, {
 			guild_id: config.guild_id,
@@ -511,6 +513,7 @@ async function upsertDiplomacyConfigFields(
 	await upsertDemotionPolicyField(db, config);
 	await upsertNicknameDisplayRanksField(db, config);
 	await upsertTrackedAllianceTagsField(db, config);
+	await upsertDeferUntrackedAdmiralRolesField(db, config);
 	await upsertDeployModeField(db, config);
 	await upsertWelcomeDmConfigFields(db, config);
 	await upsertWebAdminRoleIdsField(db, config);
@@ -547,6 +550,22 @@ async function upsertTrackedAllianceTagsField(
 			 WHERE guild_id = ?`,
 		)
 		.bind(JSON.stringify(tags), config.guild_id)
+		.run();
+}
+
+async function upsertDeferUntrackedAdmiralRolesField(
+	db: D1Database,
+	config: Partial<GuildConfig> & { guild_id: string },
+): Promise<void> {
+	if (!Object.prototype.hasOwnProperty.call(config, 'defer_untracked_admiral_roles')) return;
+	await db
+		.prepare(
+			`UPDATE guild_configs SET
+			 defer_untracked_admiral_roles = ?,
+			 updated_at = datetime('now')
+			 WHERE guild_id = ?`,
+		)
+		.bind(config.defer_untracked_admiral_roles ? 1 : 0, config.guild_id)
 		.run();
 }
 

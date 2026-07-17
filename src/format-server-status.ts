@@ -31,6 +31,9 @@ export function formatServerStatus(config: GuildConfig): string {
 			? ` (${formatDiplomacyChannelMap(config.diplomacy_channel_map)})`
 			: '') +
 		`\n` +
+		(config.mode === 'multi_alliance'
+			? `• Defer untracked Admiral roles: ${config.defer_untracked_admiral_roles ? 'on' : 'off'}\n`
+			: '') +
 		`• Verification: ${config.verification_enabled ? 'enabled' : 'disabled'}\n` +
 		`• Poll interval: ${config.poll_interval_hours}h\n` +
 		`• Member roles: ${config.member_role_ids.join(', ') || 'none'}\n` +

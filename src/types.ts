@@ -114,6 +114,12 @@ export interface GuildConfig {
 	 * (in addition to verified player tags ∪ diplomacy map).
 	 */
 	tracked_alliance_tags: string[];
+	/**
+	 * Multi-alliance: when true, do not assign Admiral rank/overlay roles for players
+	 * whose alliance is not yet tracked (explicit track list ∪ diplomacy map).
+	 * Also defers diplomacy channel creation for untracked tags until `/alliance track`.
+	 */
+	defer_untracked_admiral_roles: boolean;
 	/** If true, @everyone can view diplomacy channels (send still restricted). */
 	diplomacy_everyone_can_view: boolean;
 	/** Extra roles that can view (used when everyone_can_view is false, or as additive). */

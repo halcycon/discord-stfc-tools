@@ -21,6 +21,7 @@ import { getVerifiedPlayer, upsertGuildConfig, upsertVerifiedPlayer, getGuildCon
 import { ensurePersonalChannel } from './personal-channels';
 import { ensureDiplomacyChannel, diplomacyChannelsEnabled } from './diplomacy-channels';
 import { buildMemberNickname, normalizeAllianceRank } from './nickname-utils';
+import { shouldDeferUntrackedAdmiralRoles, shouldDeferUntrackedDiplomacy } from './tracked-alliance-tags';
 import { resolveLocale, t } from './i18n';
 import { AuditColor, postAuditLog } from './audit-log';
 import { opsLevelToGrade } from './grade-utils';
@@ -374,25 +375,34 @@ function getOverlayRoleIdsForRank(config: GuildConfig, playerRank: string | unde
 	return Array.from(out);
 }
 
-function getMemberRoleIdsForRank(config: GuildConfig, playerRank: string | undefined): string[] {
+export function getMemberRoleIdsForRank(
+	config: GuildConfig,
+	playerRank: string | undefined,
+	allianceTag?: string | null,
+): string[] {
+	const deferAdmiral = shouldDeferUntrackedAdmiralRoles(config, allianceTag, playerRank);
 	const rankKey = normalizeAllianceRank(playerRank);
 	const rankRoles =
-		rankKey === 'Operative'
-			? config.operative_role_ids
-			: rankKey === 'Agent'
-				? config.agent_role_ids
-				: rankKey === 'Premier'
-					? config.premier_role_ids
-					: rankKey === 'Commodore'
-						? config.commodore_role_ids
-						: rankKey === 'Admiral'
-							? config.admiral_role_ids
-							: [];
+		deferAdmiral
+			? []
+			: rankKey === 'Operative'
+				? config.operative_role_ids
+				: rankKey === 'Agent'
+					? config.agent_role_ids
+					: rankKey === 'Premier'
+						? config.premier_role_ids
+						: rankKey === 'Commodore'
+							? config.commodore_role_ids
+							: rankKey === 'Admiral'
+								? config.admiral_role_ids
+								: [];
 
 	const all = new Set<string>();
 	for (const id of config.member_role_ids) all.add(id);
 	for (const id of rankRoles) all.add(id);
-	for (const id of getOverlayRoleIdsForRank(config, playerRank)) all.add(id);
+	if (!deferAdmiral) {
+		for (const id of getOverlayRoleIdsForRank(config, playerRank)) all.add(id);
+	}
 	return Array.from(all);
 }
 
@@ -415,9 +425,10 @@ export async function applyMemberRoles(
 	guildId: string,
 	userId: string,
 	playerRank: string | undefined,
+	allianceTag?: string | null,
 ): Promise<RoleChangeResult> {
 	const desired = new Set(
-		getMemberRoleIdsForRank(config, playerRank).filter((id) => /^\d{15,20}$/.test(id)),
+		getMemberRoleIdsForRank(config, playerRank, allianceTag).filter((id) => /^\d{15,20}$/.test(id)),
 	);
 	const managed = getAllMemberRoleIds(config).filter((id) => /^\d{15,20}$/.test(id));
 	const member = await getGuildMember(token, guildId, userId);
@@ -549,6 +560,9 @@ export async function applyDiplomacyForAlliance(
 	if (config.mode !== 'multi_alliance' || !diplomacyChannelsEnabled(config) || !allianceTag) {
 		return null;
 	}
+	if (shouldDeferUntrackedDiplomacy(config, allianceTag)) {
+		return null;
+	}
 	const result = await ensureDiplomacyChannel(token, config, guildId, allianceTag);
 	if (!result.ok) {
 		console.error('Diplomacy channel setup failed:', result.error);
@@ -658,7 +672,7 @@ export async function grantFullAccessForVerifiedPlayer(
 	}
 
 	try {
-		const roleChanges = await applyMemberRoles(token, config, guildId, discordUserId, rank);
+		const roleChanges = await applyMemberRoles(token, config, guildId, discordUserId, rank, allianceTag);
 		auditNotes.push(formatRoleChangeNote(roleChanges));
 	} catch (err) {
 		console.error('Member roles after agreement failed:', err);

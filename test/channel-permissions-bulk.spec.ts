@@ -40,6 +40,7 @@ function minimalConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		diplomacy_archive_category_id: null,
 		diplomacy_channel_map: {},
 		tracked_alliance_tags: [],
+		defer_untracked_admiral_roles: false,
 		diplomacy_everyone_can_view: true,
 		diplomacy_view_role_ids: [],
 		diplomacy_write_role_ids: [],
