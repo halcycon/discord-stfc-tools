@@ -1,6 +1,6 @@
 import { sendChannelMessage, sendMessageWithComponents } from '../discord-api';
 import { getGuildConfig, getPendingVerificationsForUser, getVerifiedPlayer, upsertVerifiedPlayer } from '../guild-db';
-import { processVerification } from '../verification';
+import { processVerification, verificationContent } from '../verification';
 import { resolveLocale, t } from '../i18n';
 import { shouldSkipOutboundDm } from '../deploy-mode';
 import {
@@ -109,7 +109,7 @@ export async function handleDirectMessage(env: Env, message: DiscordMessage): Pr
 
 			if (stfcUrls.length > 0) {
 				const result = await processVerification(env, record.guild_id, userId, stfcUrls[0], imageUrl);
-				await sendChannelMessage(token, message.channel_id, result);
+				await sendChannelMessage(token, message.channel_id, verificationContent(result));
 				return;
 			}
 
@@ -119,7 +119,7 @@ export async function handleDirectMessage(env: Env, message: DiscordMessage): Pr
 
 		if (stfcUrls.length > 0) {
 			const result = await processVerification(env, record.guild_id, userId, stfcUrls[0]);
-			await sendChannelMessage(token, message.channel_id, result);
+			await sendChannelMessage(token, message.channel_id, verificationContent(result));
 			return;
 		}
 
@@ -131,7 +131,7 @@ export async function handleDirectMessage(env: Env, message: DiscordMessage): Pr
 		if (stfcUrls.length > 0) {
 			const screenshotUrl = imageUrl;
 			const result = await processVerification(env, record.guild_id, userId, stfcUrls[0], screenshotUrl);
-			await sendChannelMessage(token, message.channel_id, result);
+			await sendChannelMessage(token, message.channel_id, verificationContent(result));
 			return;
 		}
 

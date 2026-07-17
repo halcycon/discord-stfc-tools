@@ -1,19 +1,28 @@
 import {
 	DiscordApiError,
+	deferredComponentResponse,
+	editInteractionResponse,
 	sendDirectMessage,
 	setGuildMemberNickname,
+	updateMessageResponse,
+	type DiscordActionRow,
 } from './discord-api';
 import { opsLevelToGrade } from './grade-utils';
 import { applyActivityObservation } from './activity-utils';
+import { isGuildAdministrator } from './discord-admin';
 import {
+	createVerifyReassignSession,
+	deleteVerifyReassignSession,
 	findOtherVerifiedPlayersByPlayerId,
 	getGuildConfig,
 	getVerifiedPlayer,
+	getVerifyReassignSession,
 	isUserExcluded,
 	markMemberInvited,
 	recordGuildMember,
 	recordPlayerStats,
 	recordScreenshot,
+	resetVerification,
 	setVerifiedPlayerActivity,
 	upsertVerifiedPlayer,
 } from './guild-db';
@@ -43,6 +52,7 @@ import {
 	applyGuestRole,
 	applyMemberRoles,
 	applyPersonalChannelForMember,
+	archivePersonalChannelOnDemotion,
 	demotePlayerToGuest,
 	formatDiscordApiFailure,
 	formatRoleChangeNote,
@@ -143,6 +153,44 @@ export interface ProcessVerificationOpts {
 	 * Self-verify / DM verify always attempt welcome (subject to attempt cap).
 	 */
 	sendWelcomeDm?: boolean;
+	/**
+	 * `/server verify` only: when the player ID is already linked elsewhere,
+	 * return Approve/Reject buttons instead of a hard block.
+	 */
+	offerReassignConfirm?: boolean;
+	/** After admin Approve — skip the duplicate player-ID guard. */
+	forcePlayerIdReassign?: boolean;
+}
+
+/** Most paths return a plain string; admin reassign confirm includes buttons. */
+export type ProcessVerificationResult =
+	| string
+	| { content: string; components: DiscordActionRow[] };
+
+export function verificationContent(result: ProcessVerificationResult): string {
+	return typeof result === 'string' ? result : result.content;
+}
+
+function reassignConfirmComponents(token: string): DiscordActionRow[] {
+	return [
+		{
+			type: 1,
+			components: [
+				{
+					type: 2,
+					style: 3,
+					label: 'Approve new link',
+					custom_id: `vre:ok:${token}`,
+				},
+				{
+					type: 2,
+					style: 4,
+					label: 'Reject',
+					custom_id: `vre:no:${token}`,
+				},
+			],
+		},
+	];
 }
 
 export async function processVerification(
@@ -152,7 +200,7 @@ export async function processVerification(
 	stfcProUrl: string,
 	screenshotUrl?: string,
 	opts?: ProcessVerificationOpts,
-): Promise<string> {
+): Promise<ProcessVerificationResult> {
 	const locale = await playerLocale(env, guildId, discordUserId);
 	const config = await getGuildConfig(env.STFC_DB, guildId);
 	if (!config) {
@@ -198,18 +246,28 @@ export async function processVerification(
 		return `❌ ${error ?? t(locale, 'verify.error.lookup_failed')}`;
 	}
 
-	const existingOwners = await findOtherVerifiedPlayersByPlayerId(
-		env.STFC_DB,
-		guildId,
-		player.playerId,
-		discordUserId,
-	);
+	const existingOwners =
+		opts?.forcePlayerIdReassign === true
+			? []
+			: await findOtherVerifiedPlayersByPlayerId(
+					env.STFC_DB,
+					guildId,
+					player.playerId,
+					discordUserId,
+				);
 	if (existingOwners.length > 0) {
 		const owner = existingOwners[0]!;
 		const ownerLabel = existingOwners
 			.map((p) => `<@${p.discord_user_id}> (${p.verification_status})`)
 			.join(', ');
 		const isAdminManual = Boolean(opts?.manualByUserId);
+		const extraOwners =
+			existingOwners.length > 1
+				? `\nAlso linked to: ${existingOwners
+						.slice(1)
+						.map((p) => `<@${p.discord_user_id}>`)
+						.join(', ')}`
+				: '';
 
 		await postAuditLog(env, config, {
 			title: 'Duplicate player link attempt',
@@ -240,21 +298,35 @@ export async function processVerification(
 			return t(locale, 'verify.error.player_id_in_use_member');
 		}
 
-		// Admin `/server verify` (and alliance Approve): warn with details; do not overwrite.
-		return t(DEFAULT_LOCALE, 'verify.error.player_id_in_use_admin', {
+		const adminMsg = t(DEFAULT_LOCALE, 'verify.error.player_id_in_use_admin', {
 			playerName: player.name,
 			playerId: player.playerId,
 			existingUserId: owner.discord_user_id,
 			existingStatus: owner.verification_status,
 			targetUserId: discordUserId,
-			extraOwners:
-				existingOwners.length > 1
-					? `\nAlso linked to: ${existingOwners
-							.slice(1)
-							.map((p) => `<@${p.discord_user_id}>`)
-							.join(', ')}`
-					: '',
+			extraOwners,
 		});
+
+		if (opts?.offerReassignConfirm && opts.manualByUserId) {
+			const session = await createVerifyReassignSession(env.STFC_DB, {
+				guildId,
+				adminUserId: opts.manualByUserId,
+				targetDiscordUserId: discordUserId,
+				existingDiscordUserIds: existingOwners.map((p) => p.discord_user_id),
+				playerId: player.playerId,
+				playerName: player.name,
+				stfcProUrl,
+				screenshotUrl: screenshotUrl ?? null,
+				sendWelcomeDm: opts.sendWelcomeDm === true,
+			});
+			return {
+				content: adminMsg,
+				components: reassignConfirmComponents(session.token),
+			};
+		}
+
+		// Alliance Approve etc.: warn with details; do not overwrite.
+		return adminMsg;
 	}
 
 	const grade = opsLevelToGrade(player.level);
@@ -518,6 +590,211 @@ export async function processVerification(
 			summary,
 		});
 	}
+}
+
+/**
+ * Clear prior Discord owners of an STFC player ID so a new link can be applied.
+ * Best-effort guest roles + channel archive; always resets the verified_players row.
+ */
+async function releasePlayerIdOwners(
+	env: Env,
+	config: GuildConfig,
+	guildId: string,
+	playerId: number,
+	excludeDiscordUserId: string,
+	actorId: string,
+): Promise<{ released: string[]; notes: string[] }> {
+	const owners = await findOtherVerifiedPlayersByPlayerId(
+		env.STFC_DB,
+		guildId,
+		playerId,
+		excludeDiscordUserId,
+	);
+	const released: string[] = [];
+	const notes: string[] = [];
+
+	for (const owner of owners) {
+		const uid = owner.discord_user_id;
+		if (env.DISCORD_BOT_TOKEN && !isDeployTesting(config)) {
+			try {
+				const roleChanges = await applyGuestRole(
+					env.DISCORD_BOT_TOKEN,
+					config,
+					guildId,
+					uid,
+				);
+				notes.push(`<@${uid}> ${formatRoleChangeNote(roleChanges)}`);
+			} catch (err) {
+				notes.push(`<@${uid}> role update failed: ${formatDiscordApiFailure(err)}`);
+			}
+			try {
+				const archived = await archivePersonalChannelOnDemotion(
+					env.DISCORD_BOT_TOKEN,
+					config,
+					owner.personal_channel_id,
+				);
+				if (archived && owner.personal_channel_id) {
+					notes.push(`<@${uid}> channel archived <#${owner.personal_channel_id}>`);
+				}
+			} catch (err) {
+				console.warn('Archive personal channel on reassign failed:', err);
+			}
+		}
+		await resetVerification(env.STFC_DB, guildId, uid);
+		released.push(uid);
+	}
+
+	if (released.length > 0) {
+		await postAuditLog(env, config, {
+			title: 'Player link reassigned — prior owners cleared',
+			description:
+				`STFC player ID **${playerId}** released from ${released.map((id) => `<@${id}>`).join(', ')} ` +
+				`so <@${excludeDiscordUserId}> can be linked.`,
+			actorId,
+			source: 'admin',
+			color: AuditColor.warn,
+			fields: notes.length
+				? [{ name: 'Notes', value: notes.join(' · ').slice(0, 1024), inline: false }]
+				: undefined,
+		});
+	}
+
+	return { released, notes };
+}
+
+/** Approve / Reject buttons from `/server verify` duplicate-player warning. */
+export async function handleVerifyReassignComponent(
+	env: Env,
+	ctx: ExecutionContext,
+	interaction: {
+		guild_id?: string;
+		application_id?: string;
+		token: string;
+		member?: { permissions?: string; user?: { id: string } };
+		data?: { custom_id?: string };
+	},
+): Promise<Response> {
+	const customId = interaction.data?.custom_id ?? '';
+	const match = customId.match(/^vre:(ok|no):([a-f0-9]+)$/i);
+	if (!match) {
+		return updateMessageResponse('❌ Unknown reassign button.', { components: [] });
+	}
+
+	if (!isGuildAdministrator(interaction.member?.permissions)) {
+		return updateMessageResponse('❌ Administrator required.', { components: [] });
+	}
+
+	const guildId = interaction.guild_id;
+	if (!guildId) {
+		return updateMessageResponse('❌ Run this inside the server.', { components: [] });
+	}
+
+	const action = match[1]!;
+	const token = match[2]!;
+	const session = await getVerifyReassignSession(env.STFC_DB, token);
+	if (!session || session.guild_id !== guildId) {
+		return updateMessageResponse(
+			'❌ This confirmation expired or was already used. Run `/server verify` again.',
+			{ components: [] },
+		);
+	}
+
+	const actorId = interaction.member?.user?.id ?? session.admin_user_id;
+	const config = await getGuildConfig(env.STFC_DB, guildId);
+
+	if (action === 'no') {
+		await deleteVerifyReassignSession(env.STFC_DB, token);
+		if (config) {
+			await postAuditLog(env, config, {
+				title: 'Duplicate player link rejected',
+				description:
+					`Admin <@${actorId}> rejected linking **${session.player_name ?? session.player_id}** ` +
+					`(ID ${session.player_id}) to <@${session.target_discord_user_id}>. ` +
+					`Existing: ${session.existing_discord_user_ids.map((id) => `<@${id}>`).join(', ') || '—'}`,
+				actorId,
+				source: 'admin',
+				color: AuditColor.info,
+			});
+		}
+		return updateMessageResponse(
+			`❌ **Rejected** — left <@${session.existing_discord_user_ids[0] ?? 'unknown'}> linked to ` +
+				`**${session.player_name ?? session.player_id}** (ID \`${session.player_id}\`). ` +
+				`No changes for <@${session.target_discord_user_id}>.`,
+			{ components: [] },
+		);
+	}
+
+	const appId = interaction.application_id ?? env.DISCORD_APPLICATION_ID;
+	if (!appId) {
+		return updateMessageResponse('❌ DISCORD_APPLICATION_ID not configured.', { components: [] });
+	}
+
+	const deferred = deferredComponentResponse();
+	ctx.waitUntil(
+		(async () => {
+			try {
+				await editInteractionResponse(
+					appId,
+					interaction.token,
+					`⏳ Approving reassignment of **${session.player_name ?? session.player_id}** ` +
+						`(ID \`${session.player_id}\`) → <@${session.target_discord_user_id}>…`,
+					true,
+					{ components: [], config },
+				);
+
+				if (config) {
+					await releasePlayerIdOwners(
+						env,
+						config,
+						guildId,
+						session.player_id,
+						session.target_discord_user_id,
+						actorId,
+					);
+				} else {
+					for (const uid of session.existing_discord_user_ids) {
+						await resetVerification(env.STFC_DB, guildId, uid);
+					}
+				}
+
+				await deleteVerifyReassignSession(env.STFC_DB, token);
+
+				const result = await processVerification(
+					env,
+					guildId,
+					session.target_discord_user_id,
+					session.stfc_pro_url,
+					session.screenshot_url ?? undefined,
+					{
+						manualByUserId: actorId,
+						sendWelcomeDm: session.send_welcome_dm,
+						forcePlayerIdReassign: true,
+					},
+				);
+				const content = verificationContent(result);
+				const prefix =
+					`✅ Reassigned **${session.player_name ?? session.player_id}** ` +
+					`(ID \`${session.player_id}\`) from ` +
+					`${session.existing_discord_user_ids.map((id) => `<@${id}>`).join(', ') || '—'} ` +
+					`→ <@${session.target_discord_user_id}>.\n\n`;
+				await editInteractionResponse(appId, interaction.token, prefix + content, true, {
+					components: [],
+					config,
+				});
+			} catch (err) {
+				console.error('Verify reassign approve failed:', err);
+				await editInteractionResponse(
+					appId,
+					interaction.token,
+					`❌ Reassign failed: ${err instanceof Error ? err.message : String(err)}`,
+					true,
+					{ components: [], config },
+				);
+			}
+		})(),
+	);
+
+	return deferred;
 }
 
 export async function inviteNewMember(

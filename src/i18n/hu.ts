@@ -41,7 +41,7 @@ export const hu: MessageCatalog = {
 	'verify.error.player_id_in_use_member':
 		'⚠️ Probléma van ezzel a játékos-összekapcsolással, amit egy adminisztrátornak kell átnéznie. Az adminok értesítést kaptak — várj a visszajelzésükre.',
 	'verify.error.player_id_in_use_admin':
-		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nVerification was **not** applied for <@{targetUserId}>. Resolve or clear the existing link before verifying this player again.{extraOwners}',
+		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nYou are about to link it to <@{targetUserId}> instead.\n**Approve** clears the existing link (guest roles / reset verify) and applies the new one. **Reject** leaves things unchanged.{extraOwners}',
 
 	'verify.result.not_configured':
 		'❌ Ez a szerver még nincs beállítva. Egy adminnak először futtatnia kell a `/server setup` parancsot.',

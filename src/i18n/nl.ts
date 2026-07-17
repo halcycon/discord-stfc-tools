@@ -22,7 +22,8 @@ export const nl: MessageCatalog = {
 	'verify.error.player_id_in_use_member':
 		'⚠️ Er is een probleem met deze spelerkoppeling dat een beheerder moet bekijken. Admins zijn op de hoogte gebracht — wacht op hun reactie.',
 	'verify.error.player_id_in_use_admin':
-		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nVerification was **not** applied for <@{targetUserId}>. Resolve or clear the existing link before verifying this player again.{extraOwners}',
+		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nYou are about to link it to <@{targetUserId}> instead.\n**Approve** clears the existing link (guest roles / reset verify) and applies the new one. **Reject** leaves things unchanged.{extraOwners}',
+
 	'verify.result.not_configured': '❌ Deze server is nog niet geconfigureerd. Een beheerder moet eerst `/server setup` uitvoeren.',
 	'verify.result.verified_no_token': '✅ **{name}** geverifieerd op stfc.pro, maar de bottoken is niet geconfigureerd — rollen zijn niet bijgewerkt.\n\n{summary}',
 	'verify.result.active': '✅ **{name}** geverifieerd en geactiveerd ({tag}, Ops {level}).\n{notes}\n\n{summary}',

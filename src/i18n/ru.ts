@@ -22,7 +22,8 @@ export const ru: MessageCatalog = {
 	'verify.error.player_id_in_use_member':
 		'⚠️ С этой привязкой игрока возникла проблема, которую должен проверить администратор. Админы уведомлены — пожалуйста, дождитесь их ответа.',
 	'verify.error.player_id_in_use_admin':
-		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nVerification was **not** applied for <@{targetUserId}>. Resolve or clear the existing link before verifying this player again.{extraOwners}',
+		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nYou are about to link it to <@{targetUserId}> instead.\n**Approve** clears the existing link (guest roles / reset verify) and applies the new one. **Reject** leaves things unchanged.{extraOwners}',
+
 	'verify.result.not_configured': '❌ Этот сервер ещё не настроен. Администратор должен сначала выполнить `/server setup`.',
 	'verify.result.verified_no_token': '✅ **{name}** подтверждён на stfc.pro, но токен бота не настроен — роли не обновлены.\n\n{summary}',
 	'verify.result.active': '✅ **{name}** подтверждён и активирован ({tag}, Ops {level}).\n{notes}\n\n{summary}',

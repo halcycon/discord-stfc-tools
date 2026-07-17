@@ -2984,3 +2984,126 @@ export async function sumGuildPowerByDayAndAlliance(
 		};
 	});
 }
+
+// --- /server verify reassign confirm sessions ---
+
+export type VerifyReassignSession = {
+	token: string;
+	guild_id: string;
+	admin_user_id: string;
+	target_discord_user_id: string;
+	existing_discord_user_ids: string[];
+	player_id: number;
+	player_name: string | null;
+	stfc_pro_url: string;
+	screenshot_url: string | null;
+	send_welcome_dm: boolean;
+	expires_at: string;
+};
+
+function newVerifyReassignToken(): string {
+	const bytes = new Uint8Array(12);
+	crypto.getRandomValues(bytes);
+	return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function createVerifyReassignSession(
+	db: D1Database,
+	opts: {
+		guildId: string;
+		adminUserId: string;
+		targetDiscordUserId: string;
+		existingDiscordUserIds: string[];
+		playerId: number;
+		playerName?: string | null;
+		stfcProUrl: string;
+		screenshotUrl?: string | null;
+		sendWelcomeDm?: boolean;
+		ttlSeconds?: number;
+	},
+): Promise<VerifyReassignSession> {
+	const token = newVerifyReassignToken();
+	const ttl = opts.ttlSeconds ?? 900; // 15 minutes
+	const expiresAt = new Date(Date.now() + ttl * 1000).toISOString();
+	await db
+		.prepare(
+			`INSERT INTO verify_reassign_sessions
+			 (token, guild_id, admin_user_id, target_discord_user_id, existing_discord_user_ids,
+			  player_id, player_name, stfc_pro_url, screenshot_url, send_welcome_dm, expires_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		)
+		.bind(
+			token,
+			opts.guildId,
+			opts.adminUserId,
+			opts.targetDiscordUserId,
+			JSON.stringify(opts.existingDiscordUserIds),
+			opts.playerId,
+			opts.playerName ?? null,
+			opts.stfcProUrl,
+			opts.screenshotUrl ?? null,
+			opts.sendWelcomeDm ? 1 : 0,
+			expiresAt,
+		)
+		.run();
+	return {
+		token,
+		guild_id: opts.guildId,
+		admin_user_id: opts.adminUserId,
+		target_discord_user_id: opts.targetDiscordUserId,
+		existing_discord_user_ids: opts.existingDiscordUserIds,
+		player_id: opts.playerId,
+		player_name: opts.playerName ?? null,
+		stfc_pro_url: opts.stfcProUrl,
+		screenshot_url: opts.screenshotUrl ?? null,
+		send_welcome_dm: Boolean(opts.sendWelcomeDm),
+		expires_at: expiresAt,
+	};
+}
+
+export async function getVerifyReassignSession(
+	db: D1Database,
+	token: string,
+): Promise<VerifyReassignSession | null> {
+	const row = await db
+		.prepare(
+			`SELECT token, guild_id, admin_user_id, target_discord_user_id, existing_discord_user_ids,
+			        player_id, player_name, stfc_pro_url, screenshot_url, send_welcome_dm, expires_at
+			 FROM verify_reassign_sessions WHERE token = ?`,
+		)
+		.bind(token)
+		.first();
+	if (!row) return null;
+	const r = row as Record<string, unknown>;
+	const expiresAt = String(r.expires_at ?? '');
+	if (expiresAt && Date.parse(expiresAt) < Date.now()) {
+		await db.prepare(`DELETE FROM verify_reassign_sessions WHERE token = ?`).bind(token).run();
+		return null;
+	}
+	let existingIds: string[] = [];
+	try {
+		const parsed = JSON.parse(String(r.existing_discord_user_ids ?? '[]'));
+		if (Array.isArray(parsed)) {
+			existingIds = parsed.map((id) => String(id)).filter((id) => /^\d{15,20}$/.test(id));
+		}
+	} catch {
+		existingIds = [];
+	}
+	return {
+		token: String(r.token),
+		guild_id: String(r.guild_id),
+		admin_user_id: String(r.admin_user_id),
+		target_discord_user_id: String(r.target_discord_user_id),
+		existing_discord_user_ids: existingIds,
+		player_id: Number(r.player_id),
+		player_name: r.player_name != null ? String(r.player_name) : null,
+		stfc_pro_url: String(r.stfc_pro_url),
+		screenshot_url: r.screenshot_url != null ? String(r.screenshot_url) : null,
+		send_welcome_dm: Number(r.send_welcome_dm ?? 0) === 1,
+		expires_at: expiresAt,
+	};
+}
+
+export async function deleteVerifyReassignSession(db: D1Database, token: string): Promise<void> {
+	await db.prepare(`DELETE FROM verify_reassign_sessions WHERE token = ?`).bind(token).run();
+}

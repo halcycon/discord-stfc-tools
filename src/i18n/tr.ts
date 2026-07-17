@@ -22,7 +22,8 @@ export const tr: MessageCatalog = {
 	'verify.error.player_id_in_use_member':
 		'⚠️ Bu oyuncu bağlantısında yöneticilerin incelemesi gereken bir sorun var. Yöneticiler bilgilendirildi — lütfen onların takip etmesini bekleyin.',
 	'verify.error.player_id_in_use_admin':
-		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nVerification was **not** applied for <@{targetUserId}>. Resolve or clear the existing link before verifying this player again.{extraOwners}',
+		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nYou are about to link it to <@{targetUserId}> instead.\n**Approve** clears the existing link (guest roles / reset verify) and applies the new one. **Reject** leaves things unchanged.{extraOwners}',
+
 	'verify.result.not_configured': '❌ Bu sunucu henüz yapılandırılmadı. Bir yöneticinin önce `/server setup` çalıştırması gerekir.',
 	'verify.result.verified_no_token': '✅ **{name}** stfc.pro üzerinde doğrulandı ancak bot belirteci yapılandırılmamış — roller güncellenmedi.\n\n{summary}',
 	'verify.result.active': '✅ **{name}** doğrulandı ve etkinleştirildi ({tag}, Ops {level}).\n{notes}\n\n{summary}',

@@ -44,8 +44,9 @@ export const en = {
 		'⚠️ **Player ID already linked**\n\n' +
 		'STFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ' +
 		'({existingStatus}).\n\n' +
-		'Verification was **not** applied for <@{targetUserId}>. ' +
-		'Resolve or clear the existing link before verifying this player again.{extraOwners}',
+		'You are about to link it to <@{targetUserId}> instead.\n' +
+		'**Approve** clears the existing link (guest roles / reset verify) and applies the new one. ' +
+		'**Reject** leaves things unchanged.{extraOwners}',
 
 	'verify.result.not_configured':
 		'❌ This server is not configured yet. An admin must run `/server setup` first.',

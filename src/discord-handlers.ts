@@ -349,7 +349,8 @@ async function handleVerifyCommand(
 	ctx.waitUntil(
 		(async () => {
 			const result = await processVerification(env, guildId, userId, link, screenshotUrl);
-			await editInteractionResponse(appId, interaction.token, result, true);
+			const content = typeof result === 'string' ? result : result.content;
+			await editInteractionResponse(appId, interaction.token, content, true);
 		})(),
 	);
 
@@ -1404,10 +1405,14 @@ async function handleServerVerifyCommand(
 				link.trim(),
 				screenshotUrl,
 				adminId
-					? { manualByUserId: adminId, sendWelcomeDm }
+					? { manualByUserId: adminId, sendWelcomeDm, offerReassignConfirm: true }
 					: undefined,
 			);
-			await editInteractionResponse(appId, interaction.token, result, true);
+			const content = typeof result === 'string' ? result : result.content;
+			const components = typeof result === 'string' ? undefined : result.components;
+			await editInteractionResponse(appId, interaction.token, content, true, {
+				components,
+			});
 		})(),
 	);
 
@@ -3321,6 +3326,10 @@ async function dispatchDiscordInteraction(
 		if (customId?.startsWith('demote:')) {
 			const { handleDemoteComponent } = await import('./demotion-policy');
 			return handleDemoteComponent(env, interaction);
+		}
+		if (customId?.startsWith('vre:')) {
+			const { handleVerifyReassignComponent } = await import('./verification');
+			return handleVerifyReassignComponent(env, ctx, interaction);
 		}
 		if (customId?.startsWith('rst:')) {
 			const { handleRosterListComponent } = await import('./roster-list-view');

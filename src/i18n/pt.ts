@@ -22,7 +22,8 @@ export const pt: MessageCatalog = {
 	'verify.error.player_id_in_use_member':
 		'⚠️ Há um problema com este vínculo de jogador que precisa de revisão de um administrador. Os admins foram notificados — aguarda o acompanhamento.',
 	'verify.error.player_id_in_use_admin':
-		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nVerification was **not** applied for <@{targetUserId}>. Resolve or clear the existing link before verifying this player again.{extraOwners}',
+		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nYou are about to link it to <@{targetUserId}> instead.\n**Approve** clears the existing link (guest roles / reset verify) and applies the new one. **Reject** leaves things unchanged.{extraOwners}',
+
 	'verify.result.not_configured': '❌ Este servidor ainda não está configurado. Um administrador deve executar `/server setup` primeiro.',
 	'verify.result.verified_no_token': '✅ **{name}** verificado no stfc.pro, mas o token do bot não está configurado — os cargos não foram atualizados.\n\n{summary}',
 	'verify.result.active': '✅ **{name}** verificado e ativado ({tag}, Ops {level}).\n{notes}\n\n{summary}',

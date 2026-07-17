@@ -31,7 +31,7 @@ import {
 	type LinkSuggestionConfidence,
 } from './link-suggest';
 import { AuditColor, postAuditLog } from './audit-log';
-import { processVerification } from './verification';
+import { processVerification, verificationContent } from './verification';
 import {
 	allianceApproveChunkSize,
 	resolveWorkersPlan,
@@ -434,8 +434,9 @@ async function runConfidenceApproveChunk(
 				undefined,
 				adminId ? { manualByUserId: adminId, sendWelcomeDm: false } : undefined,
 			);
-			const short = result.length > 120 ? result.slice(0, 117) + '…' : result;
-			if (result.startsWith('❌') || result.includes('failed')) {
+			const text = verificationContent(result);
+			const short = text.length > 120 ? text.slice(0, 117) + '…' : text;
+			if (text.startsWith('❌') || text.startsWith('⚠️') || text.includes('failed')) {
 				fail++;
 				lines.push(`• ❌ <@${s.discordUserId}> → ${s.playerName}: ${short}`);
 			} else {
@@ -597,7 +598,7 @@ export async function handleAllianceLinkComponent(
 						guildId,
 						remaining.suggestions,
 						tagFilter,
-						`✅ ${result}`,
+						`✅ ${verificationContent(result)}`,
 						remaining,
 					);
 					await editInteractionResponse(appId, interaction.token, msg.content, true, {

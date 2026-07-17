@@ -40,7 +40,7 @@ export const fr: MessageCatalog = {
 	'verify.error.player_id_in_use_member':
 		'⚠️ Un problème avec ce lien de joueur nécessite l’examen d’un administrateur. Les admins ont été notifiés — merci d’attendre leur suite.',
 	'verify.error.player_id_in_use_admin':
-		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nVerification was **not** applied for <@{targetUserId}>. Resolve or clear the existing link before verifying this player again.{extraOwners}',
+		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nYou are about to link it to <@{targetUserId}> instead.\n**Approve** clears the existing link (guest roles / reset verify) and applies the new one. **Reject** leaves things unchanged.{extraOwners}',
 
 	'verify.result.not_configured':
 		'❌ Ce serveur n’est pas encore configuré. Un admin doit exécuter `/server setup`.',
