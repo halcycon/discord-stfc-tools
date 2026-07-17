@@ -37,6 +37,15 @@ export const en = {
 	'verify.error.no_alliance':
 		'Player found but has no alliance — on a single-alliance server you must be in the home alliance to verify.',
 	'verify.error.lookup_failed': 'Player lookup failed.',
+	'verify.error.player_id_in_use_member':
+		'⚠️ There is a problem with this player link that needs an administrator to review. ' +
+		'Admins have been notified — please wait for them to follow up.',
+	'verify.error.player_id_in_use_admin':
+		'⚠️ **Player ID already linked**\n\n' +
+		'STFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ' +
+		'({existingStatus}).\n\n' +
+		'Verification was **not** applied for <@{targetUserId}>. ' +
+		'Resolve or clear the existing link before verifying this player again.{extraOwners}',
 
 	'verify.result.not_configured':
 		'❌ This server is not configured yet. An admin must run `/server setup` first.',

@@ -19,6 +19,10 @@ export const pt: MessageCatalog = {
 	'verify.error.player_not_found': 'Nenhum jogador encontrado no servidor {server} ({region}) para esse link.',
 	'verify.error.no_alliance': 'Jogador encontrado, mas sem aliança — tem de estar numa aliança para verificar.',
 	'verify.error.lookup_failed': 'A procura do jogador falhou.',
+	'verify.error.player_id_in_use_member':
+		'⚠️ Há um problema com este vínculo de jogador que precisa de revisão de um administrador. Os admins foram notificados — aguarda o acompanhamento.',
+	'verify.error.player_id_in_use_admin':
+		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nVerification was **not** applied for <@{targetUserId}>. Resolve or clear the existing link before verifying this player again.{extraOwners}',
 	'verify.result.not_configured': '❌ Este servidor ainda não está configurado. Um administrador deve executar `/server setup` primeiro.',
 	'verify.result.verified_no_token': '✅ **{name}** verificado no stfc.pro, mas o token do bot não está configurado — os cargos não foram atualizados.\n\n{summary}',
 	'verify.result.active': '✅ **{name}** verificado e ativado ({tag}, Ops {level}).\n{notes}\n\n{summary}',

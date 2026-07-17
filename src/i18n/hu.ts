@@ -38,6 +38,10 @@ export const hu: MessageCatalog = {
 	'verify.error.no_alliance':
 		'Játékos megtalálva, de nincs szövetsége — az igazoláshoz szövetségben kell lenned.',
 	'verify.error.lookup_failed': 'A játékos keresése sikertelen.',
+	'verify.error.player_id_in_use_member':
+		'⚠️ Probléma van ezzel a játékos-összekapcsolással, amit egy adminisztrátornak kell átnéznie. Az adminok értesítést kaptak — várj a visszajelzésükre.',
+	'verify.error.player_id_in_use_admin':
+		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nVerification was **not** applied for <@{targetUserId}>. Resolve or clear the existing link before verifying this player again.{extraOwners}',
 
 	'verify.result.not_configured':
 		'❌ Ez a szerver még nincs beállítva. Egy adminnak először futtatnia kell a `/server setup` parancsot.',

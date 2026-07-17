@@ -790,6 +790,30 @@ export async function getVerifiedPlayer(
 	return row ? mapVerifiedPlayer(row) : null;
 }
 
+/**
+ * Other Discord users in this guild already linked to the same STFC player ID
+ * (active / guest / verified). Excludes `excludeDiscordUserId` so re-verify is fine.
+ */
+export async function findOtherVerifiedPlayersByPlayerId(
+	db: D1Database,
+	guildId: string,
+	playerId: number,
+	excludeDiscordUserId: string,
+): Promise<VerifiedPlayer[]> {
+	if (!Number.isFinite(playerId) || playerId <= 0) return [];
+	const { results } = await db
+		.prepare(
+			`SELECT * FROM verified_players
+			 WHERE guild_id = ?
+			   AND player_id = ?
+			   AND discord_user_id != ?
+			   AND verification_status IN ('verified', 'active', 'guest')`,
+		)
+		.bind(guildId, playerId, excludeDiscordUserId)
+		.all();
+	return (results ?? []).map(mapVerifiedPlayer);
+}
+
 export async function upsertVerifiedPlayer(
 	db: D1Database,
 	data: {

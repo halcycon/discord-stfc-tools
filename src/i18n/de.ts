@@ -37,6 +37,10 @@ export const de: MessageCatalog = {
 	'verify.error.no_alliance':
 		'Spieler gefunden, aber ohne Allianz — du musst in einer Allianz sein, um dich zu verifizieren.',
 	'verify.error.lookup_failed': 'Spielersuche fehlgeschlagen.',
+	'verify.error.player_id_in_use_member':
+		'⚠️ Es gibt ein Problem mit dieser Spieler-Verknüpfung, das ein Administrator prüfen muss. Admins wurden benachrichtigt — bitte warte auf Rückmeldung.',
+	'verify.error.player_id_in_use_admin':
+		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nVerification was **not** applied for <@{targetUserId}>. Resolve or clear the existing link before verifying this player again.{extraOwners}',
 
 	'verify.result.not_configured':
 		'❌ Dieser Server ist noch nicht konfiguriert. Ein Admin muss zuerst `/server setup` ausführen.',

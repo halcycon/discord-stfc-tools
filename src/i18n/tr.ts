@@ -19,6 +19,10 @@ export const tr: MessageCatalog = {
 	'verify.error.player_not_found': 'Bu bağlantı için {server} ({region}) sunucusunda oyuncu bulunamadı.',
 	'verify.error.no_alliance': 'Oyuncu bulundu ancak ittifakı yok — doğrulamak için bir ittifakta olmalısınız.',
 	'verify.error.lookup_failed': 'Oyuncu araması başarısız oldu.',
+	'verify.error.player_id_in_use_member':
+		'⚠️ Bu oyuncu bağlantısında yöneticilerin incelemesi gereken bir sorun var. Yöneticiler bilgilendirildi — lütfen onların takip etmesini bekleyin.',
+	'verify.error.player_id_in_use_admin':
+		'⚠️ **Player ID already linked**\n\nSTFC player **{playerName}** (ID `{playerId}`) is already linked to <@{existingUserId}> ({existingStatus}).\n\nVerification was **not** applied for <@{targetUserId}>. Resolve or clear the existing link before verifying this player again.{extraOwners}',
 	'verify.result.not_configured': '❌ Bu sunucu henüz yapılandırılmadı. Bir yöneticinin önce `/server setup` çalıştırması gerekir.',
 	'verify.result.verified_no_token': '✅ **{name}** stfc.pro üzerinde doğrulandı ancak bot belirteci yapılandırılmamış — roller güncellenmedi.\n\n{summary}',
 	'verify.result.active': '✅ **{name}** doğrulandı ve etkinleştirildi ({tag}, Ops {level}).\n{notes}\n\n{summary}',

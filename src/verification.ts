@@ -6,6 +6,7 @@ import {
 import { opsLevelToGrade } from './grade-utils';
 import { applyActivityObservation } from './activity-utils';
 import {
+	findOtherVerifiedPlayersByPlayerId,
 	getGuildConfig,
 	getVerifiedPlayer,
 	isUserExcluded,
@@ -195,6 +196,65 @@ export async function processVerification(
 			verification_status: 'failed',
 		});
 		return `❌ ${error ?? t(locale, 'verify.error.lookup_failed')}`;
+	}
+
+	const existingOwners = await findOtherVerifiedPlayersByPlayerId(
+		env.STFC_DB,
+		guildId,
+		player.playerId,
+		discordUserId,
+	);
+	if (existingOwners.length > 0) {
+		const owner = existingOwners[0]!;
+		const ownerLabel = existingOwners
+			.map((p) => `<@${p.discord_user_id}> (${p.verification_status})`)
+			.join(', ');
+		const isAdminManual = Boolean(opts?.manualByUserId);
+
+		await postAuditLog(env, config, {
+			title: 'Duplicate player link attempt',
+			description: isAdminManual
+				? `Admin <@${opts!.manualByUserId}> tried to link **${player.name}** (ID ${player.playerId}) to <@${discordUserId}>, but it is already linked to ${ownerLabel}.`
+				: `<@${discordUserId}> tried to verify as **${player.name}** (ID ${player.playerId}), already linked to ${ownerLabel}.`,
+			actorId: opts?.manualByUserId ?? discordUserId,
+			source: isAdminManual ? 'admin' : 'member',
+			color: AuditColor.warn,
+			fields: [
+				{ name: 'Player ID', value: String(player.playerId), inline: true },
+				{ name: 'Existing Discord', value: `<@${owner.discord_user_id}>`, inline: true },
+				{ name: 'Attempted Discord', value: `<@${discordUserId}>`, inline: true },
+			],
+		});
+
+		if (!isAdminManual) {
+			await postUrgentNotify(env, config, {
+				content: `⚠️ Duplicate player link: <@${discordUserId}> tried to verify as **${player.name}** (ID ${player.playerId}), already linked to <@${owner.discord_user_id}>.`,
+				title: 'Duplicate player link',
+				actorId: discordUserId,
+				color: AuditColor.warn,
+				fields: [
+					{ name: 'Player', value: `${player.name} (${player.playerId})`, inline: true },
+					{ name: 'Existing link', value: `<@${owner.discord_user_id}>`, inline: true },
+				],
+			});
+			return t(locale, 'verify.error.player_id_in_use_member');
+		}
+
+		// Admin `/server verify` (and alliance Approve): warn with details; do not overwrite.
+		return t(DEFAULT_LOCALE, 'verify.error.player_id_in_use_admin', {
+			playerName: player.name,
+			playerId: player.playerId,
+			existingUserId: owner.discord_user_id,
+			existingStatus: owner.verification_status,
+			targetUserId: discordUserId,
+			extraOwners:
+				existingOwners.length > 1
+					? `\nAlso linked to: ${existingOwners
+							.slice(1)
+							.map((p) => `<@${p.discord_user_id}>`)
+							.join(', ')}`
+					: '',
+		});
 	}
 
 	const grade = opsLevelToGrade(player.level);
