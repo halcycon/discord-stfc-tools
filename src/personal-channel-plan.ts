@@ -113,6 +113,14 @@ function evenTargets(total: number, k: number): number[] {
 	return Array.from({ length: k }, (_, i) => base + (i < extra ? 1 : 0));
 }
 
+export type PlanCategoryBucketsOptions = {
+	/**
+	 * Do not plan fewer buckets than this (sticky splits).
+	 * Used so raising soft_limit later does not merge existing diplomacy categories.
+	 */
+	minBuckets?: number;
+};
+
 /**
  * Plan contiguous A–Z–# letter ranges that stay under softLimit and split
  * fairly evenly (e.g. 50 players → two ~25 buckets, not 45+5).
@@ -120,6 +128,7 @@ function evenTargets(total: number, k: number): number[] {
 export function planCategoryBuckets(
 	counts: Record<LetterKey, number>,
 	softLimit: number = DEFAULT_SOFT_LIMIT,
+	opts?: PlanCategoryBucketsOptions,
 ): CategoryPlan {
 	const limit = Number.isFinite(softLimit) && softLimit > 0 ? Math.floor(softLimit) : DEFAULT_SOFT_LIMIT;
 	const warnings: string[] = [];
@@ -144,7 +153,11 @@ export function planCategoryBuckets(
 		};
 	}
 
-	const k = Math.max(1, Math.ceil(total / limit));
+	const minBuckets =
+		opts?.minBuckets != null && Number.isFinite(opts.minBuckets)
+			? Math.max(1, Math.floor(opts.minBuckets))
+			: 1;
+	const k = Math.max(1, Math.ceil(total / limit), minBuckets);
 	const targets = evenTargets(total, k);
 	const n = LETTER_KEYS.length;
 	const prefix: number[] = [0];

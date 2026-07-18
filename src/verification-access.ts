@@ -21,7 +21,12 @@ import {
 } from './discord-api';
 import { getVerifiedPlayer, upsertGuildConfig, upsertVerifiedPlayer, getGuildConfig } from './guild-db';
 import { ensurePersonalChannel } from './personal-channels';
-import { ensureDiplomacyChannel, diplomacyChannelsEnabled } from './diplomacy-channels';
+import {
+	diplomacyChannelsEnabled,
+	diplomacyNeedsRebalance,
+	ensureDiplomacyChannel,
+} from './diplomacy-channels';
+import { runDiplomacyAutoRebalance } from './diplomacy-maintenance';
 import { buildMemberNickname, normalizeAllianceRank } from './nickname-utils';
 import { shouldDeferUntrackedAdmiralRoles, shouldDeferUntrackedDiplomacy } from './tracked-alliance-tags';
 import { resolveLocale, t } from './i18n';
@@ -815,6 +820,13 @@ export async function applyDiplomacyForAlliance(
 			diplomacy_channel_map: nextMap,
 		});
 		config.diplomacy_channel_map = nextMap;
+	}
+	if (diplomacyNeedsRebalance(config)) {
+		const rb = await runDiplomacyAutoRebalance(env, token, config, guildId, {
+			reason: `new/updated diplomacy channel [${result.tag}]`,
+			source: 'system',
+		});
+		if (rb.config) Object.assign(config, rb.config);
 	}
 	return result.channelId;
 }

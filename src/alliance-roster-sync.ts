@@ -6,10 +6,12 @@ import {
 	getAllianceRosterMeta,
 	listActiveVerifiedPlayers,
 	listAllianceRosterMembers,
+	listAllianceRosterMeta,
 	pruneAllianceRostersOutside,
 	replaceAllianceRoster,
 	replaceServerAllianceDirectory,
 	setGuildStfcAllianceId,
+	upsertGuildConfig,
 	type AllianceRosterMemberRow,
 } from './guild-db';
 import { opsLevelToGrade } from './grade-utils';
@@ -251,6 +253,12 @@ export async function syncGuildAllianceRoster(
 	return { ok: true, scrape, diff };
 }
 
+export type AllianceTagRename = {
+	allianceId: string;
+	fromTag: string;
+	toTag: string;
+};
+
 export type MultiAllianceRosterSyncResult =
 	| {
 			ok: true;
@@ -260,6 +268,8 @@ export type MultiAllianceRosterSyncResult =
 			scrapedAlliances: number;
 			skippedTags: string[];
 			failedTags: string[];
+			/** Same alliance id, tag string changed (diplomacy remap candidates). */
+			tagRenames: AllianceTagRename[];
 	  }
 	| { ok: false; reason: string };
 
@@ -313,16 +323,38 @@ export async function syncMultiAllianceTrackedRosters(
 	);
 
 	const byTag = new Map<string, ServerAllianceDirectoryEntry>();
+	const byId = new Map<string, ServerAllianceDirectoryEntry>();
 	for (const e of directory) {
 		byTag.set(e.allianceTag.toUpperCase(), e);
+		byId.set(e.allianceId, e);
+	}
+
+	const priorMeta = await listAllianceRosterMeta(env.STFC_DB, config.guild_id);
+	const metaByTag = new Map<string, (typeof priorMeta)[0]>();
+	const metaById = new Map<string, (typeof priorMeta)[0]>();
+	for (const m of priorMeta) {
+		metaById.set(m.alliance_id, m);
+		if (m.alliance_tag?.trim()) metaByTag.set(m.alliance_tag.trim().toUpperCase(), m);
 	}
 
 	const toScrape: ServerAllianceDirectoryEntry[] = [];
 	const skippedTags: string[] = [];
+	const seenAllianceIds = new Set<string>();
 	for (const tag of trackedTags) {
-		const entry = byTag.get(tag);
-		if (entry) toScrape.push(entry);
-		else skippedTags.push(tag);
+		let entry = byTag.get(tag);
+		if (!entry) {
+			// Tag may have renamed: resolve prior alliance id → current directory row.
+			const meta = metaByTag.get(tag);
+			if (meta) entry = byId.get(meta.alliance_id);
+		}
+		if (entry) {
+			if (!seenAllianceIds.has(entry.allianceId)) {
+				seenAllianceIds.add(entry.allianceId);
+				toScrape.push(entry);
+			}
+		} else {
+			skippedTags.push(tag);
+		}
 	}
 
 	const batch = toScrape.slice(0, MULTI_ALLIANCE_SCRAPE_MAX);
@@ -331,6 +363,7 @@ export async function syncMultiAllianceTrackedRosters(
 
 	const failedTags: string[] = [];
 	const keepAllianceIds: string[] = [];
+	const tagRenames: AllianceTagRename[] = [];
 	let scrapedAlliances = 0;
 
 	for (let i = 0; i < batch.length; i++) {
@@ -347,8 +380,13 @@ export async function syncMultiAllianceTrackedRosters(
 			keepAllianceIds.push(entry.allianceId);
 			continue;
 		}
-		const tag = scrape.allianceTag || entry.allianceTag;
+		const tag = (scrape.allianceTag || entry.allianceTag).trim().toUpperCase();
 		const allianceId = scrape.allianceId || entry.allianceId;
+		const prior = metaById.get(allianceId);
+		const priorTag = prior?.alliance_tag?.trim().toUpperCase();
+		if (priorTag && tag && priorTag !== tag) {
+			tagRenames.push({ allianceId, fromTag: priorTag, toTag: tag });
+		}
 		const previousForAlliance = await listAllianceRosterMembers(env.STFC_DB, config.guild_id);
 		const previousById = new Map(previousForAlliance.map((m) => [m.player_id, m]));
 		const members = membersFromScrape(scrape, allianceId, tag, previousById);
@@ -372,6 +410,24 @@ export async function syncMultiAllianceTrackedRosters(
 	// Drop caches for alliances we no longer track (or didn't attempt this run).
 	await pruneAllianceRostersOutside(env.STFC_DB, config.guild_id, keepAllianceIds);
 
+	// Persist tracked-tag remaps even if Discord diplomacy remap runs later / fails.
+	if (tagRenames.length) {
+		const renameMap = new Map(tagRenames.map((r) => [r.fromTag, r.toTag]));
+		const nextTracked = [
+			...new Set(
+				(config.tracked_alliance_tags ?? []).map((t) => {
+					const upper = t.trim().toUpperCase();
+					return renameMap.get(upper) ?? upper;
+				}),
+			),
+		].filter(Boolean);
+		await upsertGuildConfig(env.STFC_DB, {
+			guild_id: config.guild_id,
+			tracked_alliance_tags: nextTracked,
+		});
+		config.tracked_alliance_tags = nextTracked;
+	}
+
 	const currentRows = await listAllianceRosterMembers(env.STFC_DB, config.guild_id);
 	const current = currentRows.map((m) => ({
 		playerId: m.player_id,
@@ -394,6 +450,7 @@ export async function syncMultiAllianceTrackedRosters(
 		scrapedAlliances,
 		skippedTags,
 		failedTags,
+		tagRenames,
 	};
 }
 

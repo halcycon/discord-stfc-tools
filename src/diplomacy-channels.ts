@@ -49,6 +49,129 @@ export function normalizeDiplomacySpecialPlacement(
 	return raw === 'top_of_first' ? 'top_of_first' : 'special_category';
 }
 
+export function resolveDiplomacySoftLimit(
+	config: Pick<GuildConfig, 'diplomacy_soft_limit'> | null | undefined,
+	override?: number | null,
+): number {
+	const raw =
+		override != null && Number.isFinite(override)
+			? Number(override)
+			: Number(config?.diplomacy_soft_limit);
+	if (!Number.isFinite(raw)) return DEFAULT_SOFT_LIMIT;
+	return Math.max(10, Math.min(50, Math.floor(raw)));
+}
+
+/** True when letter buckets are missing, too few for the soft limit, or any range is over full. */
+export function diplomacyNeedsRebalance(
+	config: Pick<GuildConfig, 'diplomacy_channel_map' | 'diplomacy_category_map' | 'diplomacy_soft_limit'>,
+): boolean {
+	const tags = Object.keys(config.diplomacy_channel_map ?? {});
+	if (tags.length === 0) return false;
+	const softLimit = resolveDiplomacySoftLimit(config);
+	const bucketCount = Object.keys(config.diplomacy_category_map ?? {}).length;
+	const needed = Math.ceil(tags.length / softLimit);
+	if (bucketCount === 0 && tags.length > softLimit) return true;
+	if (bucketCount > 0 && needed > bucketCount) return true;
+	if (bucketCount === 0) return false;
+
+	const counts = new Map<string, number>();
+	for (const tag of tags) {
+		const cat = categoryForAllianceTag(
+			{
+				diplomacy_category_map: config.diplomacy_category_map,
+				diplomacy_category_id: null,
+			} as GuildConfig,
+			tag,
+		);
+		if (!cat) return true;
+		counts.set(cat, (counts.get(cat) ?? 0) + 1);
+	}
+	for (const n of counts.values()) {
+		if (n > softLimit) return true;
+	}
+	return false;
+}
+
+/**
+ * Remap diplomacy map keys + preferred locales when an alliance tag renames (same alliance id).
+ * Updates Discord channel name/placement for the remapped channel.
+ */
+export async function remapDiplomacyAllianceTag(
+	token: string,
+	config: GuildConfig,
+	guildId: string,
+	fromTagRaw: string,
+	toTagRaw: string,
+): Promise<
+	| {
+			ok: true;
+			fromTag: string;
+			toTag: string;
+			channelId: string;
+			channelMap: Record<string, string>;
+			preferredLocales: Record<string, string[]>;
+			trackedTags: string[];
+			renamed: boolean;
+			moved: boolean;
+	  }
+	| { ok: false; error: string }
+> {
+	const fromTag = normalizeAllianceTag(fromTagRaw);
+	const toTag = normalizeAllianceTag(toTagRaw);
+	if (!fromTag || !toTag) return { ok: false, error: 'Missing alliance tag.' };
+	if (fromTag === toTag) {
+		return { ok: false, error: 'Tags are identical.' };
+	}
+
+	const channelMap = { ...config.diplomacy_channel_map };
+	const preferredLocales = { ...(config.diplomacy_preferred_locales ?? {}) };
+	const channelId = channelMap[fromTag];
+	if (!channelId) {
+		return { ok: false, error: `No diplomacy channel mapped for [${fromTag}].` };
+	}
+	if (channelMap[toTag] && channelMap[toTag] !== channelId) {
+		return {
+			ok: false,
+			error: `[${toTag}] already has a different diplomacy channel — resolve manually.`,
+		};
+	}
+
+	delete channelMap[fromTag];
+	channelMap[toTag] = channelId;
+	if (preferredLocales[fromTag]) {
+		if (!preferredLocales[toTag]) preferredLocales[toTag] = preferredLocales[fromTag]!;
+		delete preferredLocales[fromTag];
+	}
+
+	const trackedTags = (config.tracked_alliance_tags ?? []).map((t) =>
+		normalizeAllianceTag(t) === fromTag ? toTag : normalizeAllianceTag(t),
+	);
+	const trackedUnique = [...new Set(trackedTags.filter(Boolean))];
+
+	const nextConfig: GuildConfig = {
+		...config,
+		diplomacy_channel_map: channelMap,
+		diplomacy_preferred_locales: preferredLocales,
+		tracked_alliance_tags: trackedUnique,
+	};
+	const ensured = await ensureDiplomacyChannel(token, nextConfig, guildId, toTag);
+	if (!ensured.ok) {
+		return { ok: false, error: ensured.error };
+	}
+
+	return {
+		ok: true,
+		fromTag,
+		toTag,
+		channelId: ensured.channelId,
+		channelMap,
+		preferredLocales,
+		trackedTags: trackedUnique,
+		renamed: ensured.renamed,
+		moved: ensured.moved,
+	};
+}
+
 const VIEW = 0x400;
 const SEND = 0x800;
 const EMBED = 0x4000;
@@ -463,8 +586,9 @@ export function planDiplomacyChannels(
 	opts: { softLimit?: number; createMissingTags?: string[] } = {},
 ): PlanDiplomacyChannelsResult {
 	const tags = collectDiplomacyTags(config.diplomacy_channel_map, opts.createMissingTags);
-	const softLimit = opts.softLimit ?? DEFAULT_SOFT_LIMIT;
-	const plan = planCategoryBuckets(buildLetterHistogram(tags), softLimit);
+	const softLimit = resolveDiplomacySoftLimit(config, opts.softLimit);
+	const minBuckets = Math.max(1, Object.keys(config.diplomacy_category_map ?? {}).length);
+	const plan = planCategoryBuckets(buildLetterHistogram(tags), softLimit, { minBuckets });
 	const summary = (
 		`${formatCategoryPlan(plan, { title: 'Diplomacy category plan' })}\n` +
 		`• Tags: ${tags.length}\n` +
@@ -491,7 +615,7 @@ export async function rebalanceDiplomacyChannels(
 	guildId: string,
 	opts: RebalanceDiplomacyOptions = {},
 ): Promise<RebalanceDiplomacyResult> {
-	const softLimit = opts.softLimit ?? DEFAULT_SOFT_LIMIT;
+	const softLimit = resolveDiplomacySoftLimit(config, opts.softLimit);
 	const nameTemplate =
 		opts.categoryNameTemplate?.trim() || DEFAULT_DIPLOMACY_CATEGORY_NAME_TEMPLATE;
 	const renameCategories = opts.renameCategories !== false;
@@ -520,7 +644,8 @@ export async function rebalanceDiplomacyChannels(
 	};
 
 	const tagList = collectDiplomacyTags(channelMap, opts.createMissingTags);
-	const plan = planCategoryBuckets(buildLetterHistogram(tagList), softLimit);
+	const minBuckets = Math.max(1, Object.keys(config.diplomacy_category_map ?? {}).length);
+	const plan = planCategoryBuckets(buildLetterHistogram(tagList), softLimit, { minBuckets });
 
 	await report(
 		`⏳ Diplomacy sync: preparing **${plan.buckets.length}** categor${plan.buckets.length === 1 ? 'y' : 'ies'} for **${tagList.length}** tag(s)…`,

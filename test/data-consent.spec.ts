@@ -37,6 +37,7 @@ function cfg(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		diplomacy_enabled: false,
 		diplomacy_category_id: null,
 		diplomacy_category_map: {},
+		diplomacy_soft_limit: 45,
 		diplomacy_archive_category_id: null,
 		diplomacy_archive_category_map: {},
 		diplomacy_channel_map: {},

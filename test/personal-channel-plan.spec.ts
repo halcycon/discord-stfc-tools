@@ -40,6 +40,7 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		diplomacy_enabled: false,
 		diplomacy_category_id: null,
 		diplomacy_category_map: {},
+		diplomacy_soft_limit: 45,
 		diplomacy_archive_category_id: null,
 		diplomacy_archive_category_map: {},
 		diplomacy_channel_map: {},
@@ -177,6 +178,15 @@ describe('personal-channel-plan', () => {
 	it('warns when a single letter exceeds soft limit', () => {
 		const plan = planCategoryBuckets(countsFromLetters({ D: 50, A: 1 }), 45);
 		expect(plan.warnings.some((w) => w.includes('Letter D'))).toBe(true);
+	});
+
+	it('minBuckets keeps sticky splits when soft limit is raised', () => {
+		const counts = countsFromLetters({ A: 20, N: 20 });
+		const tight = planCategoryBuckets(counts, 45);
+		expect(tight.categoryCount).toBe(1);
+		const sticky = planCategoryBuckets(counts, 45, { minBuckets: 2 });
+		expect(sticky.categoryCount).toBe(2);
+		expect(sticky.buckets).toHaveLength(2);
 	});
 
 	it('applyCategoryNameTemplate', () => {

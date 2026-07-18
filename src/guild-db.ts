@@ -133,6 +133,11 @@ function mapGuildConfig(row: any): GuildConfig {
 		diplomacy_enabled: Boolean(row.diplomacy_enabled ?? 0),
 		diplomacy_category_id: row.diplomacy_category_id ?? null,
 		diplomacy_category_map: parseJsonObject(row.diplomacy_category_map),
+		diplomacy_soft_limit: (() => {
+			const n = Number(row.diplomacy_soft_limit);
+			if (!Number.isFinite(n)) return 45;
+			return Math.max(10, Math.min(50, Math.floor(n)));
+		})(),
 		diplomacy_archive_category_id: row.diplomacy_archive_category_id ?? null,
 		diplomacy_archive_category_map: parseJsonObject(row.diplomacy_archive_category_map),
 		diplomacy_channel_map: parseJsonObject(row.diplomacy_channel_map),
@@ -444,6 +449,7 @@ async function upsertDiplomacyConfigFields(
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_write_role_ids') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_write_ranks') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_name_template') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_soft_limit') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_special_channel_id') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_special_name') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_special_placement') ||
@@ -459,6 +465,7 @@ async function upsertDiplomacyConfigFields(
 			config,
 			'diplomacy_preferred_locales',
 		);
+		const softLimitProvided = Object.prototype.hasOwnProperty.call(config, 'diplomacy_soft_limit');
 		const specialChannelProvided = Object.prototype.hasOwnProperty.call(
 			config,
 			'diplomacy_special_channel_id',
@@ -491,6 +498,7 @@ async function upsertDiplomacyConfigFields(
 				 diplomacy_write_role_ids = COALESCE(?, diplomacy_write_role_ids),
 				 diplomacy_write_ranks = COALESCE(?, diplomacy_write_ranks),
 				 diplomacy_name_template = CASE WHEN ? = 1 THEN ? ELSE diplomacy_name_template END,
+				 diplomacy_soft_limit = CASE WHEN ? = 1 THEN ? ELSE diplomacy_soft_limit END,
 				 diplomacy_special_channel_id = CASE WHEN ? = 1 THEN ? ELSE diplomacy_special_channel_id END,
 				 diplomacy_special_name = CASE WHEN ? = 1 THEN ? ELSE diplomacy_special_name END,
 				 diplomacy_special_placement = CASE WHEN ? = 1 THEN ? ELSE diplomacy_special_placement END,
@@ -521,6 +529,10 @@ async function upsertDiplomacyConfigFields(
 				config.diplomacy_write_ranks ? JSON.stringify(config.diplomacy_write_ranks) : null,
 				nameProvided ? 1 : 0,
 				nameProvided ? (config.diplomacy_name_template?.trim() || null) : null,
+				softLimitProvided ? 1 : 0,
+				softLimitProvided
+					? Math.max(10, Math.min(50, Math.floor(Number(config.diplomacy_soft_limit) || 45)))
+					: null,
 				specialChannelProvided ? 1 : 0,
 				specialChannelProvided
 					? config.diplomacy_special_channel_id?.trim() || null

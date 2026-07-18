@@ -110,6 +110,11 @@ export interface GuildConfig {
 	diplomacy_category_id: string | null;
 	/** Letter-range → Discord category ID (same shape as channel_category_map). */
 	diplomacy_category_map: Record<string, string>;
+	/**
+	 * Soft max channels per diplomacy letter-bucket category (persisted).
+	 * Used by sync_all / auto-rebalance; planner will not merge below the current bucket count.
+	 */
+	diplomacy_soft_limit: number;
 	/** Legacy single archive category (used when archive map is empty). */
 	diplomacy_archive_category_id: string | null;
 	/** Letter-range → archive category ID (unlinked / historical diplomacy rooms). */

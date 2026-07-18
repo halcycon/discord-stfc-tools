@@ -87,9 +87,11 @@ import {
 	planDiplomacyChannels,
 	rebalanceDiplomacyArchiveChannels,
 	rebalanceDiplomacyChannels,
+	resolveDiplomacySoftLimit,
 	resolveDiplomacySpecialName,
 	withDiplomacyPreferredLocales,
 } from './diplomacy-channels';
+import { persistDiplomacySoftLimit } from './diplomacy-maintenance';
 import { formatLocaleFlagSuffix, parseDiplomacyLanguagesOption } from './i18n/locales';
 
 function getOptionValue(options: Array<{ name: string; value?: unknown }> | undefined, name: string): unknown {
@@ -2339,10 +2341,16 @@ async function handleDiplomacyChannelsCommand(
 		}
 
 		const softLimitRaw = getOptionValue(options, 'soft_limit');
-		const softLimit =
-			softLimitRaw != null && Number.isFinite(Number(softLimitRaw))
-				? Math.max(10, Math.min(50, Number(softLimitRaw)))
-				: DEFAULT_SOFT_LIMIT;
+		const softLimitProvided =
+			softLimitRaw != null && Number.isFinite(Number(softLimitRaw));
+		const softLimit = resolveDiplomacySoftLimit(
+			config,
+			softLimitProvided ? Number(softLimitRaw) : null,
+		);
+		if (softLimitProvided) {
+			await persistDiplomacySoftLimit(env, guildId, softLimit);
+			config.diplomacy_soft_limit = softLimit;
+		}
 		const categoryNameTemplate = (
 			(getOptionValue(options, 'category_name_template') as string | undefined)?.trim() ||
 			'Diplomacy Archive {range}'
@@ -2478,10 +2486,16 @@ async function handleDiplomacyChannelsCommand(
 		}
 
 		const softLimitRaw = getOptionValue(options, 'soft_limit');
-		const softLimit =
-			softLimitRaw != null && Number.isFinite(Number(softLimitRaw))
-				? Math.max(10, Math.min(50, Number(softLimitRaw)))
-				: DEFAULT_SOFT_LIMIT;
+		const softLimitProvided =
+			softLimitRaw != null && Number.isFinite(Number(softLimitRaw));
+		const softLimit = resolveDiplomacySoftLimit(
+			config,
+			softLimitProvided ? Number(softLimitRaw) : null,
+		);
+		if (softLimitProvided) {
+			await persistDiplomacySoftLimit(env, guildId, softLimit);
+			config.diplomacy_soft_limit = softLimit;
+		}
 		const categoryNameTemplate = (
 			getOptionValue(options, 'category_name_template') as string | undefined
 		)?.trim();
@@ -2664,6 +2678,7 @@ async function handleDiplomacyChannelsCommand(
 			`• View roles: ${refreshed.diplomacy_view_role_ids.map((id) => `<@&${id}>`).join(', ') || 'none'}\n` +
 			`• Write roles: ${refreshed.diplomacy_write_role_ids.map((id) => `<@&${id}>`).join(', ') || 'none'}\n` +
 			`• Write ranks: ${refreshed.diplomacy_write_ranks.join(', ') || 'none'}\n` +
+			`• Soft limit: **${resolveDiplomacySoftLimit(refreshed)}** (persisted; used by sync_all + auto-rebalance)\n` +
 			`• Special (non-listed): ${formatDiplomacySpecialStatus(refreshed)}\n` +
 			`• Channels: ${formatDiplomacyChannelMap(refreshed.diplomacy_channel_map, refreshed.diplomacy_preferred_locales)}\n\n` +
 			`Examples:\n` +
@@ -2674,7 +2689,7 @@ async function handleDiplomacyChannelsCommand(
 			`\`/diplomacy special:create special_placement:special_category\`\n` +
 			`\`/diplomacy archive_sync:true archive_category:#old-archive plan:true\` — organise archive piles\n` +
 			`\`/diplomacy sync_all:true create_missing:true\` — letter buckets + rename/move/A–Z sort\n` +
-			`\`/diplomacy sync_all:true plan:true soft_limit:45\` — preview category splits`,
+			`\`/diplomacy sync_all:true plan:true soft_limit:40\` — preview + persist soft limit`,
 		true,
 	);
 }

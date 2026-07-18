@@ -161,7 +161,7 @@ Designed for **multi_alliance** (works if enabled on single, but less common).
 | `create_tag:` / `link_tag:` + `channel:` `[languages:]` | One alliance channel; optional preferred langs → flag emoji suffix on name |
 | `special:create\|link\|clear` + `special_name` / `special_placement` | Non-listed alliances room (special category or top of first bucket) |
 | `archive_sync:` + `archive_category:` `[plan:]` | Rebalance unlinked archive piles into letter-bucket archive cats (no linking) |
-| `sync_all:` `[plan:]` `[create_missing:]` … | Letter-bucket categories, rename/move, archive unlinked |
+| `sync_all:` `[plan:]` `[soft_limit:]` `[create_missing:]` … | Letter-bucket categories, rename/move, archive unlinked; `soft_limit` is persisted |
 
 **Side effect for activity/unlinked:** tags on the diplomacy map are **morning-tracked** even with zero Discord members — so you can watch inactive/unlinked for that alliance.
 
@@ -186,7 +186,7 @@ Preview invite / consent / agreement / welcome / demote DMs to yourself or `user
 
 | Schedule | Single | Multi |
 |----------|--------|-------|
-| Morning (~06:00) alliance roster | Scrape home alliance; activity for all members; leave candidates if absent | Directory + tracked scrapes; activity for scraped members; absent verified → live lookup (not auto-guest) |
+| Morning (~06:00) alliance roster | Scrape home alliance; activity for all members; leave candidates if absent | Directory + tracked scrapes; **alliance tag renames** remap diplomacy/tracked/DB tags; activity for scraped members; absent verified → live lookup (not auto-guest); diplomacy auto-rebalance if buckets overflow |
 | Morning player sync | Prefer roster; update roles/nicks; activity on `verified_players` | Same from roster map; tag/rank changes update nick/roles, not guest |
 | Morning activity audit | Became inactive / returned / still ≥3d | Same |
 | Every 6h guest re-check | Promote guests who appear on roster | Skipped / N/A for tag guests |

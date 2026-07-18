@@ -748,7 +748,7 @@ Multi-alliance servers often have **dozens of tags** — Discord’s **50 channe
 | `name_template` | Channel name; `{tag}` → alliance tag (default `diplomacy-{tag}`). Tags are **latinized** like personal channels (`β`→`b`, `Ł`→`l`, …) |
 | `sync_all` | Plan/create letter-bucket categories, rename/move channels, A–Z sort, optional archive |
 | `plan` | With `sync_all`: preview buckets only (no Discord writes) |
-| `soft_limit` | With `sync_all`: max channels per category (10–50, default 45) |
+| `soft_limit` | With `sync_all` / `archive_sync`: max channels per category (10–50). **Persisted** when you pass it (default **45**). Auto-rebalance on track / morning sync uses the stored value. Raising the limit later does **not** merge existing letter buckets. |
 | `category_name_template` | With `sync_all`: category name; `{range}` → e.g. `A-M` (default `Diplomacy Channels {range}`) |
 | `create_missing` | With `sync_all`: also create channels for alliance tags on verified players |
 | `archive_unlinked` | With `sync_all`: move unlinked channels under diplomacy categories to archive (default true) |
@@ -795,7 +795,7 @@ Also happens automatically on verify/sync in **multi_alliance** mode when diplom
 
 ### Sync / rebalance (letter buckets)
 
-Preview splits:
+Preview splits (also **saves** `soft_limit:` when provided):
 
 ```
 /diplomacy sync_all:true plan:true soft_limit:45 create_missing:true
@@ -808,6 +808,10 @@ Apply (creates `Diplomacy Channels A-M`-style categories as needed, moves channe
 ```
 
 Same spirit as personal-channel rebalance. Progress posts on the slash command; audit gets started + finished. After the first successful sync, status shows the **category map** (ranges → categories) instead of a single legacy category.
+
+**Auto-rebalance:** when `/alliance track` (or verify) adds a diplomacy channel that would overflow a bucket, or after the morning multi-alliance roster scrape, the bot rebalances using the **persisted** soft limit (sticky: it will not merge categories if you raise the limit later).
+
+**Alliance tag rename:** if a tracked alliance changes its tag on stfc.pro (same alliance id, new tag string), the morning job remaps `diplomacy_channel_map` / preferred languages / `tracked_alliance_tags` / verified player tags, renames and re-places the diplomacy room, then rebalances letter buckets if needed. This is **not** the same as a player moving between alliances.
 
 ### Organise existing archive piles (no linking)
 
@@ -837,7 +841,7 @@ For onboarding servers that already have categories full of old diplomacy rooms 
 /diplomacy
 ```
 
-(with no action options) prints the current diplomacy config, category map, and tag→channel map.
+(with no action options) prints the current diplomacy config (including **soft limit**), category map, and tag→channel map.
 
 ---
 

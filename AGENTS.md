@@ -217,6 +217,7 @@ migrations/
   039_diplomacy_preferred_locales.sql  # per-tag preferred langs → flag emoji channel suffixes
   040_diplomacy_special_channel.sql  # non-listed alliances diplomacy channel + placement
   041_diplomacy_archive_category_map.sql  # letter-bucket diplomacy archive categories
+  042_diplomacy_soft_limit.sql            # persisted diplomacy soft_limit (default 45)
 
 archive/officers/          # REMOVED officer feature (scripts, SQL, assets, docs)
 

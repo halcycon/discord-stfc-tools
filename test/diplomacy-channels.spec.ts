@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
 	diplomacyChannelsEnabled,
+	diplomacyNeedsRebalance,
 	diplomacyWriteRoleIds,
 	formatDiplomacyChannelName,
 	formatDiplomacyGapsReport,
 	parseArchiveSourceCategoryIds,
 	planDiplomacyArchiveChannels,
 	planDiplomacyChannels,
+	resolveDiplomacySoftLimit,
 	slugDiplomacyChannelName,
 	slugDiplomacySpecialName,
 	withDiplomacyPreferredLocales,
@@ -42,6 +44,7 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		diplomacy_enabled: true,
 		diplomacy_category_id: null,
 		diplomacy_category_map: {},
+		diplomacy_soft_limit: 45,
 		diplomacy_archive_category_id: null,
 		diplomacy_archive_category_map: {},
 		diplomacy_channel_map: {},
@@ -194,5 +197,58 @@ describe('diplomacy-channels', () => {
 		expect(result.plan.total).toBe(50);
 		expect(result.plan.categoryCount).toBeGreaterThanOrEqual(2);
 		expect(result.summary).toContain('Diplomacy category plan');
+	});
+
+	it('resolveDiplomacySoftLimit uses persisted value and clamps', () => {
+		expect(resolveDiplomacySoftLimit(baseConfig({ diplomacy_soft_limit: 40 }))).toBe(40);
+		expect(resolveDiplomacySoftLimit(baseConfig({ diplomacy_soft_limit: 99 }))).toBe(50);
+		expect(resolveDiplomacySoftLimit(baseConfig({ diplomacy_soft_limit: 40 }), 30)).toBe(30);
+	});
+
+	it('diplomacyNeedsRebalance when over soft limit or too few buckets', () => {
+		const tags = Object.fromEntries(
+			Array.from({ length: 46 }, (_, i) => [`A${i}`, `ch-${i}`]),
+		);
+		expect(
+			diplomacyNeedsRebalance(
+				baseConfig({
+					diplomacy_channel_map: tags,
+					diplomacy_category_map: {},
+					diplomacy_soft_limit: 45,
+				}),
+			),
+		).toBe(true);
+		expect(
+			diplomacyNeedsRebalance(
+				baseConfig({
+					diplomacy_channel_map: tags,
+					diplomacy_category_map: { 'A-#': 'cat1' },
+					diplomacy_soft_limit: 45,
+				}),
+			),
+		).toBe(true);
+		expect(
+			diplomacyNeedsRebalance(
+				baseConfig({
+					diplomacy_channel_map: { AB: '1', AC: '2' },
+					diplomacy_category_map: { 'A-#': 'cat1' },
+					diplomacy_soft_limit: 45,
+				}),
+			),
+		).toBe(false);
+	});
+
+	it('planDiplomacyChannels respects sticky minBuckets from existing map', () => {
+		const tags = Object.fromEntries(
+			Array.from({ length: 20 }, (_, i) => [`A${i}`, `ch-${i}`]),
+		);
+		const result = planDiplomacyChannels(
+			baseConfig({
+				diplomacy_channel_map: tags,
+				diplomacy_category_map: { 'A-M': 'c1', 'N-#': 'c2' },
+				diplomacy_soft_limit: 45,
+			}),
+		);
+		expect(result.plan.categoryCount).toBe(2);
 	});
 });

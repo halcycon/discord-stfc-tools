@@ -29,6 +29,11 @@ import {
 	syncMultiAllianceTrackedRosters,
 } from './alliance-roster-sync';
 import {
+	applyAllianceTagRename,
+	runDiplomacyAutoRebalance,
+} from './diplomacy-maintenance';
+import { diplomacyChannelsEnabled } from './diplomacy-channels';
+import {
 	allianceRosterDiffHasChanges,
 	formatAllianceRosterChangeReport,
 } from './alliance-roster-diff';
@@ -136,7 +141,7 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 
 	const guilds = await listConfiguredGuilds(env.STFC_DB);
 
-	for (const config of guilds) {
+	for (let config of guilds) {
 		const players = await listActiveVerifiedPlayers(env.STFC_DB, config.guild_id);
 		let synced = 0;
 		let failed = 0;
@@ -147,6 +152,7 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 		let unavailable = 0;
 		let missing = 0;
 		let tagChanges = 0;
+		let allianceTagRenames = 0;
 		let rosterHits = 0;
 		let liveLookups = 0;
 		const verifiedAllianceMoves: string[] = [];
@@ -222,6 +228,11 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 				if (multiResult.skippedTags.length) {
 					extra += `\n⏭ Skipped (not on server list / over batch cap): ${multiResult.skippedTags.slice(0, 15).join(', ')}`;
 				}
+				if (multiResult.tagRenames.length) {
+					extra += `\n🏷 Alliance tag renames: ${multiResult.tagRenames
+						.map((r) => `\`${r.fromTag}\`→\`${r.toTag}\``)
+						.join(', ')}`;
+				}
 				await postAuditLog(env, config, {
 					title: testingTitle(report.title),
 					description:
@@ -233,6 +244,24 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 						? AuditColor.warn
 						: AuditColor.info,
 				});
+
+				if (multiResult.tagRenames.length && env.DISCORD_BOT_TOKEN && !isDeployTesting(config)) {
+					allianceTagRenames = multiResult.tagRenames.length;
+					for (const ren of multiResult.tagRenames) {
+						const latest = (await getGuildConfig(env.STFC_DB, config.guild_id)) ?? config;
+						await applyAllianceTagRename(
+							env,
+							env.DISCORD_BOT_TOKEN,
+							latest,
+							config.guild_id,
+							ren.fromTag,
+							ren.toTag,
+							{ source: 'cron', rebalance: false },
+						);
+					}
+					config = (await getGuildConfig(env.STFC_DB, config.guild_id)) ?? config;
+					rosterMap = await loadRosterPlayerMap(env, config);
+				}
 			} else {
 				console.warn(
 					`Multi alliance roster sync failed for guild ${config.guild_id}: ${multiResult.reason} — falling back to per-player lookups`,
@@ -446,6 +475,24 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 		}
 
 		await postDemotionApprovalDigest(env, config);
+
+		if (
+			isMultiAllianceGuild(config) &&
+			diplomacyChannelsEnabled(config) &&
+			env.DISCORD_BOT_TOKEN &&
+			!testing
+		) {
+			const latest = (await getGuildConfig(env.STFC_DB, config.guild_id)) ?? config;
+			const hasDiplomacyChannels = Object.keys(latest.diplomacy_channel_map ?? {}).length > 0;
+			await runDiplomacyAutoRebalance(env, env.DISCORD_BOT_TOKEN, latest, config.guild_id, {
+				force: allianceTagRenames > 0 && hasDiplomacyChannels,
+				reason:
+					allianceTagRenames > 0
+						? `morning sync (${allianceTagRenames} alliance tag rename(s))`
+						: 'morning sync',
+				source: 'cron',
+			});
+		}
 
 		if (testing && wouldHaveActions.length > 0) {
 			let description =
