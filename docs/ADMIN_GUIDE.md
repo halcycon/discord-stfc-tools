@@ -94,7 +94,7 @@ Role fields accept **IDs**, **@mentions**, or **names** (with `create_missing_ro
 | Mode | Behaviour |
 |------|-----------|
 | `single_alliance` | Tag must match `alliance_tag`. Else guest role + periodic re-check. Personal channels can auto-create. **Morning alliance roster** caches the full member list for daily sync + verify (see § Daily alliance roster). |
-| `multi_alliance` | Any alliance **or no alliance** verifies as active. No guest gating. Unaffiliated players get member roles only (no Premier/Operative/etc. rank). Personal auto-create is off (link existing channels instead). **Morning multi roster**: server directory + batched scrapes of verified ∪ diplomacy tags; day-over-day moves report; live player-page fallback for untracked/empty tags. Switching from single → multi clears the single-alliance roster cache. |
+| `multi_alliance` | Any alliance **or no alliance** verifies as active. No guest gating. Unaffiliated players get member roles only (no Premier/Operative/etc. rank). Personal auto-create is off (link existing channels instead). **Morning multi roster**: scrape set = verified tags ∪ diplomacy map ∪ `/alliance track`; day-over-day moves report; live player-page fallback when not on a scraped roster (no demotion). Diplomacy auto-create on verify/sync is intentional — see §4d caveats. Switching from single → multi clears the single-alliance roster cache. |
 
 Check config anytime:
 
@@ -448,7 +448,7 @@ Each morning (`~06:00 UTC`, cron `0 6 * * *`) the bot refreshes alliance member 
 ### Multi-alliance
 
 1. Fetches the server alliance directory (`/servers/{n}`).
-2. Tracks tags = **verified players’ tags** ∪ **diplomacy channel map** tags.
+2. Builds the **morning scrape set** = verified players’ current tags ∪ diplomacy channel map ∪ `/alliance track` list.
 3. Scrapes those alliance pages in a **batch** (cap ~40/run, ~1.2s between pages).
 4. Posts a multi report: **alliance moves**, joined/left tracked rosters, ops / rank / renames.
 5. Syncs verified players from those caches. If a player isn’t on any scraped roster (new/empty/untracked tag) → **live player page**. Guests without a player id are skipped.
@@ -466,19 +466,38 @@ First successful roster for a guild is an **initial snapshot** (no join spam). U
 
 Change sections (joins, leaves, moves, ops, rank, renames) and the morning **Player activity** audit render as **compact ASCII tables** in code fences (same engine as `/table`). Player **names** appear in the table — Discord mentions do not render inside fences.
 
+#### Multi-alliance: scrape set vs “tracked” vs diplomacy (read this)
+
+These are easy to conflate. They are **not** the same list:
+
+| Concept | What it is | How tags get on it |
+|---------|------------|--------------------|
+| **Morning scrape set** | Alliance pages scraped for cache + day-over-day report | Verified players’ **current** tags ∪ diplomacy map ∪ `/alliance track` |
+| **Explicit track list** (`/alliance track`) | Configured admin list kept in morning sync | **Only** `/alliance track` — never auto-added by cron/verify |
+| **Diplomacy map** | Tags that already have a diplomacy channel | `/diplomacy` / `/alliance track` (when diplomacy enabled), **and** auto-create on verify/sync (see below) |
+
+**Implications for admins:**
+
+1. **“Left tracked roster”** means the player disappeared from an alliance page that was scraped that morning. On multi they are **not** demoted (unlike single-alliance). The cron still syncs them via their **individual** stfc.pro profile (`/players/{id}`). They may still be in-game in another alliance.
+2. After a live sync updates their tag to e.g. `[XYZ]`, **`XYZ` enters tomorrow’s scrape set** (because verified tags are included). That does **not** add `XYZ` to the explicit `/alliance track` list by itself.
+3. **Diplomacy auto-create (intended):** when diplomacy is enabled, verify and daily sync call ensure-diplomacy for the player’s current tag. Creating that channel **writes the tag into the diplomacy map**, which then keeps it in the scrape set. So a member joining (or moving to) a new alliance can create a diplomacy channel and permanently pull that tag into morning scrapes — unless you use deferral (next point).
+4. **`/alliance defer-untracked-admirals enabled:true`:** Admirals whose tag is **not** on the explicit track list ∪ diplomacy map get member roles only (no Admiral/overlay roles). Diplomacy for those tags is also deferred until you `/alliance track` (or otherwise put the tag on the diplomacy map). Use this if you do **not** want random new alliances to spawn diplomacy channels / Admiral roles on first verify.
+5. **`/alliance untrack`** only removes a tag from the **explicit** list. It does not remove an existing diplomacy channel or stop scraping a tag that still appears on verified players or the diplomacy map. Check `/alliance list` for explicit vs combined.
+
 ### Requirements
 
-- Mode: **`single_alliance`** with `alliance_tag`, or **`multi_alliance`** with at least one tracked tag (verified players, diplomacy map, and/or `/alliance track`).
+- Mode: **`single_alliance`** with `alliance_tag`, or **`multi_alliance`** with at least one tag in the scrape set (verified players, diplomacy map, and/or `/alliance track`).
 - Audit channel configured (`/channels audit`).
 - Single-alliance: `stfc_alliance_id` (shown on `/server status`; auto-discovered from a verified profile if missing).
 
 ### Multi-alliance: track + link suggestions
 
 ```
-/alliance track tag:KWSN          # scrape now into D1 + keep in morning sync
-/alliance suggest tag:KWSN        # match unverified Discord nicks → roster
-/alliance list                    # explicit + diplomacy + combined tags
-/alliance untrack tag:KWSN        # drop from explicit list only
+/alliance track tag:KWSN                    # scrape now into D1 + keep in morning sync (+ diplomacy if enabled)
+/alliance suggest tag:KWSN                  # match unverified Discord nicks → roster
+/alliance list                              # explicit + diplomacy + combined scrape tags
+/alliance untrack tag:KWSN                  # drop from explicit list only
+/alliance defer-untracked-admirals enabled:true   # optional: defer Admiral roles + diplomacy until track
 ```
 
 Unlinked STFC players stay in the alliance roster cache (`/roster missing-verify`). Suggestions prefer nicks like `[TAG] Name` / `[TAG] (Adm) Name`. The suggest reply shows an **ASCII table** of all matches (H/M/L), then:
@@ -740,7 +759,7 @@ Multi-alliance servers often have **dozens of tags** — Discord’s **50 channe
 /diplomacy create_tag:KWSN
 ```
 
-Also happens automatically on verify/sync in **multi_alliance** mode when diplomacy is enabled and the player has an alliance tag. Existing channels are **renamed** to the current slug and **moved** into the letter-bucket category (or legacy `category` if no map).
+Also happens automatically on verify/sync in **multi_alliance** mode when diplomacy is enabled and the player has an alliance tag — **unless** `/alliance defer-untracked-admirals` is on and that tag is not yet tracked / on the diplomacy map. Auto-create is intentional; it adds the tag to the diplomacy map (and therefore the morning scrape set). See [scrape set vs tracked vs diplomacy](#multi-alliance-scrape-set-vs-tracked-vs-diplomacy-read-this) above. Existing channels are **renamed** to the current slug and **moved** into the letter-bucket category (or legacy `category` if no map).
 
 ### Sync / rebalance (letter buckets)
 
