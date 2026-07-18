@@ -1922,17 +1922,19 @@ async function handleDiplomacyChannelsCommand(
 	const languagesRaw = getOptionValue(options, 'languages');
 	const languagesProvided = languagesRaw !== undefined && languagesRaw !== null;
 	const applyPermsRaw = getOptionValue(options, 'apply_permissions');
-	const applyPermissions =
-		applyPermsRaw === undefined || applyPermsRaw === null
-			? true
-			: applyPermsRaw === true || applyPermsRaw === 'true';
-
 	const everyoneRaw = getOptionValue(options, 'everyone_can_view');
 	const categoryOpt = getOptionValue(options, 'category');
 	const viewRolesRaw = getOptionValue(options, 'view_roles');
 	const writeRolesRaw = getOptionValue(options, 'write_roles');
 	const writeRanksRaw = getOptionValue(options, 'write_ranks') as string | undefined;
 	const nameTemplateRaw = getOptionValue(options, 'name_template');
+
+	// sync_all defaults to skip per-channel permission rewrites (move/rename only).
+	// create/link still default to applying permissions unless apply_permissions:false.
+	const applyPermissions =
+		applyPermsRaw === undefined || applyPermsRaw === null
+			? !syncAll
+			: applyPermsRaw === true || applyPermsRaw === 'true';
 
 	let languagesForTag: string[] | undefined;
 	if (languagesProvided) {
@@ -2570,6 +2572,18 @@ async function handleDiplomacyChannelsCommand(
 						color: AuditColor.info,
 					});
 
+					// Accumulate map in memory; flush to D1 every few tags (not every channel).
+					let pendingChannelMap = { ...config.diplomacy_channel_map };
+					let mappedSinceFlush = 0;
+					const flushChannelMap = async () => {
+						if (mappedSinceFlush === 0) return;
+						await upsertGuildConfig(env.STFC_DB, {
+							guild_id: guildId,
+							diplomacy_channel_map: pendingChannelMap,
+						});
+						mappedSinceFlush = 0;
+					};
+
 					const result = await rebalanceDiplomacyChannels(
 						env.DISCORD_BOT_TOKEN!,
 						config,
@@ -2595,18 +2609,13 @@ async function handleDiplomacyChannelsCommand(
 								});
 							},
 							onChannelMapped: async (tag, channelId) => {
-								const latest = await getGuildConfig(env.STFC_DB, guildId);
-								const nextMap = {
-									...(latest?.diplomacy_channel_map ?? {}),
-									[tag]: channelId,
-								};
-								await upsertGuildConfig(env.STFC_DB, {
-									guild_id: guildId,
-									diplomacy_channel_map: nextMap,
-								});
+								pendingChannelMap = { ...pendingChannelMap, [tag]: channelId };
+								mappedSinceFlush++;
+								if (mappedSinceFlush >= 5) await flushChannelMap();
 							},
 						},
 					);
+					await flushChannelMap();
 
 					await upsertGuildConfig(env.STFC_DB, {
 						guild_id: guildId,

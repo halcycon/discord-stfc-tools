@@ -245,15 +245,20 @@ export function planCategoryBuckets(
 	};
 }
 
+const RANGE_PLACEHOLDER = /\{range\}/gi;
+
 export function applyCategoryNameTemplate(template: string, range: string): string {
-	const name = template.replaceAll('{range}', range).trim() || DEFAULT_CATEGORY_NAME_TEMPLATE.replace('{range}', range);
+	const raw = template.trim();
+	const name =
+		(raw ? raw.replace(RANGE_PLACEHOLDER, range) : '').trim() ||
+		DEFAULT_CATEGORY_NAME_TEMPLATE.replace(RANGE_PLACEHOLDER, range);
 	return name.slice(0, 100);
 }
 
-/** Prefix before `{range}` — used to recognize prior rebalance categories by name. */
+/** Prefix before `{range}` / `{RANGE}` — used to recognize prior rebalance categories by name. */
 export function categoryNameTemplatePrefix(template: string): string {
 	const raw = template.trim() || DEFAULT_CATEGORY_NAME_TEMPLATE;
-	const idx = raw.indexOf('{range}');
+	const idx = raw.search(/\{range\}/i);
 	if (idx <= 0) return 'Member Channels ';
 	return raw.slice(0, idx);
 }

@@ -380,6 +380,7 @@ async function syncDiplomacyChannelPlacement(
 	channel: Pick<DiscordChannel, 'name' | 'parent_id'>,
 	tag: string,
 	config: GuildConfig,
+	opts?: { sortAlphabetically?: boolean },
 ): Promise<{ moved: boolean; renamed: boolean }> {
 	const desiredName = diplomacyChannelDisplayName(tag, config);
 	const targetCategoryId = categoryForAllianceTag(config, tag);
@@ -397,8 +398,9 @@ async function syncDiplomacyChannelPlacement(
 		moved = Boolean(updates.parent_id);
 		renamed = Boolean(updates.name);
 	}
+	const sortAlphabetically = opts?.sortAlphabetically !== false;
 	const sortCategoryId = updates.parent_id ?? targetCategoryId ?? channel.parent_id ?? null;
-	if (sortCategoryId && /^\d{15,20}$/.test(sortCategoryId)) {
+	if (sortAlphabetically && sortCategoryId && /^\d{15,20}$/.test(sortCategoryId)) {
 		try {
 			await sortCategoryChannelsAlphabetically(token, guildId, sortCategoryId);
 		} catch {
@@ -408,6 +410,16 @@ async function syncDiplomacyChannelPlacement(
 	return { moved, renamed };
 }
 
+export type EnsureDiplomacyChannelOptions = {
+	/** Rewrite overwrites (default true). Bulk sync should pass false or rely on create overwrites. */
+	applyPermissions?: boolean;
+	/**
+	 * Sort the parent category after move/create (default true).
+	 * Bulk `sync_all` must pass false — it sorts once at the end.
+	 */
+	sortAlphabetically?: boolean;
+};
+
 /**
  * Ensure a diplomacy channel exists for an alliance tag (create or refresh name/category/perms).
  */
@@ -416,12 +428,15 @@ export async function ensureDiplomacyChannel(
 	config: GuildConfig,
 	guildId: string,
 	allianceTag: string,
+	opts?: EnsureDiplomacyChannelOptions,
 ): Promise<DiplomacyChannelResult> {
 	if (!diplomacyChannelsEnabled(config)) {
 		return { ok: false, error: 'Diplomacy channels are not enabled.' };
 	}
 	const tag = normalizeAllianceTag(allianceTag);
 	if (!tag) return { ok: false, error: 'Missing alliance tag.' };
+	const applyPermissions = opts?.applyPermissions !== false;
+	const sortAlphabetically = opts?.sortAlphabetically !== false;
 
 	const existingId = config.diplomacy_channel_map[tag];
 	try {
@@ -435,8 +450,11 @@ export async function ensureDiplomacyChannel(
 					existing,
 					tag,
 					config,
+					{ sortAlphabetically },
 				);
-				await applyDiplomacyChannelPermissions(token, guildId, existingId, config);
+				if (applyPermissions) {
+					await applyDiplomacyChannelPermissions(token, guildId, existingId, config);
+				}
 				return { ok: true, channelId: existingId, created: false, moved, renamed, tag };
 			}
 		}
@@ -449,7 +467,7 @@ export async function ensureDiplomacyChannel(
 			topic: `Diplomacy channel for [${tag}]`,
 			permissionOverwrites: buildCreateOverwrites(guildId, botUserId, config),
 		});
-		if (parentId) {
+		if (sortAlphabetically && parentId) {
 			try {
 				await sortCategoryChannelsAlphabetically(token, guildId, parentId);
 			} catch {
@@ -811,27 +829,31 @@ export async function rebalanceDiplomacyChannels(
 	await report(
 		`⏳ Diplomacy sync: categories ready (` +
 			`${categoriesCreated} created, ${categoriesRenamed} renamed, ${categoriesReusedByName} reused by name). ` +
-			`Moving/creating channels (0/${tagList.length})…`,
+			`Moving/creating channels (0/${tagList.length})…` +
+			(applyPermissions ? '' : ' _(permissions skipped)_'),
 	);
 
 	let processed = 0;
 	for (const tag of tagList) {
-		processed++;
-		if (processed === 1 || processed % 5 === 0 || processed === tagList.length) {
-			await report(
-				`⏳ Diplomacy sync: ${processed}/${tagList.length}` +
-					` (moved ${channelsMoved}, renamed ${channelsRenamed}, created ${channelsCreated}, failed ${channelsFailed})…`,
-			);
-		}
-
 		const cfg: GuildConfig = {
 			...configWithMap,
 			diplomacy_channel_map: channelMap,
 		};
-		const result = await ensureDiplomacyChannel(token, cfg, guildId, tag);
+		// Bulk: no per-channel category sort (done once at end) — that was hanging sync_all.
+		const result = await ensureDiplomacyChannel(token, cfg, guildId, tag, {
+			applyPermissions,
+			sortAlphabetically: false,
+		});
+		processed++;
 		if (!result.ok) {
 			channelsFailed++;
 			errors.push(`[${tag}] ${result.error}`);
+			await report(
+				`⏳ Diplomacy sync: ${processed}/${tagList.length}` +
+					` (moved ${channelsMoved}, renamed ${channelsRenamed}, created ${channelsCreated}, failed ${channelsFailed})…` +
+					` last \`${tag}\` ❌`,
+			);
+			if (moveDelayMs > 0) await sleep(moveDelayMs);
 			continue;
 		}
 
@@ -840,19 +862,14 @@ export async function rebalanceDiplomacyChannels(
 		if (result.moved) channelsMoved++;
 		if (result.renamed) channelsRenamed++;
 
-		if (applyPermissions && !result.created) {
-			try {
-				await applyDiplomacyChannelPermissions(token, guildId, result.channelId, config);
-			} catch (error) {
-				errors.push(
-					`[${tag}] perms: ${error instanceof Error ? error.message : 'unknown'}`,
-				);
-			}
-		}
-
 		if (opts.onChannelMapped) {
 			await opts.onChannelMapped(tag, result.channelId);
 		}
+		await report(
+			`⏳ Diplomacy sync: ${processed}/${tagList.length}` +
+				` (moved ${channelsMoved}, renamed ${channelsRenamed}, created ${channelsCreated}, failed ${channelsFailed})…` +
+				` last \`${tag}\``,
+		);
 		if (moveDelayMs > 0) await sleep(moveDelayMs);
 	}
 

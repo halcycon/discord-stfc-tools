@@ -192,6 +192,13 @@ describe('personal-channel-plan', () => {
 	it('applyCategoryNameTemplate', () => {
 		expect(applyCategoryNameTemplate('Member Channels {range}', 'A-M')).toBe('Member Channels A-M');
 		expect(applyCategoryNameTemplate('Member Channels {range}', 'N-#')).toBe('Member Channels N-#');
+		expect(applyCategoryNameTemplate('DIPLOMACY ROOMS {RANGE}', 'A-M')).toBe('DIPLOMACY ROOMS A-M');
+		expect(applyCategoryNameTemplate('Diplo {Range} rooms', 'N-#')).toBe('Diplo N-# rooms');
+	});
+
+	it('categoryNameTemplatePrefix finds {RANGE} case-insensitively', () => {
+		expect(categoryNameTemplatePrefix('DIPLOMACY ROOMS {RANGE}')).toBe('DIPLOMACY ROOMS ');
+		expect(categoryNameTemplatePrefix('Diplomacy Channels {range}')).toBe('Diplomacy Channels ');
 	});
 });
 

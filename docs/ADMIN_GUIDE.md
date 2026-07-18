@@ -807,7 +807,9 @@ Apply (creates `Diplomacy Channels A-M`-style categories as needed, moves channe
 /diplomacy sync_all:true create_missing:true
 ```
 
-Same spirit as personal-channel rebalance. Progress posts on the slash command; audit gets started + finished. After the first successful sync, status shows the **category map** (ranges → categories) instead of a single legacy category.
+Same spirit as personal-channel rebalance. Progress posts on the slash command after each tag; audit gets started + finished. After the first successful sync, status shows the **category map** (ranges → categories) instead of a single legacy category.
+
+**Performance:** `sync_all` moves/renames only by default (no per-channel permission rewrite). Pass `apply_permissions:true` if you need overwrites refreshed. A–Z sort runs once at the end of the job, not after every channel.
 
 **Auto-rebalance:** when `/alliance track` (or verify) adds a diplomacy channel that would overflow a bucket, or after the morning multi-alliance roster scrape, the bot rebalances using the **persisted** soft limit (sticky: it will not merge categories if you raise the limit later).
 

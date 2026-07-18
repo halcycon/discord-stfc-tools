@@ -150,6 +150,7 @@ export async function runDiplomacyAutoRebalance(
 		softLimit,
 		createMissingTags: Object.keys(config.diplomacy_channel_map),
 		archiveUnlinked: false,
+		// Bulk path: move/rename only; sort once at end inside rebalance.
 		applyPermissions: false,
 	});
 
