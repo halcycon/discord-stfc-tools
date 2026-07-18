@@ -82,7 +82,10 @@ import {
 	linkDiplomacyChannel,
 	linkDiplomacySpecialChannel,
 	normalizeDiplomacySpecialPlacement,
+	parseArchiveSourceCategoryIds,
+	planDiplomacyArchiveChannels,
 	planDiplomacyChannels,
+	rebalanceDiplomacyArchiveChannels,
 	rebalanceDiplomacyChannels,
 	resolveDiplomacySpecialName,
 	withDiplomacyPreferredLocales,
@@ -2322,6 +2325,147 @@ async function handleDiplomacyChannelsCommand(
 		);
 	}
 
+	const archiveSyncRaw = getOptionValue(options, 'archive_sync');
+	const archiveSync = archiveSyncRaw === true || archiveSyncRaw === 'true';
+	if (archiveSync) {
+		if (!env.DISCORD_BOT_TOKEN) {
+			return interactionResponse('❌ DISCORD_BOT_TOKEN not configured.', true);
+		}
+		if (!diplomacyChannelsEnabled(config)) {
+			return interactionResponse(
+				'❌ Diplomacy is disabled. Enable first: `/diplomacy enable:true`',
+				true,
+			);
+		}
+
+		const softLimitRaw = getOptionValue(options, 'soft_limit');
+		const softLimit =
+			softLimitRaw != null && Number.isFinite(Number(softLimitRaw))
+				? Math.max(10, Math.min(50, Number(softLimitRaw)))
+				: DEFAULT_SOFT_LIMIT;
+		const categoryNameTemplate = (
+			(getOptionValue(options, 'category_name_template') as string | undefined)?.trim() ||
+			'Diplomacy Archive {range}'
+		);
+		const planOnlyRaw = getOptionValue(options, 'plan');
+		const planOnly = planOnlyRaw === true || planOnlyRaw === 'true';
+		const archiveCategoryOpt = getOptionValue(options, 'archive_category');
+		const archiveSourcesRaw = getOptionValue(options, 'archive_sources') as string | undefined;
+
+		const sourceCategoryIds = parseArchiveSourceCategoryIds(archiveSourcesRaw, [
+			archiveCategoryOpt != null ? String(archiveCategoryOpt) : null,
+			config.diplomacy_archive_category_id,
+			...Object.values(config.diplomacy_archive_category_map ?? {}),
+		]);
+
+		if (sourceCategoryIds.length === 0) {
+			return interactionResponse(
+				'❌ Provide `archive_category:` (and/or configured archive map). ' +
+					'Re-run once per existing archive pile; later runs include the archive map automatically.',
+				true,
+			);
+		}
+
+		if (planOnly) {
+			try {
+				const channels = await listGuildChannels(env.DISCORD_BOT_TOKEN, guildId);
+				const preview = planDiplomacyArchiveChannels(channels, sourceCategoryIds, config, {
+					softLimit,
+				});
+				return interactionResponse(
+					`${preview.summary}\n\n` +
+						`**Preview only** (plan:true).\n` +
+						`• Category name template: \`${categoryNameTemplate}\`\n` +
+						`• Soft limit: ${softLimit}\n\n` +
+						`Run \`/diplomacy archive_sync:true\` (without plan) to apply.`,
+					true,
+				);
+			} catch (error) {
+				return interactionResponse(
+					`❌ Archive plan failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+					true,
+				);
+			}
+		}
+
+		const appId = interaction.application_id ?? env.DISCORD_APPLICATION_ID;
+		if (!appId) {
+			return interactionResponse('❌ DISCORD_APPLICATION_ID not configured.', true);
+		}
+
+		const deferred = deferredResponse();
+		ctx.waitUntil(
+			(async () => {
+				try {
+					await postAuditLog(env, config, {
+						title: 'Diplomacy archive sync started',
+						description: `Sources: ${sourceCategoryIds.map((id) => `<#${id}>`).join(', ')}`,
+						actorId,
+						source: 'admin',
+						color: AuditColor.info,
+					});
+
+					const result = await rebalanceDiplomacyArchiveChannels(
+						env.DISCORD_BOT_TOKEN!,
+						config,
+						guildId,
+						{
+							sourceCategoryIds,
+							softLimit,
+							categoryNameTemplate,
+							onProgress: async (message) => {
+								await editInteractionResponse(appId, interaction.token, message, true);
+							},
+							onArchiveCategoriesReady: async (archiveCategoryMap) => {
+								await upsertGuildConfig(env.STFC_DB, {
+									guild_id: guildId,
+									diplomacy_archive_category_map: archiveCategoryMap,
+									diplomacy_archive_category_id:
+										Object.values(archiveCategoryMap)[0] ?? null,
+								});
+							},
+						},
+					);
+
+					await upsertGuildConfig(env.STFC_DB, {
+						guild_id: guildId,
+						diplomacy_archive_category_map: result.archiveCategoryMap,
+						diplomacy_archive_category_id: result.archiveCategoryId,
+					});
+					const after = await getGuildConfig(env.STFC_DB, guildId);
+					await postAuditLog(env, after, {
+						title: 'Diplomacy archive sync complete',
+						description: result.summary.slice(0, 1500),
+						actorId,
+						source: 'admin',
+						color: result.ok ? AuditColor.success : AuditColor.warn,
+					});
+					await editInteractionResponse(appId, interaction.token, result.summary, true);
+				} catch (error) {
+					const errMsg = error instanceof Error ? error.message : 'unknown error';
+					try {
+						await postAuditLog(env, config, {
+							title: 'Diplomacy archive sync failed',
+							description: errMsg.slice(0, 1500),
+							actorId,
+							source: 'admin',
+							color: AuditColor.danger,
+						});
+					} catch {
+						/* ignore */
+					}
+					await editInteractionResponse(
+						appId,
+						interaction.token,
+						`❌ Diplomacy archive sync failed: ${errMsg}`,
+						true,
+					);
+				}
+			})(),
+		);
+		return deferred;
+	}
+
 	if (syncAll) {
 		if (!env.DISCORD_BOT_TOKEN) {
 			return interactionResponse('❌ DISCORD_BOT_TOKEN not configured.', true);
@@ -2509,7 +2653,13 @@ async function handleDiplomacyChannelsCommand(
 			`• Enabled: ${diplomacyChannelsEnabled(refreshed) ? 'yes' : 'no'}\n` +
 			`• Everyone can view: ${refreshed.diplomacy_everyone_can_view ? 'yes' : 'no'}\n` +
 			`• Category map: ${categoryMapLine}\n` +
-			`• Archive: ${refreshed.diplomacy_archive_category_id ? `<#${refreshed.diplomacy_archive_category_id}>` : 'none'}\n` +
+			`• Archive map: ${
+				Object.keys(refreshed.diplomacy_archive_category_map ?? {}).length
+					? formatCategoryMap(refreshed.diplomacy_archive_category_map)
+					: refreshed.diplomacy_archive_category_id
+						? `legacy <#${refreshed.diplomacy_archive_category_id}>`
+						: 'none'
+			}\n` +
 			`• Channel name template: \`${refreshed.diplomacy_name_template?.trim() || 'diplomacy-{tag}'}\`\n` +
 			`• View roles: ${refreshed.diplomacy_view_role_ids.map((id) => `<@&${id}>`).join(', ') || 'none'}\n` +
 			`• Write roles: ${refreshed.diplomacy_write_role_ids.map((id) => `<@&${id}>`).join(', ') || 'none'}\n` +
@@ -2520,10 +2670,9 @@ async function handleDiplomacyChannelsCommand(
 			`\`/diplomacy enable:true write_roles:Diplomat write_ranks:Commodore,Admiral everyone_can_view:true\`\n` +
 			`\`/diplomacy gaps:true\` — tracked/verified vs channel map\n` +
 			`\`/diplomacy create_tag:ABCD\`\n` +
-			`\`/diplomacy create_tag:ABCD languages:en,fr\` — set preferred languages (flags on name)\n` +
 			`\`/diplomacy link_tag:ABCD channel:#abcd-diplo languages:en,de apply_permissions:false\`\n` +
-			`\`/diplomacy special:create special_name:non-listed-alliances special_placement:special_category\`\n` +
-			`\`/diplomacy special:link channel:#room special_placement:top_of_first\`\n` +
+			`\`/diplomacy special:create special_placement:special_category\`\n` +
+			`\`/diplomacy archive_sync:true archive_category:#old-archive plan:true\` — organise archive piles\n` +
 			`\`/diplomacy sync_all:true create_missing:true\` — letter buckets + rename/move/A–Z sort\n` +
 			`\`/diplomacy sync_all:true plan:true soft_limit:45\` — preview category splits`,
 		true,

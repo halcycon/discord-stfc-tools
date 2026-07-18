@@ -4,6 +4,8 @@ import {
 	diplomacyWriteRoleIds,
 	formatDiplomacyChannelName,
 	formatDiplomacyGapsReport,
+	parseArchiveSourceCategoryIds,
+	planDiplomacyArchiveChannels,
 	planDiplomacyChannels,
 	slugDiplomacyChannelName,
 	slugDiplomacySpecialName,
@@ -41,6 +43,7 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		diplomacy_category_id: null,
 		diplomacy_category_map: {},
 		diplomacy_archive_category_id: null,
+		diplomacy_archive_category_map: {},
 		diplomacy_channel_map: {},
 		diplomacy_preferred_locales: {},
 		diplomacy_special_channel_id: null,
@@ -135,6 +138,35 @@ describe('diplomacy-channels', () => {
 	it('slugDiplomacySpecialName sanitizes custom names', () => {
 		expect(slugDiplomacySpecialName('Non-Listed Alliances')).toBe('non-listed-alliances');
 		expect(slugDiplomacySpecialName('')).toBe('non-listed-alliances');
+	});
+
+	it('parseArchiveSourceCategoryIds merges extras and CSV', () => {
+		expect(
+			parseArchiveSourceCategoryIds('111111111111111111, <#222222222222222222>', [
+				'333333333333333333',
+				'111111111111111111',
+			]),
+		).toEqual(['333333333333333333', '111111111111111111', '222222222222222222']);
+	});
+
+	it('planDiplomacyArchiveChannels skips linked channels', () => {
+		const cat = '111111111111111111';
+		const channels = [
+			{ id: '222222222222222221', name: 'alpha-diplo', type: 0, parent_id: cat },
+			{ id: '222222222222222222', name: 'linked-one', type: 0, parent_id: cat },
+			{ id: '222222222222222223', name: 'zeta-room', type: 0, parent_id: cat },
+		];
+		const preview = planDiplomacyArchiveChannels(
+			channels as any,
+			[cat],
+			{
+				diplomacy_channel_map: { ABCD: '222222222222222222' },
+				diplomacy_special_channel_id: null,
+			},
+			{ softLimit: 45 },
+		);
+		expect(preview.channelCount).toBe(2);
+		expect(preview.summary).toContain('Diplomacy archive plan');
 	});
 
 	it('diplomacyWriteRoleIds merges write roles and rank roles', () => {

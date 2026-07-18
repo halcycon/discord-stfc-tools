@@ -110,7 +110,10 @@ export interface GuildConfig {
 	diplomacy_category_id: string | null;
 	/** Letter-range → Discord category ID (same shape as channel_category_map). */
 	diplomacy_category_map: Record<string, string>;
+	/** Legacy single archive category (used when archive map is empty). */
 	diplomacy_archive_category_id: string | null;
+	/** Letter-range → archive category ID (unlinked / historical diplomacy rooms). */
+	diplomacy_archive_category_map: Record<string, string>;
 	/** allianceTag (upper) → Discord channel ID */
 	diplomacy_channel_map: Record<string, string>;
 	/**

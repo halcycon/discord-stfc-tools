@@ -134,6 +134,7 @@ function mapGuildConfig(row: any): GuildConfig {
 		diplomacy_category_id: row.diplomacy_category_id ?? null,
 		diplomacy_category_map: parseJsonObject(row.diplomacy_category_map),
 		diplomacy_archive_category_id: row.diplomacy_archive_category_id ?? null,
+		diplomacy_archive_category_map: parseJsonObject(row.diplomacy_archive_category_map),
 		diplomacy_channel_map: parseJsonObject(row.diplomacy_channel_map),
 		diplomacy_preferred_locales: parseDiplomacyPreferredLocales(row.diplomacy_preferred_locales),
 		diplomacy_special_channel_id: row.diplomacy_special_channel_id ?? null,
@@ -435,6 +436,7 @@ async function upsertDiplomacyConfigFields(
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_category_id') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_category_map') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_archive_category_id') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_archive_category_map') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_channel_map') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_preferred_locales') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_everyone_can_view') ||
@@ -481,6 +483,7 @@ async function upsertDiplomacyConfigFields(
 				 diplomacy_category_id = CASE WHEN ? = 1 THEN ? ELSE diplomacy_category_id END,
 				 diplomacy_category_map = COALESCE(?, diplomacy_category_map),
 				 diplomacy_archive_category_id = CASE WHEN ? = 1 THEN ? ELSE diplomacy_archive_category_id END,
+				 diplomacy_archive_category_map = COALESCE(?, diplomacy_archive_category_map),
 				 diplomacy_channel_map = COALESCE(?, diplomacy_channel_map),
 				 diplomacy_preferred_locales = CASE WHEN ? = 1 THEN ? ELSE diplomacy_preferred_locales END,
 				 diplomacy_everyone_can_view = COALESCE(?, diplomacy_everyone_can_view),
@@ -502,6 +505,9 @@ async function upsertDiplomacyConfigFields(
 				config.diplomacy_category_map ? JSON.stringify(config.diplomacy_category_map) : null,
 				archiveProvided ? 1 : 0,
 				archiveProvided ? (config.diplomacy_archive_category_id?.trim() || null) : null,
+				config.diplomacy_archive_category_map
+					? JSON.stringify(config.diplomacy_archive_category_map)
+					: null,
 				config.diplomacy_channel_map ? JSON.stringify(config.diplomacy_channel_map) : null,
 				localesProvided ? 1 : 0,
 				localesProvided

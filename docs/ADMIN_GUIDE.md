@@ -752,6 +752,8 @@ Multi-alliance servers often have **dozens of tags** — Discord’s **50 channe
 | `category_name_template` | With `sync_all`: category name; `{range}` → e.g. `A-M` (default `Diplomacy Channels {range}`) |
 | `create_missing` | With `sync_all`: also create channels for alliance tags on verified players |
 | `archive_unlinked` | With `sync_all`: move unlinked channels under diplomacy categories to archive (default true) |
+| `archive_category` | With `sync_all`: single dump target; with `archive_sync`: a **source** pile to organise (re-run for more piles) |
+| `archive_sync` | Rebalance unlinked rooms from source pile(s) into letter-bucket archive categories — **no tag linking required** |
 | `languages` | With `create_tag` / `link_tag`: preferred languages as country flags on the channel name (optional). Codes: `en,de,fr,es,pt,nl,pl,it,ru,tr,hu`. Use `none` to clear. |
 | `gaps` | Ephemeral report: tracked/verified tags missing channels, and channels not on explicit track |
 | `special` | `create` / `link` / `clear` — non-listed alliances room (not a tag in the channel map) |
@@ -806,6 +808,21 @@ Apply (creates `Diplomacy Channels A-M`-style categories as needed, moves channe
 ```
 
 Same spirit as personal-channel rebalance. Progress posts on the slash command; audit gets started + finished. After the first successful sync, status shows the **category map** (ranges → categories) instead of a single legacy category.
+
+### Organise existing archive piles (no linking)
+
+For onboarding servers that already have categories full of old diplomacy rooms you do **not** want to `link_tag`:
+
+```
+/diplomacy archive_sync:true archive_category:#old-diplomacy-archive plan:true soft_limit:45 category_name_template:Diplomacy Archive {range}
+/diplomacy archive_sync:true archive_category:#old-diplomacy-archive category_name_template:Diplomacy Archive {range}
+```
+
+- Moves **unlinked** text channels from the source category into letter-bucket archive categories (default names `Diplomacy Archive A-M`, …).
+- Skips channels already in the diplomacy map and the special (non-listed) channel.
+- Does **not** rename channels or require alliance tags.
+- Re-run with another `archive_category:` for a second pile — the existing archive map is included as sources automatically so everything rebalances together.
+- If a source category is already named exactly like a planned bucket (e.g. `Diplomacy Archive A-M`), it is reused.
 
 ### Adopt an existing channel
 

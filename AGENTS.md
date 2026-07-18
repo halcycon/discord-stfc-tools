@@ -216,6 +216,7 @@ migrations/
   033_web_admin_roles.sql  # web_admin_role_ids for admin SPA
   039_diplomacy_preferred_locales.sql  # per-tag preferred langs → flag emoji channel suffixes
   040_diplomacy_special_channel.sql  # non-listed alliances diplomacy channel + placement
+  041_diplomacy_archive_category_map.sql  # letter-bucket diplomacy archive categories
 
 archive/officers/          # REMOVED officer feature (scripts, SQL, assets, docs)
 

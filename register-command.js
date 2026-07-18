@@ -1464,13 +1464,6 @@ const commands = [
 								required: false,
 							},
 							{
-								type: 7,
-								name: 'category',
-								description: 'Legacy single category (prefer sync_all letter buckets)',
-								required: false,
-								channel_types: [4],
-							},
-							{
 								type: 3,
 								name: 'view_roles',
 								description: 'Roles that can view when everyone_can_view is false',
@@ -1610,9 +1603,17 @@ const commands = [
 							{
 								type: 7,
 								name: 'archive_category',
-								description: 'With sync_all: archive category target',
+								description:
+									'Archive category: sync_all dump target, or archive_sync source (re-run for more)',
 								required: false,
 								channel_types: [4],
+							},
+							{
+								type: 5,
+								name: 'archive_sync',
+								description:
+									'Rebalance unlinked rooms from archive_category (+ existing archive map) into letter buckets',
+								required: false,
 							},
 						],
 	},
