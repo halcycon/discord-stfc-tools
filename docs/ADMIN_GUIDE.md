@@ -922,12 +922,21 @@ Bot role must sit **above** the Donor / Need roles it creates.
 
 Creates Discord roles `{Name} Donor` and `{Name} Need`, posts + pins **Register as donor** / **Stop donating** / **I need this** / **I no longer need this**.
 
+The pinned post shows live totals (names are not listed):
+
+- **Registered donors**
+- **Active requests** (open + claimed)
+
+The bot **edits** that pinned message whenever donors or requests change.
+
 ### Player flow
 
-1. Donor registers (button or `/exchange donate resource:Crystal`)
-2. Recipient taps **I need this** (or `/exchange need`) → eligible donors get a DM (name + ops) with **Help** / **Ignore**
+1. Donor registers (button or `/exchange donate resource:Crystal`) — if open requests are waiting, they are DMed about them **oldest first**
+2. Recipient taps **I need this** (or `/exchange need`):
+   - If cross-alliance donors exist → they get a DM (name + ops) with **Help** / **Ignore**
+   - If none yet → request is **queued** (still counted on the pin); first matching donor who later registers gets DMed in queue order
 3. First **Help** wins → recipient gets donor details + **Completed** / **Ask again**
-4. **Ask again** re-notifies current cross-alliance donors
+4. **Ask again** re-notifies current cross-alliance donors (or stays queued if none)
 5. **I no longer need this** cancels an open/claimed request (e.g. resolved offline); notifies the claimer if someone had claimed Help
 
 Same-alliance donors are **never** notified (tags compared case-insensitively).

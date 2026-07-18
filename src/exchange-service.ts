@@ -13,6 +13,7 @@ import {
 	addExchangeDonor,
 	claimExchangeRequest,
 	completeExchangeRequest,
+	countActiveExchangeRequests,
 	countExchangeDonors,
 	createExchangeRequest,
 	createExchangeResource,
@@ -21,6 +22,7 @@ import {
 	getExchangeResource,
 	isExchangeDonor,
 	listExchangeDonorIds,
+	listOpenExchangeRequests,
 	removeExchangeDonor,
 	reopenExchangeRequest,
 	cancelExchangeRequest,
@@ -139,15 +141,20 @@ export function buildRecipientFollowupComponents(
 	];
 }
 
-function pinContent(resource: ExchangeResource, donorCount: number): string {
+function pinContent(
+	resource: ExchangeResource,
+	donorCount: number,
+	activeRequestCount: number,
+): string {
 	return (
 		`**Resource exchange: ${resource.name}**\n\n` +
 		`Cross-alliance only — donors and recipients must be in **different** alliances.\n` +
-		`• **Register as donor** — get pinged when someone needs this\n` +
-		`• **I need this** — notify eligible donors (name + ops)\n` +
+		`• **Register as donor** — get pinged when someone needs this (including queued requests)\n` +
+		`• **I need this** — open a request (queued if no donors yet; otherwise donors are DMed)\n` +
 		`• **I no longer need this** — cancel your open/claimed request\n` +
 		`• First donor to hit **Help** claims the request\n\n` +
 		`Registered donors: **${donorCount}**\n` +
+		`Active requests: **${activeRequestCount}**\n` +
 		`Roles: <@&${resource.donor_role_id}> · <@&${resource.recipient_role_id}>`
 	);
 }
@@ -223,7 +230,7 @@ export async function createResourceWithSetup(
 	});
 
 	const msg = await sendMessageWithComponents(token, channelId, {
-		content: pinContent(resource, 0),
+		content: pinContent(resource, 0, 0),
 		components: buildResourcePinComponents(resource.id),
 	});
 	await pinChannelMessage(token, channelId, msg.id);
@@ -234,20 +241,79 @@ export async function createResourceWithSetup(
 
 async function refreshPin(env: Env, resource: ExchangeResource): Promise<void> {
 	if (!env.DISCORD_BOT_TOKEN || !resource.pinned_message_id) return;
-	const count = await countExchangeDonors(env.STFC_DB, resource.id);
+	const [donorCount, activeRequestCount] = await Promise.all([
+		countExchangeDonors(env.STFC_DB, resource.id),
+		countActiveExchangeRequests(env.STFC_DB, resource.id),
+	]);
 	try {
 		await editChannelMessage(
 			env.DISCORD_BOT_TOKEN,
 			resource.channel_id,
 			resource.pinned_message_id,
 			{
-				content: pinContent(resource, count),
+				content: pinContent(resource, donorCount, activeRequestCount),
 				components: resource.active ? buildResourcePinComponents(resource.id) : [],
 			},
 		);
 	} catch (err) {
 		console.error('Exchange pin refresh failed:', err);
 	}
+}
+
+/** DM one donor about a single open request (used when flushing the queue). */
+async function notifyDonorOfRequest(
+	env: Env,
+	resource: ExchangeResource,
+	recipient: VerifiedPlayer,
+	requestId: number,
+	donor: VerifiedPlayer,
+): Promise<boolean> {
+	if (!env.DISCORD_BOT_TOKEN) return false;
+	const locale = resolveLocale(donor.preferred_locale);
+	const content = t(locale, 'exchange.dm.need_request', {
+		name: recipient.player_name || `<@${recipient.discord_user_id}>`,
+		ops: recipient.ops_level ?? '?',
+		resource: resource.name,
+		tag: recipient.alliance_tag || '—',
+	});
+	try {
+		await dmWithComponents(
+			env.DISCORD_BOT_TOKEN,
+			donor.discord_user_id,
+			content,
+			buildDonorOfferComponents(requestId, locale),
+		);
+		return true;
+	} catch (err) {
+		console.error(`Exchange donor DM failed for ${donor.discord_user_id}:`, err);
+		return false;
+	}
+}
+
+/**
+ * After a new donor registers: DM them about open requests they can help with,
+ * oldest first (queue order). Does not re-notify other donors.
+ */
+async function notifyNewDonorOfQueuedRequests(
+	env: Env,
+	resource: ExchangeResource,
+	donor: VerifiedPlayer,
+): Promise<number> {
+	const open = await listOpenExchangeRequests(env.STFC_DB, resource.id, 50);
+	let sent = 0;
+	for (const req of open) {
+		const recipient = await getVerifiedPlayer(
+			env.STFC_DB,
+			resource.guild_id,
+			req.recipient_discord_user_id,
+		);
+		if (!recipient) continue;
+		if (filterCrossAllianceDonors(recipient, [donor]).length === 0) continue;
+		const ok = await notifyDonorOfRequest(env, resource, recipient, req.id, donor);
+		if (ok) sent += 1;
+		await new Promise((r) => setTimeout(r, 300));
+	}
+	return sent;
 }
 
 export async function registerDonor(
@@ -271,8 +337,18 @@ export async function registerDonor(
 	} catch (err) {
 		console.error('Donor role assign failed:', err);
 	}
+
+	let queuedNotice = '';
+	if (player.alliance_tag?.trim()) {
+		const notified = await notifyNewDonorOfQueuedRequests(env, resource, player);
+		if (notified > 0) {
+			queuedNotice =
+				`\n📬 You were DMed about **${notified}** open request(s) waiting for a donor (oldest first).`;
+		}
+	}
+
 	await refreshPin(env, resource);
-	return `✅ You are now a **${resource.name}** donor.`;
+	return `✅ You are now a **${resource.name}** donor.` + queuedNotice;
 }
 
 export async function unregisterDonor(
@@ -367,15 +443,22 @@ export async function openNeedRequest(
 
 	const donors = await loadDonorPlayers(env, guildId, resourceId);
 	const eligible = filterCrossAllianceDonors(player, donors);
-	if (eligible.length === 0) {
-		return `❌ No cross-alliance donors registered for **${resource.name}** yet.`;
-	}
 
 	const request = await createExchangeRequest(env.STFC_DB, resourceId, userId);
 	try {
 		await addGuildMemberRole(env.DISCORD_BOT_TOKEN, guildId, userId, resource.recipient_role_id);
 	} catch (err) {
 		console.error('Recipient role assign failed:', err);
+	}
+
+	await refreshPin(env, resource);
+
+	if (eligible.length === 0) {
+		return (
+			`✅ Request #${request.id} queued for **${resource.name}**.\n` +
+			`No cross-alliance donors yet — you’re in line (FIFO). ` +
+			`When a donor registers, they’ll be DMed about open requests oldest-first.`
+		);
 	}
 
 	const sent = await notifyEligibleDonors(env, resource, player, request.id);
@@ -496,6 +579,7 @@ export async function handleHelpClaim(
 		console.error('Recipient claim DM failed:', err);
 	}
 
+	await refreshPin(env, resource);
 	return `✅ You claimed **${resource.name}** for **${recipName}**. Contact them: <@${recipient.discord_user_id}>.`;
 }
 
@@ -513,6 +597,8 @@ export async function handleRequestCompleted(
 		return '❌ This request is already closed.';
 	}
 	await completeExchangeRequest(env.STFC_DB, requestId);
+	const resource = await getExchangeResource(env.STFC_DB, request.resource_id);
+	if (resource) await refreshPin(env, resource);
 	return '✅ Request marked completed. Thanks!';
 }
 
@@ -540,9 +626,14 @@ export async function handleAskAgain(
 		await reopenExchangeRequest(env.STFC_DB, requestId);
 	}
 
+	await refreshPin(env, resource);
+
 	const sent = await notifyEligibleDonors(env, resource, recipient, requestId);
 	if (sent === 0) {
-		return '❌ No eligible donors to notify right now.';
+		return (
+			`✅ Request #${requestId} is open again for **${resource.name}**, ` +
+			`but no cross-alliance donors are available right now — you’re queued until one registers or Helps.`
+		);
 	}
 	return `✅ Re-notified **${sent}** donor(s) for **${resource.name}**.`;
 }
@@ -563,8 +654,12 @@ export async function disableExchangeResource(
 				resource.channel_id,
 				resource.pinned_message_id,
 				{
-					content: pinContent(updated, await countExchangeDonors(env.STFC_DB, resourceId)) +
-						'\n\n**Disabled** — registration closed.',
+					content:
+						pinContent(
+							updated,
+							await countExchangeDonors(env.STFC_DB, resourceId),
+							await countActiveExchangeRequests(env.STFC_DB, resourceId),
+						) + '\n\n**Disabled** — registration closed.',
 					components: [],
 				},
 			);

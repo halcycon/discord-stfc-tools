@@ -193,6 +193,40 @@ export async function countExchangeDonors(db: D1Database, resourceId: number): P
 	return Number(row?.c ?? 0);
 }
 
+/** Open + claimed requests (shown on the channel pin). */
+export async function countActiveExchangeRequests(
+	db: D1Database,
+	resourceId: number,
+): Promise<number> {
+	const row = await db
+		.prepare(
+			`SELECT COUNT(*) AS c FROM exchange_requests
+			 WHERE resource_id = ? AND status IN ('open', 'claimed')`,
+		)
+		.bind(resourceId)
+		.first<{ c: number }>();
+	return Number(row?.c ?? 0);
+}
+
+/** Open (unclaimed) requests oldest-first — queue for new donors. */
+export async function listOpenExchangeRequests(
+	db: D1Database,
+	resourceId: number,
+	limit = 50,
+): Promise<ExchangeRequest[]> {
+	const cap = Math.min(Math.max(Math.floor(limit) || 50, 1), 100);
+	const { results } = await db
+		.prepare(
+			`SELECT * FROM exchange_requests
+			 WHERE resource_id = ? AND status = 'open'
+			 ORDER BY created_at ASC, id ASC
+			 LIMIT ?`,
+		)
+		.bind(resourceId, cap)
+		.all();
+	return (results ?? []).map(mapRequest);
+}
+
 export async function getActiveRequestForRecipient(
 	db: D1Database,
 	resourceId: number,
