@@ -740,12 +740,12 @@ const commands = [
 			{
 				type: 2,
 				name: 'verify-panel',
-				description: 'Admin: verification channel panel + invite/demotion notify modes',
+				description: 'Admin: verify channel panel + Invite DM on/off + demotion notify',
 				options: [
 					{
 						type: 1,
 						name: 'show',
-						description: 'Show invite mode, panel channel/message, and demotion notify',
+						description: 'Show Invite DM mode, panel channel/message, and demotion notify',
 					},
 					{
 						type: 1,
@@ -762,7 +762,7 @@ const commands = [
 							{
 								type: 5,
 								name: 'set_invite_mode',
-								description: 'Also set invite mode to channel_panel (default true)',
+								description: 'Turn off Invite DM on join (channel_panel). Default true',
 								required: false,
 							},
 						],
@@ -770,16 +770,16 @@ const commands = [
 					{
 						type: 1,
 						name: 'mode',
-						description: 'How new members are invited to verify',
+						description: 'Toggle Invite DM on join (not the post-verify /server welcome DM)',
 						options: [
 							{
 								type: 3,
 								name: 'invite',
-								description: 'dm = auto join DM; channel_panel = Start button only',
+								description: 'dm = send Invite DM on join; channel_panel = no Invite DM (use Start button)',
 								required: true,
 								choices: [
-									{ name: 'DM on join (default)', value: 'dm' },
-									{ name: 'Channel panel (no auto invite DM)', value: 'channel_panel' },
+									{ name: 'Invite DM on join (default)', value: 'dm' },
+									{ name: 'No Invite DM — channel panel only', value: 'channel_panel' },
 								],
 							},
 						],

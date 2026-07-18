@@ -8,7 +8,7 @@ Release log for the STFC Discord bot (Cloudflare Worker). Versions use **MAJOR.M
 | **MINOR** | New user-facing capability (new slash area, cron product, admin workflow) |
 | **INCREMENTAL** | Fixes, polish, docs, refactors, small command option tweaks |
 
-**Current version:** **1.11.0**
+**Current version:** **1.11.1**
 
 **Sources of truth**
 
@@ -28,9 +28,13 @@ Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. 
 
 ---
 
+## 1.11.1 — Clarify Invite DM vs welcome DM (2026-07-18)
+
+`/server verify-panel` toggles the join-time **Invite DM** (`dm` / `channel_panel`). Docs and status copy distinguish that from `/server welcome` (post-verify welcome).
+
 ## 1.11.0 — Verification channel panel + demotion notify (2026-07-18)
 
-- `/server verify-panel` — post a pinned **Start verification** panel; invite mode `dm` (default) or `channel_panel` (no auto join invite DMs)
+- `/server verify-panel` — post a pinned **Start verification** panel; invite mode `dm` (default) or `channel_panel` (no auto join Invite DMs)
 - Demotion notify: `dm` | `channel` (`@mention` in verify panel channel) | `none`
 - Start button opens the existing DM verification flow; migration `038_verify_panel.sql`
 

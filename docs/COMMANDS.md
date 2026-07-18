@@ -84,7 +84,7 @@ Also: Gateway DM flow (invite → language → consent → screenshot → link) 
 | `consent` | GDPR Yes/No before verify. | ✓ | ✓ |
 | `agreement` | CoC after verify (guest lounge until Agree). | ✓ | ✓ |
 | `welcome` | Post-onboarding welcome DM; `send_user` + `force` for manual retry (2-attempt auto cap). | ✓ | ✓ |
-| `verify-panel` | `show` / `post` / `mode` / `demotion-notify` — channel Start button; skip join invite DMs; demotion via DM, channel @mention, or none. | ✓ | ✓ |
+| `verify-panel` | `show` / `post` / `mode invite:` / `demotion-notify` — pinned **Start verification**; toggle **Invite DM** on join (`dm`) vs panel-only (`channel_panel`); demotion via DM, channel @mention, or none. Separate from `/server welcome`. | ✓ | ✓ |
 | `onboarding` | Show consent / CoC / welcome path and step order. | ✓ | ✓ |
 | `verify` | Manual verify; `send_welcome` default **false**. | ✓ | ✓ |
 | `exclude-add` / `exclude-remove` / `exclude-list` | Skip bots/alts from invites + unverified stats. | ✓ | ✓ |

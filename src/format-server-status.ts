@@ -35,7 +35,8 @@ export function formatServerStatus(config: GuildConfig): string {
 			? `• Defer untracked Admiral roles: ${config.defer_untracked_admiral_roles ? 'on' : 'off'}\n`
 			: '') +
 		`• Verification: ${config.verification_enabled ? 'enabled' : 'disabled'}\n` +
-		`• Invite mode: **${config.verification_invite_mode}**` +
+		`• Invite DM on join: **${config.verification_invite_mode === 'channel_panel' ? 'off' : 'on'}**` +
+		` (\`${config.verification_invite_mode}\`)` +
 		(config.verify_panel_channel_id ? ` → <#${config.verify_panel_channel_id}>` : '') +
 		`\n` +
 		`• Demotion notify: **${config.demotion_notify}**\n` +

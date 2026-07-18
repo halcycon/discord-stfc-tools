@@ -184,8 +184,9 @@ export interface GuildConfig {
 	 */
 	deploy_mode: DeployMode;
 	/**
-	 * dm = auto invite DM on join (default).
-	 * channel_panel = no invite DM; member uses Start verification in verify panel channel.
+	 * Invite DM on join (verification bootstrap) — not `/server welcome` post-verify DM.
+	 * dm = send Invite DM on join (default).
+	 * channel_panel = no Invite DM; member uses Start verification in verify panel channel.
 	 */
 	verification_invite_mode: VerificationInviteMode;
 	verify_panel_channel_id: string | null;

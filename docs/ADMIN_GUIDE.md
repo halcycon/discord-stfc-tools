@@ -798,26 +798,28 @@ Same spirit as personal-channel rebalance. Progress posts on the slash command; 
 
 ### What members do
 
-**Default (invite mode `dm`):**
+**Invite DM** = the join-time verification DM this bot would send (language picker / “start verifying”). That is **not** the same as `/server welcome` (post-onboarding welcome after they finish verify).
 
-1. Join the server → bot DMs them (if DMs allowed), **or**
+**Default (`invite:dm`):**
+
+1. Join the server → this bot sends an **Invite DM** (if DMs allowed), **or**
 2. Admin runs `/server test-invite`, **or**
 3. Member runs `/verify link:https://stfc.pro/players/…` (optional screenshot attachment)
 
-**Channel panel mode** (busy servers / another bot owns welcome DMs):
+**Channel panel (`invite:channel_panel`)** — use when another bot already greets members on join (that other message is what we call Invite territory; turn ours off):
 
-1. Join → this bot records the member but **does not** auto-DM
-2. Member opens your verification channel → taps **Start verification** → same DM flow
+1. Join → this bot records the member but **does not** send an Invite DM
+2. Member opens your verification channel → taps **Start verification** → same DM verification flow
 3. Or use `/verify` in-channel if DMs are blocked
 
 ```
-/server verify-panel post channel:#verify          # pin panel + set invite mode channel_panel
+/server verify-panel post channel:#verify          # pin panel + turn Invite DM off (channel_panel)
 /server verify-panel show
-/server verify-panel mode invite:dm|channel_panel
+/server verify-panel mode invite:dm|channel_panel  # toggle Invite DM on join vs panel-only
 /server verify-panel demotion-notify mode:dm|channel|none
 ```
 
-**Discord layout tip:** make the verification channel visible to Guest/Visitor (+ bot + staff); hide from full members if you want. On demote, guest role restores access so they can re-start. Disable this bot’s welcome DM (`/server welcome enabled:false`) when another bot owns welcomes. Go live with `deploy_mode:live` + `channel_panel` + panel posted.
+**Discord layout tip:** make the verification channel visible to Guest/Visitor (+ bot + staff); hide from full members if you want. On demote, guest role restores access so they can re-start. Go live with `deploy_mode:live` + `invite:channel_panel` + panel posted. Leave `/server welcome` alone unless you also want this bot’s *post-verify* welcome DM.
 
 **Demotion notify:** after a guest demotion, `dm` sends the Restart DM (default); `channel` posts an `@mention` in the verify panel channel (avoids mass-DM storms); `none` is audit-only.
 

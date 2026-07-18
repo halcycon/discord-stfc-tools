@@ -1003,16 +1003,20 @@ async function handleServerVerifyPanelCommand(
 			c.verify_panel_channel_id && c.verify_panel_message_id
 				? `https://discord.com/channels/${guildId}/${c.verify_panel_channel_id}/${c.verify_panel_message_id}`
 				: '—';
+		const inviteOn = c.verification_invite_mode !== 'channel_panel';
 		return (
 			`🪪 **Verification panel**\n` +
-			`• Invite mode: **${c.verification_invite_mode}**` +
-			(c.verification_invite_mode === 'channel_panel'
-				? ' (no auto join invite DM)'
-				: ' (auto DM on join)') +
+			`• Invite DM on join: **${inviteOn ? 'on' : 'off'}**` +
+			` (\`${c.verification_invite_mode}\`` +
+			(inviteOn
+				? ' — bot DMs new members to start verify'
+				: ' — no Invite DM; members use **Start verification**') +
+			`)` +
 			`\n` +
 			`• Panel channel: ${c.verify_panel_channel_id ? `<#${c.verify_panel_channel_id}>` : '—'}\n` +
 			`• Panel message: ${msgLink}\n` +
-			`• Demotion notify: **${c.demotion_notify}**`
+			`• Demotion notify: **${c.demotion_notify}**\n` +
+			`_Invite DM ≠ \`/server welcome\` (post-verify welcome)._`
 		);
 	};
 
@@ -1031,8 +1035,9 @@ async function handleServerVerifyPanelCommand(
 		});
 		const refreshed = await getGuildConfig(env.STFC_DB, guildId);
 		await postAuditLog(env, refreshed, {
-			title: 'Verification invite mode updated',
-			description: `Invite mode → **${invite}**`,
+			title: 'Invite DM mode updated',
+			description:
+				`Invite DM on join → **${invite === 'dm' ? 'on' : 'off'}** (\`${invite}\`)`,
 			source: 'admin',
 			color: AuditColor.info,
 		});
@@ -1137,12 +1142,14 @@ async function handleServerVerifyPanelCommand(
 			description:
 				`Panel in <#${channelId}>` +
 				(messageId ? ` · message \`${messageId}\`` : '') +
-				(setInviteMode ? ' · invite mode → **channel_panel**' : ''),
+				(setInviteMode ? ' · Invite DM on join → **off** (`channel_panel`)' : ''),
 			source: 'admin',
 			color: AuditColor.info,
 		});
 		return interactionResponse(
-			`✅ Verification panel ${sameChannel ? 'updated' : 'posted'} in <#${channelId}>.\n\n` +
+			`✅ Verification panel ${sameChannel ? 'updated' : 'posted'} in <#${channelId}>.` +
+				(setInviteMode ? ' Invite DM on join is **off**.' : '') +
+				`\n\n` +
 				statusBlock(refreshed ?? config),
 			true,
 		);
