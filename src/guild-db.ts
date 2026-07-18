@@ -1134,6 +1134,15 @@ export async function resetVerification(
 	guildId: string,
 	discordUserId: string,
 ): Promise<void> {
+	const existing = await getVerifiedPlayer(db, guildId, discordUserId);
+	if (existing) {
+		// player_stats_history.verified_player_id → verified_players(id)
+		await db
+			.prepare(`DELETE FROM player_stats_history WHERE verified_player_id = ?`)
+			.bind(existing.id)
+			.run();
+	}
+
 	await db
 		.prepare(`DELETE FROM verified_players WHERE guild_id = ? AND discord_user_id = ?`)
 		.bind(guildId, discordUserId)

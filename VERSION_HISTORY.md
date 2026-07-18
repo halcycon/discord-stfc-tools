@@ -8,7 +8,7 @@ Release log for the STFC Discord bot (Cloudflare Worker). Versions use **MAJOR.M
 | **MINOR** | New user-facing capability (new slash area, cron product, admin workflow) |
 | **INCREMENTAL** | Fixes, polish, docs, refactors, small command option tweaks |
 
-**Current version:** **1.10.12**
+**Current version:** **1.10.13**
 
 **Sources of truth**
 
@@ -27,6 +27,10 @@ Bump all three together when cutting a release. Prefer a short entry under the n
 Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. **1.0.0** marks the alliance-management product that was prepared for public use. Later **1.x** minors track feature areas shipped in Jul 2026 (git history + migrations `001`–`027`).
 
 ---
+
+## 1.10.13 — Fix verify reassign FOREIGN KEY (2026-07-18)
+
+`/server verify` Approve reassign cleared the prior Discord link via `DELETE verified_players`, which failed when `player_stats_history` rows existed. History rows are removed first.
 
 ## 1.10.12 — Admin guide: multi scrape vs track vs diplomacy (2026-07-18)
 

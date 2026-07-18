@@ -1,6 +1,6 @@
 {
 	"name": "stfc-tools",
-	"version": "1.10.12",
+	"version": "1.10.13",
 	"description": "STFC Discord bot — verification, alliance management, coordinate lookup, and tables.",
 	"private": true,
 	"scripts": {
