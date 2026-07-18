@@ -5,7 +5,9 @@
 import {
 	addGuildMemberRole,
 	botCanManageMember,
+	deferredResponse,
 	DiscordApiError,
+	editInteractionResponse,
 	getGuildChannel,
 	getGuildMember,
 	loadBotManageContext,
@@ -28,10 +30,12 @@ import { opsLevelToGrade } from './grade-utils';
 import type { GuildConfig, PlayerData, VerifiedPlayer } from './types';
 import { findPlayerByIdOrName } from './stfc-utils';
 import { isDeployTesting, shouldSkipOutboundDm } from './deploy-mode';
+import { postUrgentNotify } from './urgent-notify';
 
 export type DemoteReason = 'alliance_mismatch' | 'player_missing' | 'admin' | 'unverified_bulk';
 
 export const VERIFY_RESTART_CUSTOM_ID_PREFIX = 'verify:restart:';
+export const VERIFY_START_CUSTOM_ID_PREFIX = 'verify:start:';
 
 export function verifyRestartCustomId(guildId: string): string {
 	return `${VERIFY_RESTART_CUSTOM_ID_PREFIX}${guildId}`;
@@ -41,6 +45,34 @@ export function parseVerifyRestartCustomId(customId: string): string | null {
 	if (!customId.startsWith(VERIFY_RESTART_CUSTOM_ID_PREFIX)) return null;
 	const guildId = customId.slice(VERIFY_RESTART_CUSTOM_ID_PREFIX.length);
 	return /^\d{15,20}$/.test(guildId) ? guildId : null;
+}
+
+export function verifyStartCustomId(guildId: string): string {
+	return `${VERIFY_START_CUSTOM_ID_PREFIX}${guildId}`;
+}
+
+export function parseVerifyStartCustomId(customId: string): string | null {
+	if (!customId.startsWith(VERIFY_START_CUSTOM_ID_PREFIX)) return null;
+	const guildId = customId.slice(VERIFY_START_CUSTOM_ID_PREFIX.length);
+	return /^\d{15,20}$/.test(guildId) ? guildId : null;
+}
+
+export function buildVerifyPanelContent(config: Pick<GuildConfig, 'alliance_tag' | 'mode'>): string {
+	const tag = (config.alliance_tag ?? '').trim();
+	const allianceLine =
+		config.mode === 'single_alliance' && tag
+			? `Alliance tag to match: **${tag}**\n\n`
+			: '';
+	return (
+		`**Player verification**\n\n` +
+		`Tap **Start verification** below. I will DM you to finish:\n` +
+		`1. Language (if needed)\n` +
+		`2. Optional consent / rules\n` +
+		`3. In-game profile screenshot\n` +
+		`4. Your [stfc.pro](https://stfc.pro) player page link\n\n` +
+		allianceLine +
+		`You can also use \`/verify\` in this server if DMs are blocked.`
+	);
 }
 
 /** Multi-alliance always matches; single-alliance requires non-empty tag equal to config.alliance_tag. */
@@ -209,11 +241,18 @@ export async function demotePlayerToGuest(
 		opts.reason !== 'unverified_bulk'
 	) {
 		try {
-			await sendGuestDemotionDm(token, config, discordUserId, existing, opts.reason);
-			notes.push('demotion DM sent');
+			const notifyNote = await notifyGuestDemotion(
+				env,
+				token,
+				config,
+				discordUserId,
+				existing,
+				opts.reason,
+			);
+			if (notifyNote) notes.push(notifyNote);
 		} catch (error) {
-			console.error('Guest demotion DM failed:', error);
-			notes.push('demotion DM failed');
+			console.error('Guest demotion notify failed:', error);
+			notes.push('demotion notify failed');
 		}
 	}
 
@@ -250,6 +289,101 @@ export async function demotePlayerToGuest(
 		hadVerifiedRow,
 		notes,
 	};
+}
+
+/** Notify a demoted guest per guild `demotion_notify` (dm | channel | none). */
+export async function notifyGuestDemotion(
+	env: Env,
+	token: string,
+	config: GuildConfig,
+	discordUserId: string,
+	existing: Pick<VerifiedPlayer, 'preferred_locale'> | null,
+	reason: DemoteReason,
+	opts?: { preview?: boolean },
+): Promise<string | null> {
+	const mode = config.demotion_notify ?? 'dm';
+	if (mode === 'none') {
+		return 'demotion notify skipped (none)';
+	}
+	if (shouldSkipOutboundDm(config) && !opts?.preview) {
+		return 'demotion notify skipped (testing)';
+	}
+	if (mode === 'channel') {
+		if (!config.verify_panel_channel_id?.trim()) {
+			await sendGuestDemotionChannelNotice(env, token, config, discordUserId, reason, opts);
+			return 'demotion channel notify skipped (no panel channel)';
+		}
+		await sendGuestDemotionChannelNotice(env, token, config, discordUserId, reason, opts);
+		return 'demotion channel notice sent';
+	}
+	await sendGuestDemotionDm(token, config, discordUserId, existing, reason, opts);
+	return 'demotion DM sent';
+}
+
+export async function sendGuestDemotionChannelNotice(
+	env: Env,
+	token: string,
+	config: GuildConfig,
+	discordUserId: string,
+	reason: DemoteReason,
+	opts?: { preview?: boolean },
+): Promise<void> {
+	if (shouldSkipOutboundDm(config) && !opts?.preview) {
+		return;
+	}
+
+	const channelId = config.verify_panel_channel_id?.trim() || null;
+	if (!channelId) {
+		const fallback =
+			`Demotion channel notify skipped — no verify panel channel. ` +
+			`Set one with \`/server verify-panel post\`. Member: <@${discordUserId}>`;
+		await postAuditLog(env, config, {
+			title: 'Demotion channel notify skipped',
+			description: fallback,
+			actorId: discordUserId,
+			source: 'cron',
+			color: AuditColor.warn,
+		});
+		await postUrgentNotify(env, config, {
+			content: `⚠️ ${fallback}`,
+			title: 'Demotion channel notify skipped',
+			description: `Configure \`verify_panel_channel_id\` or switch demotion_notify to **dm**.`,
+			actorId: discordUserId,
+			color: AuditColor.warn,
+		});
+		return;
+	}
+
+	const tag = (config.alliance_tag ?? '').trim() || '—';
+	const why =
+		reason === 'player_missing'
+			? 'Your stfc.pro profile could not be found.'
+			: `Your alliance no longer matches **${tag}**.`;
+	const previewPrefix = opts?.preview
+		? `*[Admin preview — verification status is not changed by sending this.]*\n\n`
+		: '';
+	const content =
+		`${previewPrefix}<@${discordUserId}> ${why} ` +
+		`Tap **Start verification** below (or use \`/verify\`) to re-check.`;
+
+	await sendMessageWithComponents(token, channelId, {
+		content,
+		components: [
+			{
+				type: 1,
+				components: [
+					{
+						type: 2,
+						style: 1,
+						label: 'Start verification',
+						custom_id: opts?.preview
+							? `verify:restart-preview:${config.guild_id}`
+							: verifyStartCustomId(config.guild_id),
+					},
+				],
+			},
+		],
+	});
 }
 
 export async function sendGuestDemotionDm(
@@ -334,6 +468,98 @@ export async function handleVerifyRestartComponent(
 		console.error('Verify restart from demotion DM failed:', error);
 		return updateMessageResponse(t(locale, 'verify.demote.restart_failed'), { components: [] });
 	}
+}
+
+/** Start verification from channel panel (or demotion channel notice) — opens DM flow. */
+export async function handleVerifyStartComponent(
+	env: Env,
+	ctx: ExecutionContext,
+	interaction: {
+		guild_id?: string;
+		application_id?: string;
+		token: string;
+		member?: { user?: { id: string; username?: string } };
+		user?: { id: string; username?: string };
+		data?: { custom_id?: string };
+	},
+): Promise<Response> {
+	const customId = interaction.data?.custom_id ?? '';
+	const guildId = parseVerifyStartCustomId(customId);
+	if (!guildId) {
+		return updateMessageResponse('❌ Unknown button.');
+	}
+
+	const interactionGuildId = interaction.guild_id;
+	if (interactionGuildId && interactionGuildId !== guildId) {
+		return Response.json({
+			type: 4,
+			data: {
+				content: '❌ This Start button belongs to a different server.',
+				flags: 64,
+			},
+		});
+	}
+
+	const userId = interaction.member?.user?.id ?? interaction.user?.id;
+	if (!userId) {
+		return Response.json({
+			type: 4,
+			data: { content: '❌ Could not resolve user.', flags: 64 },
+		});
+	}
+
+	const username =
+		interaction.member?.user?.username ?? interaction.user?.username ?? userId;
+	const player = await getVerifiedPlayer(env.STFC_DB, guildId, userId);
+	const alreadyActive =
+		player &&
+		(player.verification_status === 'active' || player.verification_status === 'verified');
+	if (alreadyActive) {
+		return Response.json({
+			type: 4,
+			data: {
+				content: '✅ You are already verified. No need to start again.',
+				flags: 64,
+			},
+		});
+	}
+
+	const config = await getGuildConfig(env.STFC_DB, guildId);
+	const applicationId = interaction.application_id;
+	const deferred = deferredResponse();
+
+	ctx.waitUntil(
+		(async () => {
+			const { startVerificationDm } = await import('./verification');
+			const result = await startVerificationDm(env, guildId, userId, {
+				username,
+				force: true,
+				source: 'panel',
+			});
+			if (!applicationId) return;
+			if (result.ok) {
+				const msg = result.skippedTesting
+					? 'ℹ️ Deploy mode is **testing** — verification DM was not sent. Set `/server deploy mode:live` then try again.'
+					: '✅ Check your DMs to continue verification.';
+				await editInteractionResponse(applicationId, interaction.token, msg, true, {
+					config,
+				});
+			} else {
+				const blocked = result.status === 403;
+				await editInteractionResponse(
+					applicationId,
+					interaction.token,
+					blocked
+						? '❌ I could not DM you — enable **Allow direct messages from server members** for this server, then try again (or use `/verify` in-channel).'
+						: `❌ Could not start verification DM: ${result.errorMessage.slice(0, 200)}`,
+					true,
+					{ config },
+				);
+			}
+		})(),
+	);
+
+	return deferred;
 }
 
 export interface RoleChangeResult {

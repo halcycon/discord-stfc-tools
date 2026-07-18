@@ -825,6 +825,112 @@ export async function handleVerifyReassignComponent(
 	return deferred;
 }
 
+/**
+ * Bootstrap the existing DM verification flow (language → consent → screenshot instructions).
+ * Used by join invite (DM mode) and the verification panel Start button.
+ */
+export async function startVerificationDm(
+	env: Env,
+	guildId: string,
+	userId: string,
+	opts?: {
+		username?: string;
+		/** When true, skip deploy-mode outbound DM gate (admin test / panel click after go-live). */
+		force?: boolean;
+		source?: 'invite' | 'panel';
+	},
+): Promise<DmResult> {
+	const username = opts?.username?.trim() || userId;
+	const existing = await getVerifiedPlayer(env.STFC_DB, guildId, userId);
+	const config = await getGuildConfig(env.STFC_DB, guildId);
+
+	if (!opts?.force && shouldSkipOutboundDm(config)) {
+		console.log(
+			`startVerificationDm skipped (testing) guild=${guildId} user=${userId} (${username})`,
+		);
+		return { ok: true, skippedTesting: true };
+	}
+
+	await upsertVerifiedPlayer(env.STFC_DB, {
+		guild_id: guildId,
+		discord_user_id: userId,
+		verification_status: 'pending_screenshot',
+	});
+
+	if (!env.DISCORD_BOT_TOKEN) {
+		console.warn('DISCORD_BOT_TOKEN not set — cannot send verification DM');
+		return { ok: false, errorMessage: 'DISCORD_BOT_TOKEN not configured' };
+	}
+
+	const sourceLabel = opts?.source === 'panel' ? 'panel Start' : 'invite';
+
+	try {
+		const locale = resolveLocale(existing?.preferred_locale);
+		if (!existing?.preferred_locale) {
+			await sendLanguagePickerDm(env.DISCORD_BOT_TOKEN, userId, guildId);
+		} else if (config && needsDataConsent(config, existing)) {
+			await sendDataConsentDm(env.DISCORD_BOT_TOKEN, userId, config, locale);
+		} else {
+			await sendDirectMessage(env.DISCORD_BOT_TOKEN, userId, t(locale, 'verify.invite.welcome'));
+		}
+		await markMemberInvited(env.STFC_DB, guildId, userId);
+		await postAuditLog(env, config, {
+			title: 'Verification DM started',
+			description:
+				`DM sent to <@${userId}> (${username}) via ${sourceLabel}` +
+				(!existing?.preferred_locale
+					? ' · language picker'
+					: config && needsDataConsent(config, existing)
+						? ' · data consent'
+						: ` · locale ${locale}`),
+			actorId: userId,
+			source: 'automated',
+			color: AuditColor.info,
+		});
+		return { ok: true };
+	} catch (error) {
+		const maybeDiscordErr = error as { status?: number; body?: string; message?: string };
+		const status = typeof maybeDiscordErr.status === 'number' ? maybeDiscordErr.status : undefined;
+
+		let errorMessage = error instanceof Error ? error.message : 'Unknown error';
+		if (maybeDiscordErr.body) {
+			const body = String(maybeDiscordErr.body);
+			errorMessage += `: ${body.slice(0, 180)}${body.length > 180 ? '…' : ''}`;
+		}
+
+		console.error(`Failed to DM ${userId}:`, errorMessage);
+		const is403 = status === 403 || /DM open failed:\s*403/i.test(errorMessage);
+		if (is403) {
+			await markMemberInvited(env.STFC_DB, guildId, userId);
+		}
+		const privacyHint = is403
+			? '\n\nLikely cause: their Discord privacy settings block DMs from server members (or they blocked the bot). Ask them to enable **Allow direct messages from server members** for this server, then use `/server test-invite` or `/verify` in-channel.'
+			: '';
+		await postAuditLog(env, config, {
+			title: 'Verification DM failed',
+			description: `Could not DM <@${userId}> (${username}) via ${sourceLabel}: ${errorMessage.slice(0, 400)}${privacyHint}`,
+			actorId: userId,
+			source: 'automated',
+			color: AuditColor.danger,
+		});
+		if (is403) {
+			await postUrgentNotify(env, config, {
+				content:
+					`🚨 Attention, administrators! I couldn't DM <@${userId}> (**${username}**) — ` +
+					`their Discord privacy settings likely block DMs from server members (or they blocked me).\n\n` +
+					`Ask them to enable **Allow direct messages from server members** for this server, then run ` +
+					`\`/server test-invite\` — or have them use \`/verify\` in-channel. Standing by!`,
+				title: 'Verification DM blocked',
+				description: errorMessage.slice(0, 500),
+				actorId: userId,
+				color: AuditColor.danger,
+				fields: [{ name: 'Username', value: username.slice(0, 100), inline: true }],
+			});
+		}
+		return { ok: false, errorMessage, status };
+	}
+}
+
 export async function inviteNewMember(
 	env: Env,
 	guildId: string,
@@ -887,77 +993,28 @@ export async function inviteNewMember(
 		discord_user_id: userId,
 		verification_status: 'pending_screenshot',
 	});
+	await recordGuildMember(env.STFC_DB, guildId, userId, username);
 
-	if (!env.DISCORD_BOT_TOKEN) {
-		console.warn('DISCORD_BOT_TOKEN not set — cannot send verification DM');
-		return { ok: false, errorMessage: 'DISCORD_BOT_TOKEN not configured' };
-	}
-
-	try {
-		const locale = resolveLocale(existing?.preferred_locale);
-		if (!existing?.preferred_locale) {
-			await sendLanguagePickerDm(env.DISCORD_BOT_TOKEN, userId, guildId);
-		} else if (config && needsDataConsent(config, existing)) {
-			await sendDataConsentDm(env.DISCORD_BOT_TOKEN, userId, config, locale);
-		} else {
-			await sendDirectMessage(env.DISCORD_BOT_TOKEN, userId, t(locale, 'verify.invite.welcome'));
-		}
+	// Channel panel mode: ready Gateway DM flow, but do not auto-DM (member clicks Start).
+	if (config?.verification_invite_mode === 'channel_panel') {
 		await markMemberInvited(env.STFC_DB, guildId, userId);
 		await postAuditLog(env, config, {
-			title: 'Verification invite sent',
-			description: `DM sent to <@${userId}> (${username})` +
-				(!existing?.preferred_locale
-					? ' · language picker'
-					: config && needsDataConsent(config, existing)
-						? ' · data consent'
-						: ` · locale ${locale}`),
+			title: 'Verification pending (channel panel)',
+			description:
+				`<@${userId}> (${username}) recorded for verification — ` +
+				`invite DM skipped (channel panel mode` +
+				(config.verify_panel_channel_id
+					? `; see <#${config.verify_panel_channel_id}>`
+					: '') +
+				`).`,
 			actorId: userId,
 			source: 'automated',
 			color: AuditColor.info,
 		});
 		return { ok: true };
-	} catch (error) {
-		const maybeDiscordErr = error as { status?: number; body?: string; message?: string };
-		const status = typeof maybeDiscordErr.status === 'number' ? maybeDiscordErr.status : undefined;
-
-		let errorMessage = error instanceof Error ? error.message : 'Unknown error';
-		if (maybeDiscordErr.body) {
-			const body = String(maybeDiscordErr.body);
-			errorMessage += `: ${body.slice(0, 180)}${body.length > 180 ? '…' : ''}`;
-		}
-
-		console.error(`Failed to DM ${userId}:`, errorMessage);
-		const is403 = status === 403 || /DM open failed:\s*403/i.test(errorMessage);
-		// Stop retrying forever when privacy blocks DMs — they can /verify in-channel.
-		if (is403) {
-			await markMemberInvited(env.STFC_DB, guildId, userId);
-		}
-		const privacyHint = is403
-			? '\n\nLikely cause: their Discord privacy settings block DMs from server members (or they blocked the bot). Ask them to enable **Allow direct messages from server members** for this server, then use `/server test-invite` or `/verify` in-channel.'
-			: '';
-		await postAuditLog(env, config, {
-			title: 'Verification invite failed',
-			description: `Could not DM <@${userId}> (${username}): ${errorMessage.slice(0, 400)}${privacyHint}`,
-			actorId: userId,
-			source: 'automated',
-			color: AuditColor.danger,
-		});
-		if (is403) {
-			await postUrgentNotify(env, config, {
-				content:
-					`🚨 Attention, administrators! I couldn't DM <@${userId}> (**${username}**) — ` +
-					`their Discord privacy settings likely block DMs from server members (or they blocked me).\n\n` +
-					`Ask them to enable **Allow direct messages from server members** for this server, then run ` +
-					`\`/server test-invite\` — or have them use \`/verify\` in-channel. Standing by!`,
-				title: 'Verification DM blocked',
-				description: errorMessage.slice(0, 500),
-				actorId: userId,
-				color: AuditColor.danger,
-				fields: [{ name: 'Username', value: username.slice(0, 100), inline: true }],
-			});
-		}
-		return { ok: false, errorMessage, status };
 	}
+
+	return startVerificationDm(env, guildId, userId, { username, source: 'invite' });
 }
 
 export async function syncVerifiedPlayer(

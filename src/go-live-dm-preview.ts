@@ -19,6 +19,8 @@ export type GoLiveDmPreview = {
 	welcomes: VerifiedPlayer[];
 	welcomeConfigured: boolean;
 	verificationEnabled: boolean;
+	/** When channel_panel, join invite DMs are not sent. */
+	inviteMode: GuildConfig['verification_invite_mode'];
 };
 
 export async function collectGoLiveDmPreview(
@@ -26,9 +28,11 @@ export async function collectGoLiveDmPreview(
 	config: GuildConfig,
 ): Promise<GoLiveDmPreview> {
 	const verificationEnabled = Boolean(config.verification_enabled);
-	const invites = verificationEnabled
-		? await getMembersNeedingInvite(db, config.guild_id)
-		: [];
+	const inviteMode = config.verification_invite_mode ?? 'dm';
+	const invites =
+		verificationEnabled && inviteMode === 'dm'
+			? await getMembersNeedingInvite(db, config.guild_id)
+			: [];
 
 	const welcomeConfigured = welcomeDmConfigured(config);
 	let welcomes: VerifiedPlayer[] = [];
@@ -48,6 +52,7 @@ export async function collectGoLiveDmPreview(
 		welcomes,
 		welcomeConfigured,
 		verificationEnabled,
+		inviteMode,
 	};
 }
 
@@ -68,14 +73,16 @@ function formatUserLines(
 export function formatGoLiveDmPreview(preview: GoLiveDmPreview): string {
 	const inviteNote = !preview.verificationEnabled
 		? '_Verification disabled — no invite DMs._'
-		: preview.inviteCount === 0
-			? '_None pending._'
-			: formatUserLines(
-					preview.invites.map((m) => ({
-						discord_user_id: m.discord_user_id,
-						label: m.username?.trim() || m.discord_user_id,
-					})),
-				);
+		: preview.inviteMode === 'channel_panel'
+			? '_Invite mode is **channel_panel** — no auto join invite DMs (members use Start verification)._'
+			: preview.inviteCount === 0
+				? '_None pending._'
+				: formatUserLines(
+						preview.invites.map((m) => ({
+							discord_user_id: m.discord_user_id,
+							label: m.username?.trim() || m.discord_user_id,
+						})),
+					);
 
 	const welcomeNote = !preview.welcomeConfigured
 		? '_Welcome DM not configured — skipped._'

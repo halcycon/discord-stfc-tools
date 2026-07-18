@@ -134,6 +134,10 @@ function publicConfig(config: GuildConfig) {
 		poll_interval_hours: config.poll_interval_hours,
 		deploy_mode: config.deploy_mode,
 		demotion_policy: config.demotion_policy,
+		verification_invite_mode: config.verification_invite_mode,
+		verify_panel_channel_id: config.verify_panel_channel_id,
+		verify_panel_message_id: config.verify_panel_message_id,
+		demotion_notify: config.demotion_notify,
 		data_consent_enabled: config.data_consent_enabled,
 		data_consent_version: config.data_consent_version,
 		agreement_enabled: config.agreement_enabled,
@@ -201,6 +205,8 @@ const CONFIG_PATCH_KEYS = [
 	'poll_interval_hours',
 	'deploy_mode',
 	'demotion_policy',
+	'verification_invite_mode',
+	'demotion_notify',
 	'data_consent_enabled',
 	'data_consent_version',
 	'agreement_enabled',
@@ -667,6 +673,10 @@ export async function handleAdminApi(
 					if (val === 'testing' || val === 'live') patch.deploy_mode = val;
 				} else if (key === 'demotion_policy') {
 					if (val === 'approval' || val === 'yolo') patch.demotion_policy = val;
+				} else if (key === 'verification_invite_mode') {
+					if (val === 'dm' || val === 'channel_panel') patch.verification_invite_mode = val;
+				} else if (key === 'demotion_notify') {
+					if (val === 'dm' || val === 'channel' || val === 'none') patch.demotion_notify = val;
 				} else if (key === 'agreement_timing') {
 					if (val === 'after_verify' || val === 'before_verify') patch.agreement_timing = val;
 				} else if (key === 'exchange_layout') {

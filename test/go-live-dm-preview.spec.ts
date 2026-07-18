@@ -9,6 +9,7 @@ function emptyPreview(over: Partial<GoLiveDmPreview> = {}): GoLiveDmPreview {
 		welcomes: [],
 		welcomeConfigured: true,
 		verificationEnabled: true,
+		inviteMode: 'dm',
 		...over,
 	};
 }

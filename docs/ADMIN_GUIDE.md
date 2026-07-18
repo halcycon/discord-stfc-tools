@@ -798,11 +798,30 @@ Same spirit as personal-channel rebalance. Progress posts on the slash command; 
 
 ### What members do
 
+**Default (invite mode `dm`):**
+
 1. Join the server → bot DMs them (if DMs allowed), **or**
 2. Admin runs `/server test-invite`, **or**
 3. Member runs `/verify link:https://stfc.pro/players/…` (optional screenshot attachment)
 
-DM flow: screenshot (optional depending on policy) → stfc.pro link → roles / nick / channel / log post.
+**Channel panel mode** (busy servers / another bot owns welcome DMs):
+
+1. Join → this bot records the member but **does not** auto-DM
+2. Member opens your verification channel → taps **Start verification** → same DM flow
+3. Or use `/verify` in-channel if DMs are blocked
+
+```
+/server verify-panel post channel:#verify          # pin panel + set invite mode channel_panel
+/server verify-panel show
+/server verify-panel mode invite:dm|channel_panel
+/server verify-panel demotion-notify mode:dm|channel|none
+```
+
+**Discord layout tip:** make the verification channel visible to Guest/Visitor (+ bot + staff); hide from full members if you want. On demote, guest role restores access so they can re-start. Disable this bot’s welcome DM (`/server welcome enabled:false`) when another bot owns welcomes. Go live with `deploy_mode:live` + `channel_panel` + panel posted.
+
+**Demotion notify:** after a guest demotion, `dm` sends the Restart DM (default); `channel` posts an `@mention` in the verify panel channel (avoids mass-DM storms); `none` is audit-only.
+
+DM flow: language → consent (if enabled) → screenshot → stfc.pro link → roles / nick / channel / log post.
 
 ### Manual verify (existing servers)
 

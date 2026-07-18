@@ -1,6 +1,7 @@
 import type {
 	AgreementMode,
 	AgreementTiming,
+	DemotionNotify,
 	DemotionPolicy,
 	DemotionQueueReason,
 	DemotionQueueRow,
@@ -11,6 +12,7 @@ import type {
 	OverlayBucket,
 	PersonalChannelPermTemplate,
 	StfcRegion,
+	VerificationInviteMode,
 	VerificationStatus,
 	VerifiedPlayer,
 } from './types';
@@ -21,6 +23,15 @@ import { parseTrackedAllianceTags } from './tracked-alliance-tags';
 
 function parseDemotionPolicy(value: string | null | undefined): DemotionPolicy {
 	return value === 'yolo' ? 'yolo' : 'approval';
+}
+
+function parseVerificationInviteMode(value: string | null | undefined): VerificationInviteMode {
+	return value === 'channel_panel' ? 'channel_panel' : 'dm';
+}
+
+function parseDemotionNotify(value: string | null | undefined): DemotionNotify {
+	if (value === 'channel' || value === 'none') return value;
+	return 'dm';
 }
 function parseJsonArray(value: string | null | undefined): string[] {
 	if (!value) return [];
@@ -135,6 +146,10 @@ function mapGuildConfig(row: any): GuildConfig {
 		agreement_version: row.agreement_version ?? null,
 		demotion_policy: parseDemotionPolicy(row.demotion_policy),
 		deploy_mode: parseDeployMode(row.deploy_mode),
+		verification_invite_mode: parseVerificationInviteMode(row.verification_invite_mode),
+		verify_panel_channel_id: row.verify_panel_channel_id ?? null,
+		verify_panel_message_id: row.verify_panel_message_id ?? null,
+		demotion_notify: parseDemotionNotify(row.demotion_notify),
 		welcome_dm_enabled: Boolean(row.welcome_dm_enabled ?? 0),
 		welcome_dm_channel_id: row.welcome_dm_channel_id ?? null,
 		welcome_dm_message_id: row.welcome_dm_message_id ?? null,
@@ -516,6 +531,7 @@ async function upsertDiplomacyConfigFields(
 	await upsertDeferUntrackedAdmiralRolesField(db, config);
 	await upsertDeployModeField(db, config);
 	await upsertWelcomeDmConfigFields(db, config);
+	await upsertVerifyPanelConfigFields(db, config);
 	await upsertWebAdminRoleIdsField(db, config);
 }
 
@@ -645,6 +661,53 @@ async function upsertWelcomeDmConfigFields(
 			channelProvided ? (config.welcome_dm_channel_id?.trim() || null) : null,
 			messageProvided ? 1 : 0,
 			messageProvided ? (config.welcome_dm_message_id?.trim() || null) : null,
+			config.guild_id,
+		)
+		.run();
+}
+
+async function upsertVerifyPanelConfigFields(
+	db: D1Database,
+	config: Partial<GuildConfig> & { guild_id: string },
+): Promise<void> {
+	const touched =
+		Object.prototype.hasOwnProperty.call(config, 'verification_invite_mode') ||
+		Object.prototype.hasOwnProperty.call(config, 'verify_panel_channel_id') ||
+		Object.prototype.hasOwnProperty.call(config, 'verify_panel_message_id') ||
+		Object.prototype.hasOwnProperty.call(config, 'demotion_notify');
+	if (!touched) return;
+
+	const modeProvided = Object.prototype.hasOwnProperty.call(config, 'verification_invite_mode');
+	const channelProvided = Object.prototype.hasOwnProperty.call(config, 'verify_panel_channel_id');
+	const messageProvided = Object.prototype.hasOwnProperty.call(config, 'verify_panel_message_id');
+	const notifyProvided = Object.prototype.hasOwnProperty.call(config, 'demotion_notify');
+
+	const inviteMode =
+		config.verification_invite_mode === 'channel_panel' ? 'channel_panel' : 'dm';
+	const demotionNotify =
+		config.demotion_notify === 'channel' || config.demotion_notify === 'none'
+			? config.demotion_notify
+			: 'dm';
+
+	await db
+		.prepare(
+			`UPDATE guild_configs SET
+			 verification_invite_mode = CASE WHEN ? = 1 THEN ? ELSE verification_invite_mode END,
+			 verify_panel_channel_id = CASE WHEN ? = 1 THEN ? ELSE verify_panel_channel_id END,
+			 verify_panel_message_id = CASE WHEN ? = 1 THEN ? ELSE verify_panel_message_id END,
+			 demotion_notify = CASE WHEN ? = 1 THEN ? ELSE demotion_notify END,
+			 updated_at = datetime('now')
+			 WHERE guild_id = ?`,
+		)
+		.bind(
+			modeProvided ? 1 : 0,
+			modeProvided ? inviteMode : null,
+			channelProvided ? 1 : 0,
+			channelProvided ? (config.verify_panel_channel_id?.trim() || null) : null,
+			messageProvided ? 1 : 0,
+			messageProvided ? (config.verify_panel_message_id?.trim() || null) : null,
+			notifyProvided ? 1 : 0,
+			notifyProvided ? demotionNotify : null,
 			config.guild_id,
 		)
 		.run();

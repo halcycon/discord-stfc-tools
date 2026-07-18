@@ -738,6 +738,73 @@ const commands = [
 				description: 'Admin: show onboarding path (consent, CoC, welcome) and step order',
 			},
 			{
+				type: 2,
+				name: 'verify-panel',
+				description: 'Admin: verification channel panel + invite/demotion notify modes',
+				options: [
+					{
+						type: 1,
+						name: 'show',
+						description: 'Show invite mode, panel channel/message, and demotion notify',
+					},
+					{
+						type: 1,
+						name: 'post',
+						description: 'Post or refresh the Start verification panel (pinned)',
+						options: [
+							{
+								type: 7,
+								name: 'channel',
+								description: 'Verification channel for the panel',
+								required: true,
+								channel_types: [0],
+							},
+							{
+								type: 5,
+								name: 'set_invite_mode',
+								description: 'Also set invite mode to channel_panel (default true)',
+								required: false,
+							},
+						],
+					},
+					{
+						type: 1,
+						name: 'mode',
+						description: 'How new members are invited to verify',
+						options: [
+							{
+								type: 3,
+								name: 'invite',
+								description: 'dm = auto join DM; channel_panel = Start button only',
+								required: true,
+								choices: [
+									{ name: 'DM on join (default)', value: 'dm' },
+									{ name: 'Channel panel (no auto invite DM)', value: 'channel_panel' },
+								],
+							},
+						],
+					},
+					{
+						type: 1,
+						name: 'demotion-notify',
+						description: 'How demoted guests are told to re-verify',
+						options: [
+							{
+								type: 3,
+								name: 'mode',
+								description: 'dm = Restart DM; channel = @mention in verify panel; none = audit only',
+								required: true,
+								choices: [
+									{ name: 'DM (Restart button)', value: 'dm' },
+									{ name: 'Channel @mention (verify panel)', value: 'channel' },
+									{ name: 'None (audit only)', value: 'none' },
+								],
+							},
+						],
+					},
+				],
+			},
+			{
 				type: 1,
 				name: 'verify',
 				description: 'Admin: manually verify a member with an stfc.pro link (no DM flow)',

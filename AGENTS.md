@@ -129,6 +129,7 @@ Morning job scrapes stfc.pro **HTML** (API `/api/players` is 403 from Worker egr
 - `/channels link` — adopt existing member channels; `apply_permissions` uses locked template (or built-in default)
 - `/player` — live stfc.pro lookup
 - Gateway DM flow: language picker → screenshot → link → roles/nickname/channels
+- `/server verify-panel` — channel **Start verification** button; `verification_invite_mode` `dm`|`channel_panel`; demotion notify `dm`|`channel`|`none`
 - Cron: member poll, guest alliance re-check, **alliance roster scrape + day-over-day audit report**, daily player sync
 - `/survey` — button polls (role/rank/level/grade/user targeting); private log channel; ASCII result tables
 - `/exchange` — cross-alliance resource donors/recipients (hub or category layout, Help/Ignore claim DMs)

@@ -10,6 +10,10 @@ export type AgreementTiming = 'before_verify' | 'after_verify';
 export type AgreementMode = 'dm_button' | 'channel_react';
 /** Automated leave demotion: approval (default) vs yolo with recheck queue. */
 export type DemotionPolicy = 'approval' | 'yolo';
+/** How new members are invited to verify: auto DM vs channel panel button. */
+export type VerificationInviteMode = 'dm' | 'channel_panel';
+/** How demoted guests are notified to re-verify. */
+export type DemotionNotify = 'dm' | 'channel' | 'none';
 export type DemotionQueueReason = 'alliance_mismatch' | 'player_missing';
 export type DemotionQueueStatus =
 	| 'pending_recheck'
@@ -179,6 +183,17 @@ export interface GuildConfig {
 	 * live = full automation. New guilds start in testing.
 	 */
 	deploy_mode: DeployMode;
+	/**
+	 * dm = auto invite DM on join (default).
+	 * channel_panel = no invite DM; member uses Start verification in verify panel channel.
+	 */
+	verification_invite_mode: VerificationInviteMode;
+	verify_panel_channel_id: string | null;
+	verify_panel_message_id: string | null;
+	/**
+	 * After demotion to guest: dm (Restart button), channel (@mention in verify panel), or none.
+	 */
+	demotion_notify: DemotionNotify;
 	/** Post-onboarding welcome DM (source message + personal-channel append). */
 	welcome_dm_enabled: boolean;
 	welcome_dm_channel_id: string | null;

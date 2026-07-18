@@ -35,6 +35,10 @@ export function formatServerStatus(config: GuildConfig): string {
 			? `• Defer untracked Admiral roles: ${config.defer_untracked_admiral_roles ? 'on' : 'off'}\n`
 			: '') +
 		`• Verification: ${config.verification_enabled ? 'enabled' : 'disabled'}\n` +
+		`• Invite mode: **${config.verification_invite_mode}**` +
+		(config.verify_panel_channel_id ? ` → <#${config.verify_panel_channel_id}>` : '') +
+		`\n` +
+		`• Demotion notify: **${config.demotion_notify}**\n` +
 		`• Poll interval: ${config.poll_interval_hours}h\n` +
 		`• Member roles: ${config.member_role_ids.join(', ') || 'none'}\n` +
 		`• Guest role: ${config.guest_role_id ?? 'none'}\n` +

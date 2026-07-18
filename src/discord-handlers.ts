@@ -2,12 +2,15 @@ import { verifyKey } from 'discord-interactions';
 import {
 	deferredResponse,
 	editInteractionResponse,
+	editChannelMessage,
 	interactionResponse,
 	updateMessageResponse,
 	listGuildRoles,
 	listGuildChannels,
 	createGuildRole,
 	sendChannelMessageWithEmbed,
+	sendMessageWithComponents,
+	pinChannelMessage,
 	getBotUserId,
 	fetchGuildChannel,
 } from './discord-api';
@@ -974,6 +977,178 @@ async function handleServerAgreementCommand(
 		})(),
 	);
 	return deferred;
+}
+
+async function handleServerVerifyPanelCommand(
+	env: Env,
+	interaction: {
+		guild_id?: string;
+		member?: { permissions?: string; user?: { id?: string } };
+		user?: { id?: string };
+	},
+	sub: { name?: string; options?: Array<{ name: string; value?: unknown }> } | undefined,
+): Promise<Response> {
+	const adminError = requireGuildAdmin(interaction);
+	if (adminError) return adminError;
+
+	const guildId = interaction.guild_id!;
+	const config = await getGuildConfig(env.STFC_DB, guildId);
+	if (!config) {
+		return interactionResponse('❌ Server not configured. Run `/server setup` first.', true);
+	}
+
+	const action = sub?.name ?? 'show';
+	const statusBlock = (c: typeof config) => {
+		const msgLink =
+			c.verify_panel_channel_id && c.verify_panel_message_id
+				? `https://discord.com/channels/${guildId}/${c.verify_panel_channel_id}/${c.verify_panel_message_id}`
+				: '—';
+		return (
+			`🪪 **Verification panel**\n` +
+			`• Invite mode: **${c.verification_invite_mode}**` +
+			(c.verification_invite_mode === 'channel_panel'
+				? ' (no auto join invite DM)'
+				: ' (auto DM on join)') +
+			`\n` +
+			`• Panel channel: ${c.verify_panel_channel_id ? `<#${c.verify_panel_channel_id}>` : '—'}\n` +
+			`• Panel message: ${msgLink}\n` +
+			`• Demotion notify: **${c.demotion_notify}**`
+		);
+	};
+
+	if (action === 'show' || !action) {
+		return interactionResponse(statusBlock(config), true);
+	}
+
+	if (action === 'mode') {
+		const invite = getOptionValue(sub?.options, 'invite') as string | undefined;
+		if (invite !== 'dm' && invite !== 'channel_panel') {
+			return interactionResponse('❌ Choose invite: `dm` or `channel_panel`.', true);
+		}
+		await upsertGuildConfig(env.STFC_DB, {
+			guild_id: guildId,
+			verification_invite_mode: invite,
+		});
+		const refreshed = await getGuildConfig(env.STFC_DB, guildId);
+		await postAuditLog(env, refreshed, {
+			title: 'Verification invite mode updated',
+			description: `Invite mode → **${invite}**`,
+			source: 'admin',
+			color: AuditColor.info,
+		});
+		return interactionResponse(statusBlock(refreshed ?? config), true);
+	}
+
+	if (action === 'demotion-notify') {
+		const mode = getOptionValue(sub?.options, 'mode') as string | undefined;
+		if (mode !== 'dm' && mode !== 'channel' && mode !== 'none') {
+			return interactionResponse('❌ Choose mode: `dm`, `channel`, or `none`.', true);
+		}
+		if (mode === 'channel' && !config.verify_panel_channel_id) {
+			return interactionResponse(
+				'⚠️ Set a verify panel channel first with `/server verify-panel post`, then set demotion-notify to **channel**.',
+				true,
+			);
+		}
+		await upsertGuildConfig(env.STFC_DB, {
+			guild_id: guildId,
+			demotion_notify: mode,
+		});
+		const refreshed = await getGuildConfig(env.STFC_DB, guildId);
+		await postAuditLog(env, refreshed, {
+			title: 'Demotion notify mode updated',
+			description: `demotion_notify → **${mode}**`,
+			source: 'admin',
+			color: AuditColor.info,
+		});
+		return interactionResponse(statusBlock(refreshed ?? config), true);
+	}
+
+	if (action === 'post') {
+		const channelRaw = getOptionValue(sub?.options, 'channel');
+		const channelId = channelRaw != null ? String(channelRaw) : '';
+		if (!/^\d{15,20}$/.test(channelId)) {
+			return interactionResponse('❌ Provide a valid text channel.', true);
+		}
+		const setInviteRaw = getOptionValue(sub?.options, 'set_invite_mode');
+		const setInviteMode = setInviteRaw !== false && setInviteRaw !== 'false';
+
+		if (!env.DISCORD_BOT_TOKEN) {
+			return interactionResponse('❌ DISCORD_BOT_TOKEN not configured.', true);
+		}
+
+		const {
+			buildVerifyPanelContent,
+			verifyStartCustomId,
+		} = await import('./verification-access');
+		const content = buildVerifyPanelContent(config);
+		const components = [
+			{
+				type: 1 as const,
+				components: [
+					{
+						type: 2 as const,
+						style: 1 as const,
+						label: 'Start verification',
+						custom_id: verifyStartCustomId(guildId),
+					},
+				],
+			},
+		];
+
+		let messageId = config.verify_panel_message_id;
+		const sameChannel =
+			config.verify_panel_channel_id === channelId &&
+			messageId &&
+			/^\d{15,20}$/.test(messageId);
+
+		try {
+			if (sameChannel && messageId) {
+				await editChannelMessage(env.DISCORD_BOT_TOKEN, channelId, messageId, {
+					content,
+					components,
+				});
+			} else {
+				const msg = await sendMessageWithComponents(env.DISCORD_BOT_TOKEN, channelId, {
+					content,
+					components,
+				});
+				messageId = msg.id;
+				try {
+					await pinChannelMessage(env.DISCORD_BOT_TOKEN, channelId, messageId);
+				} catch (err) {
+					console.warn('Pin verify panel failed:', err);
+				}
+			}
+		} catch (err) {
+			const detail = err instanceof Error ? err.message : String(err);
+			return interactionResponse(`❌ Failed to post panel: ${detail.slice(0, 300)}`, true);
+		}
+
+		await upsertGuildConfig(env.STFC_DB, {
+			guild_id: guildId,
+			verify_panel_channel_id: channelId,
+			verify_panel_message_id: messageId ?? null,
+			...(setInviteMode ? { verification_invite_mode: 'channel_panel' as const } : {}),
+		});
+		const refreshed = await getGuildConfig(env.STFC_DB, guildId);
+		await postAuditLog(env, refreshed, {
+			title: 'Verification panel posted',
+			description:
+				`Panel in <#${channelId}>` +
+				(messageId ? ` · message \`${messageId}\`` : '') +
+				(setInviteMode ? ' · invite mode → **channel_panel**' : ''),
+			source: 'admin',
+			color: AuditColor.info,
+		});
+		return interactionResponse(
+			`✅ Verification panel ${sameChannel ? 'updated' : 'posted'} in <#${channelId}>.\n\n` +
+				statusBlock(refreshed ?? config),
+			true,
+		);
+	}
+
+	return interactionResponse('❌ Unknown verify-panel action. Use show / post / mode / demotion-notify.', true);
 }
 
 async function handleServerWelcomeCommand(
@@ -3319,6 +3494,10 @@ async function dispatchDiscordInteraction(
 			const { handleVerifyRestartPreviewComponent } = await import('./test-dms');
 			return handleVerifyRestartPreviewComponent(env, interaction);
 		}
+		if (customId?.startsWith('verify:start:')) {
+			const { handleVerifyStartComponent } = await import('./verification-access');
+			return handleVerifyStartComponent(env, ctx, interaction);
+		}
 		if (customId?.startsWith('verify:restart:')) {
 			const { handleVerifyRestartComponent } = await import('./verification-access');
 			return handleVerifyRestartComponent(env, interaction);
@@ -3431,6 +3610,11 @@ async function dispatchDiscordInteraction(
 			}
 			if (sub?.name === 'welcome') {
 				return handleServerWelcomeCommand(env, interaction as any, sub);
+			}
+			if (sub?.name === 'verify-panel') {
+				const nested = (sub as { options?: Array<{ name?: string; options?: Array<{ name: string; value?: unknown }> }> })
+					.options?.[0];
+				return handleServerVerifyPanelCommand(env, interaction as any, nested);
 			}
 			if (sub?.name === 'onboarding') {
 				return handleServerOnboardingCommand(env, interaction as any);
