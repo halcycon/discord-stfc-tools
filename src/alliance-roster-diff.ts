@@ -358,9 +358,15 @@ export function formatAllianceRosterChangeReport(
 		const rows: TableData[] = diff.renamed.map((m) => ({
 			Was: m.previousName,
 			Player: playerCell(m.playerName, m.playerId),
+			Tag: tagCell(m.allianceTag),
 		}));
 		sections.push(
-			formatReportSection('Renames', rows, [ReportCols.prevName, ReportCols.player], tableOpts),
+			formatReportSection(
+				'Renames',
+				rows,
+				[ReportCols.prevName, ReportCols.player, ReportCols.tag],
+				tableOpts,
+			),
 		);
 	}
 
