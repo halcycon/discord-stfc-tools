@@ -57,19 +57,33 @@ export function parseVerifyStartCustomId(customId: string): string | null {
 	return /^\d{15,20}$/.test(guildId) ? guildId : null;
 }
 
-export function buildVerifyPanelContent(config: Pick<GuildConfig, 'alliance_tag' | 'mode'>): string {
+/** Server power rankings page for the guild’s configured region/server (find-your-profile entry). */
+export function stfcProPowerUrl(
+	region: string | null | undefined,
+	server: number | null | undefined,
+): string {
+	const r = String(region ?? 'US').trim().toUpperCase() === 'EU' ? 'EU' : 'US';
+	const s = typeof server === 'number' && Number.isFinite(server) ? Math.trunc(server) : 0;
+	return `https://stfc.pro/power?region=${encodeURIComponent(r)}&server=${s}`;
+}
+
+export function buildVerifyPanelContent(
+	config: Pick<GuildConfig, 'alliance_tag' | 'mode' | 'stfc_region' | 'stfc_server'>,
+): string {
 	const tag = (config.alliance_tag ?? '').trim();
 	const allianceLine =
 		config.mode === 'single_alliance' && tag
 			? `Alliance tag to match: **${tag}**\n\n`
 			: '';
+	const powerUrl = stfcProPowerUrl(config.stfc_region, config.stfc_server);
+	const serverLabel = `${config.stfc_region} ${config.stfc_server}`;
 	return (
 		`**Player verification**\n\n` +
 		`Tap **Start verification** below. I will DM you to finish:\n` +
 		`1. Language (if needed)\n` +
 		`2. Optional consent / rules\n` +
 		`3. In-game profile screenshot\n` +
-		`4. Your [stfc.pro](https://stfc.pro) player page link\n\n` +
+		`4. Your [stfc.pro](${powerUrl}) player page link (${serverLabel})\n\n` +
 		allianceLine +
 		`You can also use \`/verify\` in this server if DMs are blocked.`
 	);
