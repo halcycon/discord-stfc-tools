@@ -28,7 +28,7 @@ export function formatServerStatus(config: GuildConfig): string {
 		`\n` +
 		`• Diplomacy channels: ${diplomacyChannelsEnabled(config) ? 'enabled' : 'disabled'}` +
 		(diplomacyChannelsEnabled(config)
-			? ` (${formatDiplomacyChannelMap(config.diplomacy_channel_map)})`
+			? ` (${formatDiplomacyChannelMap(config.diplomacy_channel_map, config.diplomacy_preferred_locales)})`
 			: '') +
 		`\n` +
 		(config.mode === 'multi_alliance'

@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
 	diplomacyChannelsEnabled,
 	diplomacyWriteRoleIds,
+	formatDiplomacyChannelName,
 	planDiplomacyChannels,
 	slugDiplomacyChannelName,
+	withDiplomacyPreferredLocales,
 } from '../src/diplomacy-channels';
+import { parseDiplomacyLanguagesOption } from '../src/i18n/locales';
 import type { GuildConfig } from '../src/types';
 
 function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
@@ -37,6 +40,7 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		diplomacy_category_map: {},
 		diplomacy_archive_category_id: null,
 		diplomacy_channel_map: {},
+		diplomacy_preferred_locales: {},
 		tracked_alliance_tags: [],
 		defer_untracked_admiral_roles: false,
 		diplomacy_everyone_can_view: true,
@@ -82,13 +86,32 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 
 describe('diplomacy-channels', () => {
 	it('slugDiplomacyChannelName uses template', () => {
-		expect(slugDiplomacyChannelName('KWSN')).toBe('diplomacy-kwsn');
-		expect(slugDiplomacyChannelName('KWSN', '{tag}-diplo')).toBe('kwsn-diplo');
+		expect(slugDiplomacyChannelName('ABCD')).toBe('diplomacy-abcd');
+		expect(slugDiplomacyChannelName('ABCD', '{tag}-diplo')).toBe('abcd-diplo');
 	});
 
 	it('slugDiplomacyChannelName latinizes lookalike tags', () => {
-		expect(slugDiplomacyChannelName('KWβN')).toBe('diplomacy-kwbn');
+		expect(slugDiplomacyChannelName('ABβD')).toBe('diplomacy-abbd');
 		expect(slugDiplomacyChannelName('ŁTAG', '{tag}-diplo')).toBe('ltag-diplo');
+	});
+
+	it('formatDiplomacyChannelName appends language flags', () => {
+		expect(formatDiplomacyChannelName('ABCD', '{tag}-diplomacy', ['en', 'fr'])).toBe(
+			'abcd-diplomacy┃🇬🇧🇫🇷',
+		);
+		expect(formatDiplomacyChannelName('ABCD', null, [])).toBe('diplomacy-abcd');
+	});
+
+	it('parseDiplomacyLanguagesOption accepts codes and clear', () => {
+		expect(parseDiplomacyLanguagesOption('en, fr')).toEqual({ ok: true, locales: ['en', 'fr'] });
+		expect(parseDiplomacyLanguagesOption('none')).toEqual({ ok: true, locales: [] });
+		expect(parseDiplomacyLanguagesOption('zz')?.ok).toBe(false);
+	});
+
+	it('withDiplomacyPreferredLocales sets and clears', () => {
+		const set = withDiplomacyPreferredLocales({}, 'abcd', ['en', 'de']);
+		expect(set).toEqual({ ABCD: ['en', 'de'] });
+		expect(withDiplomacyPreferredLocales(set, 'ABCD', [])).toEqual({});
 	});
 
 	it('diplomacyWriteRoleIds merges write roles and rank roles', () => {

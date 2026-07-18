@@ -28,11 +28,15 @@ import {
 	findUnlinkedMemberChannels,
 	resolveArchiveCategory,
 } from './personal-channels';
+import { formatLocaleFlagSuffix } from './i18n/locales';
 import { normalizeAllianceRank, type AllianceRankKey } from './nickname-utils';
 import type { GuildConfig } from './types';
 
 const DEFAULT_DIPLOMACY_CATEGORY_NAME_TEMPLATE = 'Diplomacy Channels {range}';
 const DEFAULT_DIPLOMACY_ARCHIVE_NAME = 'Diplomacy Channels Archive';
+/** Discord channel names max 100; keep slug headroom for `┃` + flags. */
+const DIPLOMACY_NAME_MAX = 100;
+const DIPLOMACY_LANG_SEPARATOR = '┃';
 
 const VIEW = 0x400;
 const SEND = 0x800;
@@ -83,6 +87,62 @@ export function slugDiplomacyChannelName(tag: string, template?: string | null):
 			.replace(/[^a-z0-9]+/g, '-')
 			.replace(/^-|-$/g, '')}`
 	);
+}
+
+/** Preferred locales for a tag (uppercased key). */
+export function preferredLocalesForTag(
+	config: Pick<GuildConfig, 'diplomacy_preferred_locales'>,
+	allianceTag: string,
+): string[] {
+	const tag = normalizeAllianceTag(allianceTag);
+	if (!tag) return [];
+	const locales = config.diplomacy_preferred_locales?.[tag];
+	return Array.isArray(locales) ? locales : [];
+}
+
+/**
+ * Full Discord channel name: a-z0-9 slug, optionally `┃` + country flags for preferred languages.
+ * Example: `abcd-diplomacy┃🇬🇧🇫🇷`
+ */
+export function formatDiplomacyChannelName(
+	tag: string,
+	template?: string | null,
+	locales?: readonly string[] | null,
+): string {
+	const base = slugDiplomacyChannelName(tag, template);
+	const flags = formatLocaleFlagSuffix(locales ?? []);
+	if (!flags) return base.slice(0, DIPLOMACY_NAME_MAX);
+	const suffix = `${DIPLOMACY_LANG_SEPARATOR}${flags}`;
+	const maxBase = Math.max(1, DIPLOMACY_NAME_MAX - suffix.length);
+	return `${base.slice(0, maxBase)}${suffix}`.slice(0, DIPLOMACY_NAME_MAX);
+}
+
+export function diplomacyChannelDisplayName(
+	tag: string,
+	config: Pick<GuildConfig, 'diplomacy_name_template' | 'diplomacy_preferred_locales'>,
+): string {
+	return formatDiplomacyChannelName(
+		tag,
+		config.diplomacy_name_template,
+		preferredLocalesForTag(config, tag),
+	);
+}
+
+/** Merge/clear preferred locales for one tag (returns a new map). */
+export function withDiplomacyPreferredLocales(
+	current: Record<string, string[]>,
+	allianceTag: string,
+	locales: readonly string[],
+): Record<string, string[]> {
+	const tag = normalizeAllianceTag(allianceTag);
+	const next = { ...current };
+	if (!tag) return next;
+	if (locales.length === 0) {
+		delete next[tag];
+	} else {
+		next[tag] = [...locales];
+	}
+	return next;
 }
 
 /** Discord role IDs that should have write access (configured roles + rank roles). */
@@ -187,7 +247,7 @@ async function syncDiplomacyChannelPlacement(
 	tag: string,
 	config: GuildConfig,
 ): Promise<{ moved: boolean; renamed: boolean }> {
-	const desiredName = slugDiplomacyChannelName(tag, config.diplomacy_name_template);
+	const desiredName = diplomacyChannelDisplayName(tag, config);
 	const targetCategoryId = categoryForAllianceTag(config, tag);
 	const updates: { name?: string; parent_id?: string } = {};
 	if (targetCategoryId && channel.parent_id !== targetCategoryId) {
@@ -248,7 +308,7 @@ export async function ensureDiplomacyChannel(
 		}
 
 		const botUserId = await getBotUserId(token);
-		const name = slugDiplomacyChannelName(tag, config.diplomacy_name_template);
+		const name = diplomacyChannelDisplayName(tag, config);
 		const parentId = categoryForAllianceTag(config, tag);
 		const channel = await createGuildTextChannel(token, guildId, name, {
 			parentId: parentId ?? undefined,
@@ -759,7 +819,7 @@ export async function rebalanceDiplomacyChannels(
 				.map(([r, id]) => `${r}→<#${id}>`)
 				.join(', ') || 'none'
 		}\n` +
-		`• Channel map: ${formatDiplomacyChannelMap(channelMap)}` +
+		`• Channel map: ${formatDiplomacyChannelMap(channelMap, config.diplomacy_preferred_locales)}` +
 		(errors.length ? `\n\n⚠ Errors (${errors.length}):\n${errors.slice(0, 8).join('\n')}` : '')
 	).slice(0, 1900);
 
@@ -781,8 +841,16 @@ export async function rebalanceDiplomacyChannels(
 	};
 }
 
-export function formatDiplomacyChannelMap(map: Record<string, string>): string {
+export function formatDiplomacyChannelMap(
+	map: Record<string, string>,
+	preferredLocales?: Record<string, string[]>,
+): string {
 	const entries = Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
 	if (entries.length === 0) return 'none';
-	return entries.map(([tag, id]) => `[${tag}]→<#${id}>`).join(', ');
+	return entries
+		.map(([tag, id]) => {
+			const flags = formatLocaleFlagSuffix(preferredLocales?.[tag] ?? []);
+			return flags ? `[${tag}]→<#${id}> ${flags}` : `[${tag}]→<#${id}>`;
+		})
+		.join(', ');
 }

@@ -114,6 +114,11 @@ export interface GuildConfig {
 	/** allianceTag (upper) → Discord channel ID */
 	diplomacy_channel_map: Record<string, string>;
 	/**
+	 * allianceTag (upper) → preferred locale codes (`en`, `fr`, …).
+	 * When set, channel names append `┃` + country flag emojis after the slug.
+	 */
+	diplomacy_preferred_locales: Record<string, string[]>;
+	/**
 	 * Multi-alliance: tags explicitly tracked for morning scrape / `/alliance track`
 	 * (in addition to verified player tags ∪ diplomacy map).
 	 */

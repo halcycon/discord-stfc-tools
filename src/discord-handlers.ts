@@ -79,7 +79,9 @@ import {
 	linkDiplomacyChannel,
 	planDiplomacyChannels,
 	rebalanceDiplomacyChannels,
+	withDiplomacyPreferredLocales,
 } from './diplomacy-channels';
+import { formatLocaleFlagSuffix, parseDiplomacyLanguagesOption } from './i18n/locales';
 
 function getOptionValue(options: Array<{ name: string; value?: unknown }> | undefined, name: string): unknown {
 	return options?.find((opt) => opt.name === name)?.value;
@@ -1906,6 +1908,8 @@ async function handleDiplomacyChannelsCommand(
 	const createTagRaw = (getOptionValue(options, 'create_tag') as string | undefined)?.trim();
 	const linkTagRaw = (getOptionValue(options, 'link_tag') as string | undefined)?.trim();
 	const channelOpt = getOptionValue(options, 'channel');
+	const languagesRaw = getOptionValue(options, 'languages');
+	const languagesProvided = languagesRaw !== undefined && languagesRaw !== null;
 	const applyPermsRaw = getOptionValue(options, 'apply_permissions');
 	const applyPermissions =
 		applyPermsRaw === undefined || applyPermsRaw === null
@@ -1918,6 +1922,15 @@ async function handleDiplomacyChannelsCommand(
 	const writeRolesRaw = getOptionValue(options, 'write_roles');
 	const writeRanksRaw = getOptionValue(options, 'write_ranks') as string | undefined;
 	const nameTemplateRaw = getOptionValue(options, 'name_template');
+
+	let languagesForTag: string[] | undefined;
+	if (languagesProvided) {
+		const parsed = parseDiplomacyLanguagesOption(String(languagesRaw));
+		if (!parsed.ok) {
+			return interactionResponse(`❌ ${parsed.error}`, true);
+		}
+		languagesForTag = parsed.locales;
+	}
 
 	const configTouched =
 		enable ||
@@ -2018,6 +2031,15 @@ async function handleDiplomacyChannelsCommand(
 			await upsertGuildConfig(env.STFC_DB, { guild_id: guildId, diplomacy_enabled: true });
 			config = (await getGuildConfig(env.STFC_DB, guildId))!;
 		}
+		let preferredLocales = config.diplomacy_preferred_locales ?? {};
+		if (languagesForTag !== undefined) {
+			preferredLocales = withDiplomacyPreferredLocales(
+				preferredLocales,
+				createTagRaw,
+				languagesForTag,
+			);
+			config = { ...config, diplomacy_preferred_locales: preferredLocales };
+		}
 		const result = await ensureDiplomacyChannel(
 			env.DISCORD_BOT_TOKEN,
 			config,
@@ -2032,20 +2054,27 @@ async function handleDiplomacyChannelsCommand(
 			guild_id: guildId,
 			diplomacy_enabled: true,
 			diplomacy_channel_map: nextMap,
+			diplomacy_preferred_locales: preferredLocales,
 		});
+		const flags = formatLocaleFlagSuffix(preferredLocales[result.tag] ?? []);
 		await postAuditLog(env, { ...config, diplomacy_channel_map: nextMap }, {
 			title: result.created ? 'Diplomacy channel created' : 'Diplomacy channel updated',
-			description: `**[${result.tag}]** → <#${result.channelId}>`,
+			description:
+				`**[${result.tag}]** → <#${result.channelId}>` + (flags ? ` ${flags}` : ''),
 			actorId,
 			source: 'admin',
 			color: AuditColor.success,
 		});
 		return interactionResponse(
 			`✅ ${result.created ? 'Created' : 'Updated'} diplomacy channel for **[${result.tag}]**: <#${result.channelId}>` +
+				(flags ? ` ${flags}` : '') +
 				(result.renamed ? ' (renamed)' : '') +
 				(result.moved ? ' (moved to category)' : '') +
 				`\nView: ${config.diplomacy_everyone_can_view ? '@everyone' : 'role-restricted'}; ` +
-				`write roles/ranks applied from config.`,
+				`write roles/ranks applied from config.` +
+				(languagesForTag !== undefined
+					? `\nLanguages: ${flags || 'none (cleared)'}.`
+					: ''),
 			true,
 		);
 	}
@@ -2055,6 +2084,15 @@ async function handleDiplomacyChannelsCommand(
 		const channelId = channelOpt != null ? String(channelOpt) : '';
 		if (!/^\d{15,20}$/.test(channelId)) {
 			return interactionResponse('❌ `link_tag` requires a valid `channel:`.', true);
+		}
+		let preferredLocales = config.diplomacy_preferred_locales ?? {};
+		if (languagesForTag !== undefined) {
+			preferredLocales = withDiplomacyPreferredLocales(
+				preferredLocales,
+				linkTagRaw,
+				languagesForTag,
+			);
+			config = { ...config, diplomacy_preferred_locales: preferredLocales };
 		}
 		const result = await linkDiplomacyChannel(
 			env.DISCORD_BOT_TOKEN,
@@ -2085,21 +2123,36 @@ async function handleDiplomacyChannelsCommand(
 			guild_id: guildId,
 			diplomacy_enabled: true,
 			diplomacy_channel_map: nextMap,
+			diplomacy_preferred_locales: preferredLocales,
 		});
+		const flags = formatLocaleFlagSuffix(preferredLocales[result.tag] ?? []);
 		await postAuditLog(env, { ...config, diplomacy_channel_map: nextMap }, {
 			title: 'Diplomacy channel linked',
-			description: `**[${result.tag}]** → <#${result.channelId}>`,
+			description:
+				`**[${result.tag}]** → <#${result.channelId}>` + (flags ? ` ${flags}` : ''),
 			actorId,
 			source: 'admin',
 			color: AuditColor.info,
 		});
 		return interactionResponse(
 			`✅ Linked <#${result.channelId}> as diplomacy for **[${result.tag}]**.` +
+				(flags ? ` ${flags}` : '') +
 				(result.renamed ? ' Renamed to slug.' : '') +
 				(result.moved ? ' Moved to diplomacy category.' : '') +
 				(applyPermissions
 					? ' Applied configured view/write permissions.'
-					: ' Left existing channel permissions unchanged.'),
+					: ' Left existing channel permissions unchanged.') +
+				(languagesForTag !== undefined
+					? `\nLanguages: ${flags || 'none (cleared)'}.`
+					: ''),
+			true,
+		);
+	}
+
+	if (languagesForTag !== undefined) {
+		return interactionResponse(
+			'❌ `languages:` requires `create_tag:` or `link_tag:` ' +
+				'(e.g. `/diplomacy create_tag:ABCD languages:en,fr`).',
 			true,
 		);
 	}
@@ -2290,11 +2343,12 @@ async function handleDiplomacyChannelsCommand(
 			`• View roles: ${refreshed.diplomacy_view_role_ids.map((id) => `<@&${id}>`).join(', ') || 'none'}\n` +
 			`• Write roles: ${refreshed.diplomacy_write_role_ids.map((id) => `<@&${id}>`).join(', ') || 'none'}\n` +
 			`• Write ranks: ${refreshed.diplomacy_write_ranks.join(', ') || 'none'}\n` +
-			`• Channels: ${formatDiplomacyChannelMap(refreshed.diplomacy_channel_map)}\n\n` +
+			`• Channels: ${formatDiplomacyChannelMap(refreshed.diplomacy_channel_map, refreshed.diplomacy_preferred_locales)}\n\n` +
 			`Examples:\n` +
 			`\`/diplomacy enable:true write_roles:Diplomat write_ranks:Commodore,Admiral everyone_can_view:true\`\n` +
 			`\`/diplomacy create_tag:ABCD\`\n` +
-			`\`/diplomacy link_tag:ABCD channel:#abcd-diplo apply_permissions:false\`\n` +
+			`\`/diplomacy create_tag:ABCD languages:en,fr\` — set preferred languages (flags on name)\n` +
+			`\`/diplomacy link_tag:ABCD channel:#abcd-diplo languages:en,de apply_permissions:false\`\n` +
 			`\`/diplomacy sync_all:true create_missing:true\` — letter buckets + rename/move/A–Z sort\n` +
 			`\`/diplomacy sync_all:true plan:true soft_limit:45\` — preview category splits`,
 		true,
@@ -2393,7 +2447,7 @@ async function handleServerChannelsCommand(
 				`• Verification log: ${config.verification_log_channel_id ? `<#${config.verification_log_channel_id}>` : 'not set'}\n` +
 				`• Audit log: ${config.audit_log_channel_id ? `<#${config.audit_log_channel_id}>` : 'not set'}\n` +
 				`• Urgent alerts: ${config.urgent_notify_channel_id ? `<#${config.urgent_notify_channel_id}>` : 'not set'}\n` +
-				`• Diplomacy: ${diplomacyChannelsEnabled(config) ? 'enabled' : 'disabled'} — ${formatDiplomacyChannelMap(config.diplomacy_channel_map)}\n` +
+				`• Diplomacy: ${diplomacyChannelsEnabled(config) ? 'enabled' : 'disabled'} — ${formatDiplomacyChannelMap(config.diplomacy_channel_map, config.diplomacy_preferred_locales)}\n` +
 				`• Linked member channels: ${players?.count ?? 0}` +
 				(config.personal_channel_archive_category_id
 					? `\n• Archive category: <#${config.personal_channel_archive_category_id}>`

@@ -53,6 +53,32 @@ function parseJsonObject(value: string | null | undefined): Record<string, strin
 	}
 }
 
+/** allianceTag → locale codes for diplomacy channel flag suffixes. */
+function parseDiplomacyPreferredLocales(
+	value: string | null | undefined,
+): Record<string, string[]> {
+	if (!value) return {};
+	try {
+		const parsed = JSON.parse(value) as unknown;
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+		const result: Record<string, string[]> = {};
+		for (const [tagRaw, localesRaw] of Object.entries(parsed as Record<string, unknown>)) {
+			const tag = String(tagRaw).trim().toUpperCase();
+			if (!tag || !Array.isArray(localesRaw)) continue;
+			const locales: string[] = [];
+			for (const item of localesRaw) {
+				const code = String(item).trim().toLowerCase();
+				if (!code || locales.includes(code)) continue;
+				locales.push(code);
+			}
+			if (locales.length > 0) result[tag] = locales;
+		}
+		return result;
+	} catch {
+		return {};
+	}
+}
+
 function parseOverlayBuckets(value: string | null | undefined): Record<string, OverlayBucket> {
 	if (!value) return {};
 	try {
@@ -109,6 +135,7 @@ function mapGuildConfig(row: any): GuildConfig {
 		diplomacy_category_map: parseJsonObject(row.diplomacy_category_map),
 		diplomacy_archive_category_id: row.diplomacy_archive_category_id ?? null,
 		diplomacy_channel_map: parseJsonObject(row.diplomacy_channel_map),
+		diplomacy_preferred_locales: parseDiplomacyPreferredLocales(row.diplomacy_preferred_locales),
 		tracked_alliance_tags: parseTrackedAllianceTags(row.tracked_alliance_tags),
 		defer_untracked_admiral_roles: Boolean(row.defer_untracked_admiral_roles ?? 0),
 		diplomacy_everyone_can_view: row.diplomacy_everyone_can_view === undefined || row.diplomacy_everyone_can_view === null
@@ -404,6 +431,7 @@ async function upsertDiplomacyConfigFields(
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_category_map') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_archive_category_id') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_channel_map') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_preferred_locales') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_everyone_can_view') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_view_role_ids') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_write_role_ids') ||
@@ -416,6 +444,10 @@ async function upsertDiplomacyConfigFields(
 			'diplomacy_archive_category_id',
 		);
 		const nameProvided = Object.prototype.hasOwnProperty.call(config, 'diplomacy_name_template');
+		const localesProvided = Object.prototype.hasOwnProperty.call(
+			config,
+			'diplomacy_preferred_locales',
+		);
 
 		await db
 			.prepare(
@@ -425,6 +457,7 @@ async function upsertDiplomacyConfigFields(
 				 diplomacy_category_map = COALESCE(?, diplomacy_category_map),
 				 diplomacy_archive_category_id = CASE WHEN ? = 1 THEN ? ELSE diplomacy_archive_category_id END,
 				 diplomacy_channel_map = COALESCE(?, diplomacy_channel_map),
+				 diplomacy_preferred_locales = CASE WHEN ? = 1 THEN ? ELSE diplomacy_preferred_locales END,
 				 diplomacy_everyone_can_view = COALESCE(?, diplomacy_everyone_can_view),
 				 diplomacy_view_role_ids = COALESCE(?, diplomacy_view_role_ids),
 				 diplomacy_write_role_ids = COALESCE(?, diplomacy_write_role_ids),
@@ -441,6 +474,10 @@ async function upsertDiplomacyConfigFields(
 				archiveProvided ? 1 : 0,
 				archiveProvided ? (config.diplomacy_archive_category_id?.trim() || null) : null,
 				config.diplomacy_channel_map ? JSON.stringify(config.diplomacy_channel_map) : null,
+				localesProvided ? 1 : 0,
+				localesProvided
+					? JSON.stringify(config.diplomacy_preferred_locales ?? {})
+					: null,
 				config.diplomacy_everyone_can_view !== undefined
 					? (config.diplomacy_everyone_can_view ? 1 : 0)
 					: null,

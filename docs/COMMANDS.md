@@ -157,7 +157,7 @@ Designed for **multi_alliance** (works if enabled on single, but less common).
 | Action | Use |
 |--------|-----|
 | `enable:` / `disable:` + view/write roles, `write_ranks:`, `name_template:` | Config |
-| `create_tag:` / `link_tag:` + `channel:` | One alliance channel |
+| `create_tag:` / `link_tag:` + `channel:` `[languages:]` | One alliance channel; optional preferred langs → flag emoji suffix on name |
 | `sync_all:` `[plan:]` `[create_missing:]` … | Letter-bucket categories, rename/move, archive unlinked |
 
 **Side effect for activity/unlinked:** tags on the diplomacy map are **morning-tracked** even with zero Discord members — so you can watch inactive/unlinked for that alliance.

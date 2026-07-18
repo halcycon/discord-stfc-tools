@@ -1514,6 +1514,13 @@ const commands = [
 								channel_types: [0, 5],
 							},
 							{
+								type: 3,
+								name: 'languages',
+								description:
+									'With create_tag/link_tag: preferred langs (en,fr) as flags on name; none to clear',
+								required: false,
+							},
+							{
 								type: 5,
 								name: 'apply_permissions',
 								description: 'When linking/syncing, rewrite perms from config (default true)',

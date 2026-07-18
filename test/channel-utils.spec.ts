@@ -38,6 +38,7 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		diplomacy_category_map: {},
 		diplomacy_archive_category_id: null,
 		diplomacy_channel_map: {},
+		diplomacy_preferred_locales: {},
 		tracked_alliance_tags: [],
 		defer_untracked_admiral_roles: false,
 		diplomacy_everyone_can_view: true,

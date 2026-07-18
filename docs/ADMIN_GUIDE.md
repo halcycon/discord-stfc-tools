@@ -752,14 +752,18 @@ Multi-alliance servers often have **dozens of tags** — Discord’s **50 channe
 | `category_name_template` | With `sync_all`: category name; `{range}` → e.g. `A-M` (default `Diplomacy Channels {range}`) |
 | `create_missing` | With `sync_all`: also create channels for alliance tags on verified players |
 | `archive_unlinked` | With `sync_all`: move unlinked channels under diplomacy categories to archive (default true) |
+| `languages` | With `create_tag` / `link_tag`: preferred languages as country flags on the channel name (optional). Codes: `en,de,fr,es,pt,nl,pl,it,ru,tr,hu`. Use `none` to clear. |
 
 ### Create for a tag
 
 ```
 /diplomacy create_tag:ABCD
+/diplomacy create_tag:ABCD languages:en,fr
 ```
 
 Also happens automatically on verify/sync in **multi_alliance** mode when diplomacy is enabled and the player has an alliance tag — **unless** `/alliance defer-untracked-admirals` is on and that tag is not yet tracked / on the diplomacy map. Auto-create is intentional; it adds the tag to the diplomacy map (and therefore the morning scrape set). See [scrape set vs tracked vs diplomacy](#multi-alliance-scrape-set-vs-tracked-vs-diplomacy-read-this) above. Existing channels are **renamed** to the current slug and **moved** into the letter-bucket category (or legacy `category` if no map).
+
+**Preferred languages (optional):** when set, the channel name appends a box separator and flag emojis after the slug — e.g. `abcd-diplomacy┃🇬🇧🇫🇷`. Auto-created channels have no languages until you set them with `create_tag` + `languages:` (same command updates an existing mapped channel). Sync/rename preserves the stored languages.
 
 ### Sync / rebalance (letter buckets)
 
@@ -781,7 +785,7 @@ Same spirit as personal-channel rebalance. Progress posts on the slash command; 
 
 ```
 /diplomacy link_tag:ABCD channel:#abcd-diplo
-/diplomacy link_tag:ABCD channel:#abcd-diplo apply_permissions:false
+/diplomacy link_tag:ABCD channel:#abcd-diplo languages:en,de apply_permissions:false
 ```
 
 ### Status
