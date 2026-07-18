@@ -8,7 +8,7 @@ Release log for the STFC Discord bot (Cloudflare Worker). Versions use **MAJOR.M
 | **MINOR** | New user-facing capability (new slash area, cron product, admin workflow) |
 | **INCREMENTAL** | Fixes, polish, docs, refactors, small command option tweaks |
 
-**Current version:** **1.12.0**
+**Current version:** **1.13.0**
 
 **Sources of truth**
 
@@ -27,6 +27,10 @@ Bump all three together when cutting a release. Prefer a short entry under the n
 Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. **1.0.0** marks the alliance-management product that was prepared for public use. Later **1.x** minors track feature areas shipped in Jul 2026 (git history + migrations `001`–`027`).
 
 ---
+
+## 1.13.0 — Diplomacy gaps report + special channel (2026-07-18)
+
+`/diplomacy gaps:true` diffs tracked/verified tags vs the channel map. Optional non-listed alliances room via `special:create|link|clear` with `special_placement:special_category` (dedicated category) or `top_of_first` (pinned in first letter-bucket). Migration `040_diplomacy_special_channel.sql`.
 
 ## 1.12.0 — Diplomacy preferred languages (flag suffixes) (2026-07-18)
 

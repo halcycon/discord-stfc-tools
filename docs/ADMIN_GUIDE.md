@@ -753,6 +753,32 @@ Multi-alliance servers often have **dozens of tags** — Discord’s **50 channe
 | `create_missing` | With `sync_all`: also create channels for alliance tags on verified players |
 | `archive_unlinked` | With `sync_all`: move unlinked channels under diplomacy categories to archive (default true) |
 | `languages` | With `create_tag` / `link_tag`: preferred languages as country flags on the channel name (optional). Codes: `en,de,fr,es,pt,nl,pl,it,ru,tr,hu`. Use `none` to clear. |
+| `gaps` | Ephemeral report: tracked/verified tags missing channels, and channels not on explicit track |
+| `special` | `create` / `link` / `clear` — non-listed alliances room (not a tag in the channel map) |
+| `special_name` | Channel name for special room (default `non-listed-alliances`) |
+| `special_placement` | `special_category` (dedicated **Diplomacy Channels (Special)**) or `top_of_first` (pin at top of first letter-bucket) |
+| `special_category` | Optional category to use when placement is `special_category` |
+
+### Gaps (tracked / verified vs channels)
+
+```
+/diplomacy gaps:true
+```
+
+Shows tags on the explicit `/alliance track` list or on verified players that lack a diplomacy channel, and mapped channels that are not on the explicit track list.
+
+### Special (non-listed alliances) channel
+
+Catch-all room for alliances without their own channel. **Not** added to `diplomacy_channel_map` (does not enter morning scrape via diplomacy).
+
+```
+/diplomacy special:create special_name:non-listed-alliances special_placement:special_category
+/diplomacy special:link channel:#existing-room special_placement:top_of_first
+/diplomacy special:clear
+```
+
+- **`special_category`:** create/find `Diplomacy Channels (Special)` (or pass `special_category:`) and put the channel there.
+- **`top_of_first`:** after letter buckets exist, pin the channel at the top of the first A–… category. Run `sync_all` first if buckets are missing.
 
 ### Create for a tag
 

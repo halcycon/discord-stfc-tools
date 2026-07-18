@@ -34,9 +34,19 @@ import type { GuildConfig } from './types';
 
 const DEFAULT_DIPLOMACY_CATEGORY_NAME_TEMPLATE = 'Diplomacy Channels {range}';
 const DEFAULT_DIPLOMACY_ARCHIVE_NAME = 'Diplomacy Channels Archive';
+export const DEFAULT_DIPLOMACY_SPECIAL_NAME = 'non-listed-alliances';
+export const DEFAULT_DIPLOMACY_SPECIAL_CATEGORY_NAME = 'Diplomacy Channels (Special)';
 /** Discord channel names max 100; keep slug headroom for `┃` + flags. */
 const DIPLOMACY_NAME_MAX = 100;
 const DIPLOMACY_LANG_SEPARATOR = '┃';
+
+export type DiplomacySpecialPlacement = 'special_category' | 'top_of_first';
+
+export function normalizeDiplomacySpecialPlacement(
+	raw: string | null | undefined,
+): DiplomacySpecialPlacement {
+	return raw === 'top_of_first' ? 'top_of_first' : 'special_category';
+}
 
 const VIEW = 0x400;
 const SEND = 0x800;
@@ -420,6 +430,8 @@ export interface RebalanceDiplomacyResult {
 	summary: string;
 	/** Updated tag → channel map (includes newly created). */
 	channelMap: Record<string, string>;
+	specialChannelId?: string | null;
+	specialCategoryId?: string | null;
 }
 
 export interface PlanDiplomacyChannelsResult {
@@ -747,8 +759,20 @@ export async function rebalanceDiplomacyChannels(
 					...previousMapCategoryIds,
 					...leftoverByName,
 				]);
+				if (
+					config.diplomacy_special_category_id &&
+					/^\d{15,20}$/.test(config.diplomacy_special_category_id)
+				) {
+					cats.add(config.diplomacy_special_category_id);
+				}
 				cats.delete(archiveCategoryId);
 				const linkedIds = new Set(Object.values(channelMap));
+				if (
+					config.diplomacy_special_channel_id &&
+					/^\d{15,20}$/.test(config.diplomacy_special_channel_id)
+				) {
+					linkedIds.add(config.diplomacy_special_channel_id);
+				}
 				const unlinked = findUnlinkedMemberChannels(
 					channels,
 					cats,
@@ -783,18 +807,64 @@ export async function rebalanceDiplomacyChannels(
 		}
 	}
 
+	let specialChannelId = config.diplomacy_special_channel_id;
+	let specialCategoryId = config.diplomacy_special_category_id;
+	let specialSynced = false;
+	if (specialChannelId && /^\d{15,20}$/.test(specialChannelId)) {
+		await report(`⏳ Diplomacy sync: placing special (non-listed) channel…`);
+		const specialCfg: GuildConfig = {
+			...configWithMap,
+			diplomacy_channel_map: channelMap,
+			diplomacy_category_map: newMap,
+			diplomacy_special_channel_id: specialChannelId,
+		};
+		const specialResult = await ensureDiplomacySpecialChannel(token, specialCfg, guildId, {
+			applyPermissions: false,
+		});
+		if (specialResult.ok) {
+			specialChannelId = specialResult.channelId;
+			specialCategoryId = specialResult.categoryId;
+			specialSynced = true;
+			if (specialResult.moved) channelsMoved++;
+			if (specialResult.renamed) channelsRenamed++;
+		} else {
+			errors.push(`Special channel: ${specialResult.error}`);
+		}
+	}
+
 	await report(`⏳ Diplomacy sync: sorting channels alphabetically within categories…`);
 	let categoriesAlphaSorted = 0;
 	try {
 		const listed = await listGuildChannels(token, guildId);
+		const placement = normalizeDiplomacySpecialPlacement(config.diplomacy_special_placement);
+		const firstCat = sortedCategoryMapEntries(newMap)[0]?.categoryId ?? null;
 		const sortResult = await sortCategoryIdMapAlphabetically(
 			token,
 			guildId,
 			Object.values(newMap),
 			listed,
+			placement === 'top_of_first' && specialChannelId
+				? {
+						pinFirstChannelId: specialChannelId,
+						pinFirstInCategoryId: firstCat,
+					}
+				: undefined,
 		);
 		categoriesAlphaSorted = sortResult.categoriesSorted;
 		errors.push(...sortResult.errors);
+		if (
+			placement === 'special_category' &&
+			specialCategoryId &&
+			/^\d{15,20}$/.test(specialCategoryId)
+		) {
+			try {
+				await sortCategoryChannelsAlphabetically(token, guildId, specialCategoryId, listed);
+			} catch (error) {
+				errors.push(
+					`Special category sort: ${error instanceof Error ? error.message : 'unknown'}`,
+				);
+			}
+		}
 	} catch (error) {
 		errors.push(
 			`Alphabetical sort failed: ${error instanceof Error ? error.message : 'unknown'}`,
@@ -813,6 +883,7 @@ export async function rebalanceDiplomacyChannels(
 		`• Channels archived: ${channelsArchived}\n` +
 		`• Channels failed: ${channelsFailed}\n` +
 		`• Categories A–Z sorted: ${categoriesAlphaSorted}\n` +
+		`• Special channel: ${specialSynced && specialChannelId ? `<#${specialChannelId}>` : specialChannelId ? 'configured (sync issue)' : 'none'}\n` +
 		`• Archive: ${archiveCategoryId ? `<#${archiveCategoryId}>` : 'none'}\n` +
 		`• Category map: ${
 			Object.entries(newMap)
@@ -838,6 +909,8 @@ export async function rebalanceDiplomacyChannels(
 		errors,
 		summary,
 		channelMap,
+		specialChannelId,
+		specialCategoryId,
 	};
 }
 
@@ -853,4 +926,323 @@ export function formatDiplomacyChannelMap(
 			return flags ? `[${tag}]→<#${id}> ${flags}` : `[${tag}]→<#${id}>`;
 		})
 		.join(', ');
+}
+
+export interface DiplomacyGapsReport {
+	trackedNoChannel: string[];
+	verifiedNoChannel: string[];
+	channelNotTracked: Array<{ tag: string; onVerified: boolean }>;
+	summary: string;
+}
+
+function sortedUniqueTags(tags: Iterable<string>): string[] {
+	const set = new Set<string>();
+	for (const t of tags) {
+		const n = normalizeAllianceTag(t);
+		if (n) set.add(n);
+	}
+	return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+/** Compare tracked / verified tags against the diplomacy channel map. */
+export function formatDiplomacyGapsReport(input: {
+	trackedTags: readonly string[];
+	diplomacyTags: readonly string[];
+	verifiedTags: readonly string[];
+}): DiplomacyGapsReport {
+	const tracked = sortedUniqueTags(input.trackedTags);
+	const diplomacy = sortedUniqueTags(input.diplomacyTags);
+	const verified = sortedUniqueTags(input.verifiedTags);
+	const dipSet = new Set(diplomacy);
+	const trackSet = new Set(tracked);
+	const verifiedSet = new Set(verified);
+
+	const trackedNoChannel = tracked.filter((t) => !dipSet.has(t));
+	const verifiedNoChannel = verified.filter((t) => !dipSet.has(t));
+	const channelNotTracked = diplomacy.map((tag) => ({
+		tag,
+		onVerified: verifiedSet.has(tag),
+	})).filter(({ tag }) => !trackSet.has(tag));
+
+	const fmt = (tags: string[]) =>
+		tags.length ? tags.map((t) => `\`${t}\``).join(', ') : '_none_';
+	const fmtChannel = (rows: Array<{ tag: string; onVerified: boolean }>) =>
+		rows.length
+			? rows
+					.map(
+						(r) =>
+							`\`${r.tag}\`${r.onVerified ? ' (on verified player)' : ''}`,
+					)
+					.join(', ')
+			: '_none_';
+
+	const summary = (
+		`🔍 **Diplomacy gaps**\n` +
+		`• Tracked, no channel (${trackedNoChannel.length}): ${fmt(trackedNoChannel)}\n` +
+		`• Verified tags, no channel (${verifiedNoChannel.length}): ${fmt(verifiedNoChannel)}\n` +
+		`• Channel, not on explicit track (${channelNotTracked.length}): ${fmtChannel(channelNotTracked)}\n\n` +
+		`Link missing: \`/diplomacy link_tag:TAG channel:#…\` · Track: \`/alliance track tag:TAG\``
+	).slice(0, 1900);
+
+	return { trackedNoChannel, verifiedNoChannel, channelNotTracked, summary };
+}
+
+export function slugDiplomacySpecialName(name: string): string {
+	const folded = latinizePlayerName(name.trim() || DEFAULT_DIPLOMACY_SPECIAL_NAME);
+	return (
+		folded
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/-{2,}/g, '-')
+			.replace(/^-|-$/g, '')
+			.slice(0, DIPLOMACY_NAME_MAX) || DEFAULT_DIPLOMACY_SPECIAL_NAME
+	);
+}
+
+export function resolveDiplomacySpecialName(
+	config: Pick<GuildConfig, 'diplomacy_special_name'>,
+	override?: string | null,
+): string {
+	const raw = override?.trim() || config.diplomacy_special_name?.trim() || DEFAULT_DIPLOMACY_SPECIAL_NAME;
+	return slugDiplomacySpecialName(raw);
+}
+
+export function formatDiplomacySpecialStatus(
+	config: Pick<
+		GuildConfig,
+		| 'diplomacy_special_channel_id'
+		| 'diplomacy_special_name'
+		| 'diplomacy_special_placement'
+		| 'diplomacy_special_category_id'
+	>,
+): string {
+	const id = config.diplomacy_special_channel_id;
+	if (!id) return 'none';
+	const name = resolveDiplomacySpecialName(config);
+	const placement = normalizeDiplomacySpecialPlacement(config.diplomacy_special_placement);
+	const cat =
+		placement === 'special_category' && config.diplomacy_special_category_id
+			? ` in <#${config.diplomacy_special_category_id}>`
+			: placement === 'top_of_first'
+				? ' (top of first letter-bucket)'
+				: '';
+	return `<#${id}> (\`${name}\`, ${placement}${cat})`;
+}
+
+export type DiplomacySpecialResult =
+	| {
+			ok: true;
+			channelId: string;
+			categoryId: string | null;
+			created: boolean;
+			moved: boolean;
+			renamed: boolean;
+			name: string;
+			placement: DiplomacySpecialPlacement;
+	  }
+	| { ok: false; error: string };
+
+async function resolveSpecialCategory(
+	token: string,
+	guildId: string,
+	config: GuildConfig,
+	opts?: { categoryId?: string | null; createIfMissing?: boolean },
+): Promise<{ categoryId: string | null; created: boolean; error?: string }> {
+	const wantId = opts?.categoryId?.trim() || config.diplomacy_special_category_id;
+	if (wantId && /^\d{15,20}$/.test(wantId)) {
+		const ch = await getGuildChannel(token, wantId);
+		if (ch && ch.type === 4) return { categoryId: wantId, created: false };
+		return { categoryId: null, created: false, error: 'special_category is not a valid category.' };
+	}
+
+	try {
+		const listed = await listGuildChannels(token, guildId);
+		const byName = listed.find(
+			(ch) => ch.type === 4 && ch.name === DEFAULT_DIPLOMACY_SPECIAL_CATEGORY_NAME,
+		);
+		if (byName) return { categoryId: byName.id, created: false };
+		if (opts?.createIfMissing === false) {
+			return { categoryId: null, created: false };
+		}
+		const created = await createGuildCategory(token, guildId, DEFAULT_DIPLOMACY_SPECIAL_CATEGORY_NAME);
+		return { categoryId: created.id, created: true };
+	} catch (error) {
+		return {
+			categoryId: null,
+			created: false,
+			error: error instanceof Error ? error.message : 'Failed to resolve special category',
+		};
+	}
+}
+
+function firstLetterBucketCategoryId(config: GuildConfig): string | null {
+	const entries = sortedCategoryMapEntries(config.diplomacy_category_map);
+	if (entries[0]?.categoryId && /^\d{15,20}$/.test(entries[0].categoryId)) {
+		return entries[0].categoryId;
+	}
+	if (config.diplomacy_category_id && /^\d{15,20}$/.test(config.diplomacy_category_id)) {
+		return config.diplomacy_category_id;
+	}
+	return null;
+}
+
+/**
+ * Create or refresh the non-listed-alliances diplomacy channel (not tagged in the map).
+ */
+export async function ensureDiplomacySpecialChannel(
+	token: string,
+	config: GuildConfig,
+	guildId: string,
+	opts?: {
+		name?: string | null;
+		placement?: DiplomacySpecialPlacement | null;
+		categoryId?: string | null;
+		applyPermissions?: boolean;
+	},
+): Promise<DiplomacySpecialResult> {
+	if (!diplomacyChannelsEnabled(config)) {
+		return { ok: false, error: 'Diplomacy channels are not enabled.' };
+	}
+
+	const placement = normalizeDiplomacySpecialPlacement(
+		opts?.placement ?? config.diplomacy_special_placement,
+	);
+	const desiredName = resolveDiplomacySpecialName(config, opts?.name);
+	let parentId: string | null = null;
+	let categoryCreated = false;
+
+	if (placement === 'special_category') {
+		const resolved = await resolveSpecialCategory(token, guildId, config, {
+			categoryId: opts?.categoryId,
+			createIfMissing: true,
+		});
+		if (resolved.error || !resolved.categoryId) {
+			return { ok: false, error: resolved.error || 'Could not resolve special category.' };
+		}
+		parentId = resolved.categoryId;
+		categoryCreated = resolved.created;
+	} else {
+		parentId = firstLetterBucketCategoryId(config);
+		if (!parentId) {
+			return {
+				ok: false,
+				error:
+					'No letter-bucket category yet. Run `/diplomacy sync_all:true` first, or use placement:special_category.',
+			};
+		}
+	}
+
+	const existingId = config.diplomacy_special_channel_id;
+	try {
+		if (existingId && /^\d{15,20}$/.test(existingId)) {
+			const existing = await getGuildChannel(token, existingId);
+			if (existing && isLinkableGuildTextChannel(existing.type)) {
+				const updates: { name?: string; parent_id?: string } = {};
+				if (existing.name !== desiredName) updates.name = desiredName;
+				if (parentId && existing.parent_id !== parentId) updates.parent_id = parentId;
+				if (updates.name || updates.parent_id) {
+					await patchGuildChannel(token, existingId, updates);
+				}
+				if (opts?.applyPermissions !== false) {
+					await applyDiplomacyChannelPermissions(token, guildId, existingId, config);
+				}
+				if (parentId) {
+					await sortCategoryChannelsAlphabetically(token, guildId, parentId, undefined, {
+						pinFirstChannelId:
+							placement === 'top_of_first' ? existingId : undefined,
+					});
+				}
+				return {
+					ok: true,
+					channelId: existingId,
+					categoryId: parentId,
+					created: false,
+					moved: Boolean(updates.parent_id),
+					renamed: Boolean(updates.name),
+					name: desiredName,
+					placement,
+				};
+			}
+		}
+
+		const botUserId = await getBotUserId(token);
+		const channel = await createGuildTextChannel(token, guildId, desiredName, {
+			parentId: parentId ?? undefined,
+			topic: 'Diplomacy for alliances without a dedicated channel',
+			permissionOverwrites: buildCreateOverwrites(guildId, botUserId, config),
+		});
+		if (parentId) {
+			await sortCategoryChannelsAlphabetically(token, guildId, parentId, undefined, {
+				pinFirstChannelId: placement === 'top_of_first' ? channel.id : undefined,
+			});
+		}
+		return {
+			ok: true,
+			channelId: channel.id,
+			categoryId: parentId,
+			created: true,
+			moved: false,
+			renamed: false,
+			name: desiredName,
+			placement,
+		};
+	} catch (error) {
+		return {
+			ok: false,
+			error:
+				(categoryCreated ? '(special category created) ' : '') +
+				(error instanceof Error ? error.message : 'unknown error'),
+		};
+	}
+}
+
+/** Adopt an existing text channel as the non-listed alliances diplomacy room. */
+export async function linkDiplomacySpecialChannel(
+	token: string,
+	config: GuildConfig,
+	guildId: string,
+	channelId: string,
+	opts?: {
+		name?: string | null;
+		placement?: DiplomacySpecialPlacement | null;
+		categoryId?: string | null;
+		applyPermissions?: boolean;
+		knownChannel?: Pick<DiscordChannel, 'id' | 'name' | 'type' | 'parent_id' | 'guild_id'> | null;
+	},
+): Promise<DiplomacySpecialResult> {
+	if (!/^\d{15,20}$/.test(channelId)) {
+		return { ok: false, error: 'Invalid channel id.' };
+	}
+
+	let channel: DiscordChannel | Pick<DiscordChannel, 'id' | 'name' | 'type' | 'parent_id' | 'guild_id'>;
+	if (opts?.knownChannel && opts.knownChannel.id === channelId) {
+		channel = opts.knownChannel;
+	} else {
+		const fetched = await fetchGuildChannel(token, channelId);
+		if (!fetched.ok) return { ok: false, error: fetched.error };
+		channel = fetched.channel;
+	}
+
+	if (channel.guild_id && channel.guild_id !== guildId) {
+		return { ok: false, error: 'That channel belongs to a different server.' };
+	}
+	if (!isLinkableGuildTextChannel(channel.type)) {
+		return {
+			ok: false,
+			error:
+				`#${channel.name || channelId} is a **${describeChannelType(channel.type)}** channel — ` +
+				`link a **text** or **announcement** channel.`,
+		};
+	}
+
+	const withId: GuildConfig = {
+		...config,
+		diplomacy_special_channel_id: channelId,
+	};
+	return ensureDiplomacySpecialChannel(token, withId, guildId, {
+		name: opts?.name,
+		placement: opts?.placement,
+		categoryId: opts?.categoryId,
+		applyPermissions: opts?.applyPermissions,
+	});
 }

@@ -3,8 +3,10 @@ import {
 	diplomacyChannelsEnabled,
 	diplomacyWriteRoleIds,
 	formatDiplomacyChannelName,
+	formatDiplomacyGapsReport,
 	planDiplomacyChannels,
 	slugDiplomacyChannelName,
+	slugDiplomacySpecialName,
 	withDiplomacyPreferredLocales,
 } from '../src/diplomacy-channels';
 import { parseDiplomacyLanguagesOption } from '../src/i18n/locales';
@@ -41,6 +43,10 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		diplomacy_archive_category_id: null,
 		diplomacy_channel_map: {},
 		diplomacy_preferred_locales: {},
+		diplomacy_special_channel_id: null,
+		diplomacy_special_name: null,
+		diplomacy_special_placement: 'special_category',
+		diplomacy_special_category_id: null,
 		tracked_alliance_tags: [],
 		defer_untracked_admiral_roles: false,
 		diplomacy_everyone_can_view: true,
@@ -112,6 +118,23 @@ describe('diplomacy-channels', () => {
 		const set = withDiplomacyPreferredLocales({}, 'abcd', ['en', 'de']);
 		expect(set).toEqual({ ABCD: ['en', 'de'] });
 		expect(withDiplomacyPreferredLocales(set, 'ABCD', [])).toEqual({});
+	});
+
+	it('formatDiplomacyGapsReport diffs tracked/verified vs channels', () => {
+		const report = formatDiplomacyGapsReport({
+			trackedTags: ['ABCD', 'EFGH'],
+			diplomacyTags: ['ABCD', 'WXYZ'],
+			verifiedTags: ['ABCD', 'QRST'],
+		});
+		expect(report.trackedNoChannel).toEqual(['EFGH']);
+		expect(report.verifiedNoChannel).toEqual(['QRST']);
+		expect(report.channelNotTracked).toEqual([{ tag: 'WXYZ', onVerified: false }]);
+		expect(report.summary).toContain('Diplomacy gaps');
+	});
+
+	it('slugDiplomacySpecialName sanitizes custom names', () => {
+		expect(slugDiplomacySpecialName('Non-Listed Alliances')).toBe('non-listed-alliances');
+		expect(slugDiplomacySpecialName('')).toBe('non-listed-alliances');
 	});
 
 	it('diplomacyWriteRoleIds merges write roles and rank roles', () => {

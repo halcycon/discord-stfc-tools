@@ -30,26 +30,60 @@ export function categoryChannelsNeedAlphaSort(children: DiscordChannel[]): boole
 	return desired.some((ch, i) => ch.id !== current[i].id);
 }
 
+export type SortCategoryChannelsOptions = {
+	/** Force this channel to position 0; remaining children A–Z. */
+	pinFirstChannelId?: string | null;
+};
+
+function orderCategoryChildren(
+	children: DiscordChannel[],
+	pinFirstChannelId?: string | null,
+): DiscordChannel[] {
+	const pinId =
+		pinFirstChannelId && /^\d{15,20}$/.test(pinFirstChannelId) ? pinFirstChannelId : null;
+	const pinned = pinId ? children.find((ch) => ch.id === pinId) : undefined;
+	const rest = pinned ? children.filter((ch) => ch.id !== pinned.id) : children;
+	const sortedRest = [...rest].sort((a, b) => compareChannelNamesAlpha(a.name, b.name));
+	return pinned ? [pinned, ...sortedRest] : sortedRest;
+}
+
+function categoryChannelsNeedReorder(
+	children: DiscordChannel[],
+	pinFirstChannelId?: string | null,
+): boolean {
+	if (children.length <= 1) {
+		if (children.length === 1 && pinFirstChannelId && children[0]!.id !== pinFirstChannelId) {
+			return false;
+		}
+		return false;
+	}
+	const desired = orderCategoryChildren(children, pinFirstChannelId);
+	const current = [...children].sort(compareDiscordSiblingOrder);
+	return desired.some((ch, i) => ch.id !== current[i]?.id);
+}
+
 /**
  * Reorder text/announcement channels under a category alphabetically by name.
+ * Optional `pinFirstChannelId` keeps that channel at the top.
  */
 export async function sortCategoryChannelsAlphabetically(
 	token: string,
 	guildId: string,
 	categoryId: string,
 	allChannels?: DiscordChannel[],
+	opts?: SortCategoryChannelsOptions,
 ): Promise<{ sorted: number; changed: boolean }> {
 	const channels = allChannels ?? (await listGuildChannels(token, guildId));
 	const children = channels.filter(
 		(ch) => ch.parent_id === categoryId && isLinkableGuildTextChannel(ch.type),
 	);
 
-	if (children.length <= 1) return { sorted: children.length, changed: false };
-	if (!categoryChannelsNeedAlphaSort(children)) {
+	if (children.length === 0) return { sorted: 0, changed: false };
+	if (!categoryChannelsNeedReorder(children, opts?.pinFirstChannelId)) {
 		return { sorted: children.length, changed: false };
 	}
 
-	const desired = [...children].sort((a, b) => compareChannelNamesAlpha(a.name, b.name));
+	const desired = orderCategoryChildren(children, opts?.pinFirstChannelId);
 
 	// Unique sequential positions among siblings. Do not send parent_id (already correct) —
 	// re-sending parent can no-op or reshuffle oddly. Do not use category.position+i as a base:
@@ -71,6 +105,10 @@ export async function sortCategoryIdMapAlphabetically(
 	guildId: string,
 	categoryIds: Iterable<string>,
 	allChannels?: DiscordChannel[],
+	opts?: SortCategoryChannelsOptions & {
+		/** Only apply pinFirstChannelId when sorting this category. */
+		pinFirstInCategoryId?: string | null;
+	},
 ): Promise<{ categoriesSorted: number; channelsTouched: number; errors: string[] }> {
 	const channels = allChannels ?? (await listGuildChannels(token, guildId));
 	let categoriesSorted = 0;
@@ -81,11 +119,14 @@ export async function sortCategoryIdMapAlphabetically(
 		if (!/^\d{15,20}$/.test(categoryId) || seen.has(categoryId)) continue;
 		seen.add(categoryId);
 		try {
+			const pin =
+				opts?.pinFirstInCategoryId === categoryId ? opts.pinFirstChannelId : undefined;
 			const result = await sortCategoryChannelsAlphabetically(
 				token,
 				guildId,
 				categoryId,
 				channels,
+				pin ? { pinFirstChannelId: pin } : undefined,
 			);
 			if (result.changed) {
 				categoriesSorted++;

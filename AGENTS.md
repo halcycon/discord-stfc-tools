@@ -215,6 +215,7 @@ migrations/
   032_survey_closes_at.sql  # optional closes_in / closes_at auto-close
   033_web_admin_roles.sql  # web_admin_role_ids for admin SPA
   039_diplomacy_preferred_locales.sql  # per-tag preferred langs → flag emoji channel suffixes
+  040_diplomacy_special_channel.sql  # non-listed alliances diplomacy channel + placement
 
 archive/officers/          # REMOVED officer feature (scripts, SQL, assets, docs)
 

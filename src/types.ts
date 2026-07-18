@@ -119,6 +119,16 @@ export interface GuildConfig {
 	 */
 	diplomacy_preferred_locales: Record<string, string[]>;
 	/**
+	 * Optional “non-listed alliances” diplomacy channel (not a tag in diplomacy_channel_map).
+	 */
+	diplomacy_special_channel_id: string | null;
+	/** Display/slug name for the special channel (default non-listed-alliances). */
+	diplomacy_special_name: string | null;
+	/** `special_category` | `top_of_first` */
+	diplomacy_special_placement: 'special_category' | 'top_of_first';
+	/** Parent category when placement is special_category. */
+	diplomacy_special_category_id: string | null;
+	/**
 	 * Multi-alliance: tags explicitly tracked for morning scrape / `/alliance track`
 	 * (in addition to verified player tags ∪ diplomacy map).
 	 */

@@ -136,6 +136,11 @@ function mapGuildConfig(row: any): GuildConfig {
 		diplomacy_archive_category_id: row.diplomacy_archive_category_id ?? null,
 		diplomacy_channel_map: parseJsonObject(row.diplomacy_channel_map),
 		diplomacy_preferred_locales: parseDiplomacyPreferredLocales(row.diplomacy_preferred_locales),
+		diplomacy_special_channel_id: row.diplomacy_special_channel_id ?? null,
+		diplomacy_special_name: row.diplomacy_special_name ?? null,
+		diplomacy_special_placement:
+			row.diplomacy_special_placement === 'top_of_first' ? 'top_of_first' : 'special_category',
+		diplomacy_special_category_id: row.diplomacy_special_category_id ?? null,
 		tracked_alliance_tags: parseTrackedAllianceTags(row.tracked_alliance_tags),
 		defer_untracked_admiral_roles: Boolean(row.defer_untracked_admiral_roles ?? 0),
 		diplomacy_everyone_can_view: row.diplomacy_everyone_can_view === undefined || row.diplomacy_everyone_can_view === null
@@ -436,7 +441,11 @@ async function upsertDiplomacyConfigFields(
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_view_role_ids') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_write_role_ids') ||
 		Object.prototype.hasOwnProperty.call(config, 'diplomacy_write_ranks') ||
-		Object.prototype.hasOwnProperty.call(config, 'diplomacy_name_template');
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_name_template') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_special_channel_id') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_special_name') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_special_placement') ||
+		Object.prototype.hasOwnProperty.call(config, 'diplomacy_special_category_id');
 	if (has) {
 		const categoryProvided = Object.prototype.hasOwnProperty.call(config, 'diplomacy_category_id');
 		const archiveProvided = Object.prototype.hasOwnProperty.call(
@@ -447,6 +456,22 @@ async function upsertDiplomacyConfigFields(
 		const localesProvided = Object.prototype.hasOwnProperty.call(
 			config,
 			'diplomacy_preferred_locales',
+		);
+		const specialChannelProvided = Object.prototype.hasOwnProperty.call(
+			config,
+			'diplomacy_special_channel_id',
+		);
+		const specialNameProvided = Object.prototype.hasOwnProperty.call(
+			config,
+			'diplomacy_special_name',
+		);
+		const specialPlacementProvided = Object.prototype.hasOwnProperty.call(
+			config,
+			'diplomacy_special_placement',
+		);
+		const specialCategoryProvided = Object.prototype.hasOwnProperty.call(
+			config,
+			'diplomacy_special_category_id',
 		);
 
 		await db
@@ -463,6 +488,10 @@ async function upsertDiplomacyConfigFields(
 				 diplomacy_write_role_ids = COALESCE(?, diplomacy_write_role_ids),
 				 diplomacy_write_ranks = COALESCE(?, diplomacy_write_ranks),
 				 diplomacy_name_template = CASE WHEN ? = 1 THEN ? ELSE diplomacy_name_template END,
+				 diplomacy_special_channel_id = CASE WHEN ? = 1 THEN ? ELSE diplomacy_special_channel_id END,
+				 diplomacy_special_name = CASE WHEN ? = 1 THEN ? ELSE diplomacy_special_name END,
+				 diplomacy_special_placement = CASE WHEN ? = 1 THEN ? ELSE diplomacy_special_placement END,
+				 diplomacy_special_category_id = CASE WHEN ? = 1 THEN ? ELSE diplomacy_special_category_id END,
 				 updated_at = datetime('now')
 				 WHERE guild_id = ?`,
 			)
@@ -486,6 +515,22 @@ async function upsertDiplomacyConfigFields(
 				config.diplomacy_write_ranks ? JSON.stringify(config.diplomacy_write_ranks) : null,
 				nameProvided ? 1 : 0,
 				nameProvided ? (config.diplomacy_name_template?.trim() || null) : null,
+				specialChannelProvided ? 1 : 0,
+				specialChannelProvided
+					? config.diplomacy_special_channel_id?.trim() || null
+					: null,
+				specialNameProvided ? 1 : 0,
+				specialNameProvided ? config.diplomacy_special_name?.trim() || null : null,
+				specialPlacementProvided ? 1 : 0,
+				specialPlacementProvided
+					? config.diplomacy_special_placement === 'top_of_first'
+						? 'top_of_first'
+						: 'special_category'
+					: null,
+				specialCategoryProvided ? 1 : 0,
+				specialCategoryProvided
+					? config.diplomacy_special_category_id?.trim() || null
+					: null,
 				config.guild_id,
 			)
 			.run();

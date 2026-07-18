@@ -1522,6 +1522,46 @@ const commands = [
 							},
 							{
 								type: 5,
+								name: 'gaps',
+								description: 'Compare tracked/verified tags vs diplomacy channel map',
+								required: false,
+							},
+							{
+								type: 3,
+								name: 'special',
+								description: 'Non-listed alliances channel: create, link (+channel), or clear',
+								required: false,
+								choices: [
+									{ name: 'create', value: 'create' },
+									{ name: 'link', value: 'link' },
+									{ name: 'clear', value: 'clear' },
+								],
+							},
+							{
+								type: 3,
+								name: 'special_name',
+								description: 'Name for special channel (default non-listed-alliances)',
+								required: false,
+							},
+							{
+								type: 3,
+								name: 'special_placement',
+								description: 'special_category (default) or top_of_first',
+								required: false,
+								choices: [
+									{ name: 'special_category', value: 'special_category' },
+									{ name: 'top_of_first', value: 'top_of_first' },
+								],
+							},
+							{
+								type: 7,
+								name: 'special_category',
+								description: 'Category for special channel when placement is special_category',
+								required: false,
+								channel_types: [4],
+							},
+							{
+								type: 5,
 								name: 'apply_permissions',
 								description: 'When linking/syncing, rewrite perms from config (default true)',
 								required: false,
@@ -1556,18 +1596,6 @@ const commands = [
 							},
 							{
 								type: 5,
-								name: 'create_categories',
-								description: 'With sync_all: create missing letter-bucket categories (default true)',
-								required: false,
-							},
-							{
-								type: 5,
-								name: 'rename_categories',
-								description: 'With sync_all: rename categories to template (default true)',
-								required: false,
-							},
-							{
-								type: 5,
 								name: 'create_missing',
 								description: 'With sync_all: also create channels for verified alliance tags',
 								required: false,
@@ -1585,13 +1613,6 @@ const commands = [
 								description: 'With sync_all: archive category target',
 								required: false,
 								channel_types: [4],
-							},
-							{
-								type: 3,
-								name: 'archive_name',
-								description:
-									'With sync_all: find/create archive by name (default Diplomacy Channels Archive)',
-								required: false,
 							},
 						],
 	},

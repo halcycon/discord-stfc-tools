@@ -75,10 +75,16 @@ import { createVerificationLogChannel } from './verification-log';
 import {
 	diplomacyChannelsEnabled,
 	ensureDiplomacyChannel,
+	ensureDiplomacySpecialChannel,
 	formatDiplomacyChannelMap,
+	formatDiplomacyGapsReport,
+	formatDiplomacySpecialStatus,
 	linkDiplomacyChannel,
+	linkDiplomacySpecialChannel,
+	normalizeDiplomacySpecialPlacement,
 	planDiplomacyChannels,
 	rebalanceDiplomacyChannels,
+	resolveDiplomacySpecialName,
 	withDiplomacyPreferredLocales,
 } from './diplomacy-channels';
 import { formatLocaleFlagSuffix, parseDiplomacyLanguagesOption } from './i18n/locales';
@@ -2025,6 +2031,165 @@ async function handleDiplomacyChannelsCommand(
 		});
 	}
 
+	const gapsRaw = getOptionValue(options, 'gaps');
+	const gaps = gapsRaw === true || gapsRaw === 'true';
+	if (gaps) {
+		const players = await listActiveVerifiedPlayers(env.STFC_DB, guildId);
+		const verifiedTags = players
+			.map((p) => p.alliance_tag?.trim())
+			.filter((t): t is string => Boolean(t));
+		const report = formatDiplomacyGapsReport({
+			trackedTags: config.tracked_alliance_tags ?? [],
+			diplomacyTags: Object.keys(config.diplomacy_channel_map ?? {}),
+			verifiedTags,
+		});
+		return interactionResponse(report.summary, true);
+	}
+
+	const specialAction = String(getOptionValue(options, 'special') ?? '')
+		.trim()
+		.toLowerCase();
+	const specialClear = specialAction === 'clear';
+	const specialCreate = specialAction === 'create';
+	const specialLink = specialAction === 'link';
+	const specialNameRaw = (getOptionValue(options, 'special_name') as string | undefined)?.trim();
+	const specialPlacementRaw = (getOptionValue(options, 'special_placement') as string | undefined)
+		?.trim();
+	const specialCategoryOpt = getOptionValue(options, 'special_category');
+
+	if (specialAction && !specialClear && !specialCreate && !specialLink) {
+		return interactionResponse(
+			'❌ `special:` must be `create`, `link`, or `clear`.',
+			true,
+		);
+	}
+
+	if (specialClear) {
+		await upsertGuildConfig(env.STFC_DB, {
+			guild_id: guildId,
+			diplomacy_special_channel_id: null,
+			diplomacy_special_category_id: null,
+		});
+		await postAuditLog(env, config, {
+			title: 'Diplomacy special channel cleared',
+			description: 'Unlinked non-listed alliances channel (Discord channel kept).',
+			actorId,
+			source: 'admin',
+			color: AuditColor.warn,
+		});
+		return interactionResponse(
+			'✅ Cleared special (non-listed) diplomacy channel link. Discord channel was not deleted.',
+			true,
+		);
+	}
+
+	if (specialCreate || specialLink) {
+		if (!env.DISCORD_BOT_TOKEN) {
+			return interactionResponse('❌ DISCORD_BOT_TOKEN not configured.', true);
+		}
+		if (!diplomacyChannelsEnabled(config)) {
+			await upsertGuildConfig(env.STFC_DB, { guild_id: guildId, diplomacy_enabled: true });
+			config = (await getGuildConfig(env.STFC_DB, guildId))!;
+		}
+
+		const placement = specialPlacementRaw
+			? normalizeDiplomacySpecialPlacement(specialPlacementRaw)
+			: normalizeDiplomacySpecialPlacement(config.diplomacy_special_placement);
+		const categoryId =
+			specialCategoryOpt != null && /^\d{15,20}$/.test(String(specialCategoryOpt))
+				? String(specialCategoryOpt)
+				: undefined;
+
+		if (specialNameRaw || specialPlacementRaw || categoryId) {
+			await upsertGuildConfig(env.STFC_DB, {
+				guild_id: guildId,
+				...(specialNameRaw
+					? { diplomacy_special_name: resolveDiplomacySpecialName(config, specialNameRaw) }
+					: {}),
+				...(specialPlacementRaw ? { diplomacy_special_placement: placement } : {}),
+				...(categoryId ? { diplomacy_special_category_id: categoryId } : {}),
+			});
+			config = (await getGuildConfig(env.STFC_DB, guildId))!;
+		}
+
+		let result;
+		if (specialLink) {
+			const channelId = channelOpt != null ? String(channelOpt) : '';
+			if (!/^\d{15,20}$/.test(channelId)) {
+				return interactionResponse(
+					'❌ `special_link` requires a valid `channel:`.',
+					true,
+				);
+			}
+			result = await linkDiplomacySpecialChannel(
+				env.DISCORD_BOT_TOKEN,
+				config,
+				guildId,
+				channelId,
+				{
+					name: specialNameRaw,
+					placement,
+					categoryId,
+					applyPermissions,
+					knownChannel: (() => {
+						const ch = resolvedChannels?.[channelId];
+						if (!ch) return null;
+						return {
+							id: ch.id,
+							name: ch.name ?? '',
+							type: ch.type ?? -1,
+							parent_id: ch.parent_id ?? null,
+							guild_id: ch.guild_id ?? guildId,
+						};
+					})(),
+				},
+			);
+		} else {
+			result = await ensureDiplomacySpecialChannel(
+				env.DISCORD_BOT_TOKEN,
+				config,
+				guildId,
+				{
+					name: specialNameRaw,
+					placement,
+					categoryId,
+					applyPermissions,
+				},
+			);
+		}
+
+		if (!result.ok) {
+			return interactionResponse(`❌ Special channel failed: ${result.error}`, true);
+		}
+
+		await upsertGuildConfig(env.STFC_DB, {
+			guild_id: guildId,
+			diplomacy_enabled: true,
+			diplomacy_special_channel_id: result.channelId,
+			diplomacy_special_name: result.name,
+			diplomacy_special_placement: result.placement,
+			diplomacy_special_category_id:
+				result.placement === 'special_category' ? result.categoryId : null,
+		});
+		await postAuditLog(env, config, {
+			title: specialLink ? 'Diplomacy special channel linked' : 'Diplomacy special channel updated',
+			description: `<#${result.channelId}> (\`${result.name}\`, ${result.placement})`,
+			actorId,
+			source: 'admin',
+			color: AuditColor.success,
+		});
+		return interactionResponse(
+			`✅ ${result.created ? 'Created' : specialLink ? 'Linked' : 'Updated'} special diplomacy channel: <#${result.channelId}>` +
+				` (\`${result.name}\`, ${result.placement})` +
+				(result.renamed ? ' (renamed)' : '') +
+				(result.moved ? ' (moved)' : '') +
+				(applyPermissions
+					? ' Applied view/write permissions.'
+					: ' Left permissions unchanged where possible.'),
+			true,
+		);
+	}
+
 	if (createTagRaw) {
 		if (!env.DISCORD_BOT_TOKEN) return interactionResponse('❌ DISCORD_BOT_TOKEN not configured.', true);
 		if (!diplomacyChannelsEnabled(config)) {
@@ -2290,6 +2455,12 @@ async function handleDiplomacyChannelsCommand(
 						diplomacy_channel_map: result.channelMap,
 						diplomacy_category_map: result.categoryMap,
 						diplomacy_archive_category_id: result.archiveCategoryId,
+						...(result.specialChannelId !== undefined
+							? { diplomacy_special_channel_id: result.specialChannelId }
+							: {}),
+						...(result.specialCategoryId !== undefined
+							? { diplomacy_special_category_id: result.specialCategoryId }
+							: {}),
 					});
 					const after = await getGuildConfig(env.STFC_DB, guildId);
 					await postAuditLog(env, after, {
@@ -2343,12 +2514,16 @@ async function handleDiplomacyChannelsCommand(
 			`• View roles: ${refreshed.diplomacy_view_role_ids.map((id) => `<@&${id}>`).join(', ') || 'none'}\n` +
 			`• Write roles: ${refreshed.diplomacy_write_role_ids.map((id) => `<@&${id}>`).join(', ') || 'none'}\n` +
 			`• Write ranks: ${refreshed.diplomacy_write_ranks.join(', ') || 'none'}\n` +
+			`• Special (non-listed): ${formatDiplomacySpecialStatus(refreshed)}\n` +
 			`• Channels: ${formatDiplomacyChannelMap(refreshed.diplomacy_channel_map, refreshed.diplomacy_preferred_locales)}\n\n` +
 			`Examples:\n` +
 			`\`/diplomacy enable:true write_roles:Diplomat write_ranks:Commodore,Admiral everyone_can_view:true\`\n` +
+			`\`/diplomacy gaps:true\` — tracked/verified vs channel map\n` +
 			`\`/diplomacy create_tag:ABCD\`\n` +
 			`\`/diplomacy create_tag:ABCD languages:en,fr\` — set preferred languages (flags on name)\n` +
 			`\`/diplomacy link_tag:ABCD channel:#abcd-diplo languages:en,de apply_permissions:false\`\n` +
+			`\`/diplomacy special:create special_name:non-listed-alliances special_placement:special_category\`\n` +
+			`\`/diplomacy special:link channel:#room special_placement:top_of_first\`\n` +
 			`\`/diplomacy sync_all:true create_missing:true\` — letter buckets + rename/move/A–Z sort\n` +
 			`\`/diplomacy sync_all:true plan:true soft_limit:45\` — preview category splits`,
 		true,
