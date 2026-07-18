@@ -75,6 +75,8 @@ export const fr: MessageCatalog = {
 	'exchange.dm.request_cancelled':
 		'ℹ️ <@{userId}> a annulé sa demande **{resource}** (#{id}).',
 
+	'exchange.dm.request_completed':
+		'✅ <@{userId}> a marqué sa demande **{resource}** (#{id}) comme terminée. Merci pour votre aide !',
 	'exchange.btn.help': 'Help',
 	'exchange.btn.ignore': 'Ignore',
 	'exchange.btn.completed': 'Completed',

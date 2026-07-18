@@ -41,6 +41,7 @@ export const es: MessageCatalog = {
 	'exchange.dm.need_request': "📦 **{name}** (Ops {ops}) necesita **{resource}**.\nAlianza: [{tag}]\nPulsa **Help** para reclamar (el primero gana) o **Ignore**.",
 	'exchange.dm.claimed': "🤝 **{donorName}** (Ops {ops}, [{tag}]) reclamó tu petición de **{resource}**!\nDiscord: <@{donorId}>\n\nCuando termines: **Completed**. Si no puede: **Ask again**.",
 	'exchange.dm.request_cancelled': "ℹ️ <@{userId}> canceló su petición de **{resource}** (#{id}).",
+	'exchange.dm.request_completed': "✅ <@{userId}> marcó su petición de **{resource}** (#{id}) como completada. ¡Gracias por ayudar!",
 	'exchange.btn.help': "Help",
 	'exchange.btn.ignore': "Ignore",
 	'exchange.btn.completed': "Completed",

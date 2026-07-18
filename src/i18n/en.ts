@@ -80,6 +80,8 @@ export const en = {
 		'🤝 **{donorName}** (Ops {ops}, [{tag}]) claimed your **{resource}** request!\nDiscord: <@{donorId}>\n\nWhen done, tap **Completed**. If they can\'t help, tap **Ask again**.',
 	'exchange.dm.request_cancelled':
 		'ℹ️ <@{userId}> cancelled their **{resource}** request (#{id}) — no longer needed.',
+	'exchange.dm.request_completed':
+		'✅ <@{userId}> marked their **{resource}** request (#{id}) as completed. Thanks for helping!',
 
 	'exchange.btn.help': 'Help',
 	'exchange.btn.ignore': 'Ignore',

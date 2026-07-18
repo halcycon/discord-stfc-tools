@@ -41,6 +41,7 @@ export const tr: MessageCatalog = {
 	'exchange.dm.need_request': '📦 **{name}** (Ops {ops}) **{resource}** kaynağına ihtiyaç duyuyor.\nİttifak: [{tag}]\nTalebi üstlenmek için **Yardım Et** düğmesine (ilk tıklayan kazanır) veya **Yoksay** düğmesine basın.',
 	'exchange.dm.claimed': '🤝 **{donorName}** (Ops {ops}, [{tag}]) **{resource}** talebinizi üstlendi!\nDiscord: <@{donorId}>\n\nİşiniz bittiğinde **Tamamlandı** düğmesine basın. Yardım edemezse **Tekrar iste** düğmesine basın.',
 	'exchange.dm.request_cancelled': 'ℹ️ <@{userId}> **{resource}** talebini (#{id}) iptal etti — artık gerekli değil.',
+	'exchange.dm.request_completed': '✅ <@{userId}> **{resource}** talebini (#{id}) tamamlandı olarak işaretledi. Yardımın için teşekkürler!',
 	'exchange.btn.help': 'Yardım Et',
 	'exchange.btn.ignore': 'Yoksay',
 	'exchange.btn.completed': 'Tamamlandı',

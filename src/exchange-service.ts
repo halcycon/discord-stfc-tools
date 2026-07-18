@@ -596,8 +596,29 @@ export async function handleRequestCompleted(
 	if (request.status !== 'open' && request.status !== 'claimed') {
 		return '❌ This request is already closed.';
 	}
+
+	const claimerId = request.status === 'claimed' ? request.claimed_by : null;
 	await completeExchangeRequest(env.STFC_DB, requestId);
 	const resource = await getExchangeResource(env.STFC_DB, request.resource_id);
+
+	if (resource && env.DISCORD_BOT_TOKEN && claimerId) {
+		try {
+			const channelId = await openDmChannel(env.DISCORD_BOT_TOKEN, claimerId);
+			const claimer = await getVerifiedPlayer(env.STFC_DB, resource.guild_id, claimerId);
+			const locale = resolveLocale(claimer?.preferred_locale);
+			await sendMessageWithComponents(env.DISCORD_BOT_TOKEN, channelId, {
+				content: t(locale, 'exchange.dm.request_completed', {
+					userId,
+					resource: resource.name,
+					id: requestId,
+				}),
+				components: [],
+			});
+		} catch (err) {
+			console.error('Claimer completed notice failed:', err);
+		}
+	}
+
 	if (resource) await refreshPin(env, resource);
 	return '✅ Request marked completed. Thanks!';
 }

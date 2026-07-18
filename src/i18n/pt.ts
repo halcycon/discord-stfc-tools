@@ -41,6 +41,7 @@ export const pt: MessageCatalog = {
 	'exchange.dm.need_request': '📦 **{name}** (Ops {ops}) precisa de **{resource}**.\nAliança: [{tag}]\nToque em **Ajudar** para assumir (o primeiro ganha) ou em **Ignorar**.',
 	'exchange.dm.claimed': '🤝 **{donorName}** (Ops {ops}, [{tag}]) assumiu o seu pedido de **{resource}**!\nDiscord: <@{donorId}>\n\nQuando terminar, toque em **Concluído**. Se não puder ajudar, toque em **Pedir novamente**.',
 	'exchange.dm.request_cancelled': 'ℹ️ <@{userId}> cancelou o seu pedido de **{resource}** (#{id}) — já não é necessário.',
+	'exchange.dm.request_completed': '✅ <@{userId}> marcou o pedido de **{resource}** (#{id}) como concluído. Obrigado pela ajuda!',
 	'exchange.btn.help': 'Ajudar',
 	'exchange.btn.ignore': 'Ignorar',
 	'exchange.btn.completed': 'Concluído',

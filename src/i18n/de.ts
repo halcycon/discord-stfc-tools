@@ -75,6 +75,8 @@ export const de: MessageCatalog = {
 	'exchange.dm.request_cancelled':
 		'ℹ️ <@{userId}> hat die Anfrage für **{resource}** (#{id}) abgebrochen.',
 
+	'exchange.dm.request_completed':
+		'✅ <@{userId}> hat die Anfrage für **{resource}** (#{id}) als erledigt markiert. Danke für die Hilfe!',
 	'exchange.btn.help': 'Help',
 	'exchange.btn.ignore': 'Ignore',
 	'exchange.btn.completed': 'Completed',

@@ -41,6 +41,7 @@ export const ru: MessageCatalog = {
 	'exchange.dm.need_request': '📦 **{name}** (Ops {ops}) нужен **{resource}**.\nАльянс: [{tag}]\nНажмите **Помочь**, чтобы принять заявку (первый успевает), или **Игнорировать**.',
 	'exchange.dm.claimed': '🤝 **{donorName}** (Ops {ops}, [{tag}]) принял вашу заявку на **{resource}**!\nDiscord: <@{donorId}>\n\nПосле завершения нажмите **Готово**. Если он не может помочь, нажмите **Спросить снова**.',
 	'exchange.dm.request_cancelled': 'ℹ️ <@{userId}> отменил запрос на **{resource}** (#{id}) — он больше не нужен.',
+	'exchange.dm.request_completed': '✅ <@{userId}> отметил запрос на **{resource}** (#{id}) как выполненный. Спасибо за помощь!',
 	'exchange.btn.help': 'Помочь',
 	'exchange.btn.ignore': 'Игнорировать',
 	'exchange.btn.completed': 'Готово',

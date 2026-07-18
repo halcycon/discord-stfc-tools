@@ -41,6 +41,7 @@ export const nl: MessageCatalog = {
 	'exchange.dm.need_request': '📦 **{name}** (Ops {ops}) heeft **{resource}** nodig.\nAlliantie: [{tag}]\nTik op **Helpen** om de aanvraag over te nemen (wie het eerst komt, het eerst maalt), of op **Negeren**.',
 	'exchange.dm.claimed': '🤝 **{donorName}** (Ops {ops}, [{tag}]) heeft je aanvraag voor **{resource}** overgenomen!\nDiscord: <@{donorId}>\n\nTik na afloop op **Voltooid**. Kan deze persoon niet helpen, tik dan op **Opnieuw vragen**.',
 	'exchange.dm.request_cancelled': 'ℹ️ <@{userId}> heeft de aanvraag voor **{resource}** (#{id}) geannuleerd — niet langer nodig.',
+	'exchange.dm.request_completed': '✅ <@{userId}> heeft de aanvraag voor **{resource}** (#{id}) als voltooid gemarkeerd. Bedankt voor je hulp!',
 	'exchange.btn.help': 'Helpen',
 	'exchange.btn.ignore': 'Negeren',
 	'exchange.btn.completed': 'Voltooid',

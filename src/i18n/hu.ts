@@ -76,6 +76,8 @@ export const hu: MessageCatalog = {
 	'exchange.dm.request_cancelled':
 		'ℹ️ <@{userId}> visszavonta a **{resource}** kérését (#{id}) — már nincs rá szükség.',
 
+	'exchange.dm.request_completed':
+		'✅ <@{userId}> teljesítettnek jelölte a **{resource}** kérését (#{id}). Köszönjük a segítséget!',
 	'exchange.btn.help': 'Help',
 	'exchange.btn.ignore': 'Ignore',
 	'exchange.btn.completed': 'Completed',
