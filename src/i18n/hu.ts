@@ -115,7 +115,7 @@ export const hu: MessageCatalog = {
 	'dm.wizard.setup.mode_multi': "Multi alliance",
 	'dm.wizard.setup.ask_server': "Step 2/5 — Reply with the **STFC server number** (e.g. `108`).",
 	'dm.wizard.setup.ask_region': "Step 3/5 — Choose **region**:",
-	'dm.wizard.setup.ask_tag': "Step 4/5 — Reply with the expected **alliance tag** (e.g. `KWSN`).",
+	'dm.wizard.setup.ask_tag': "Step 4/5 — Reply with the expected **alliance tag** (e.g. `ABCD`).",
 	'dm.wizard.setup.ask_nick': "Step 5/5 — Reply with a **nickname template**, or `skip` for the mode default.\nPlaceholders: `{player_name}` `{alliance_tag}` `{rank}` `{rank_prefix}` `{rank_paren}`",
 	'dm.wizard.setup.confirm': "Confirm setup?\n• Mode: **{mode}**\n• STFC: **{server}** ({region})\n• Tag: **{tag}**\n• Nick: `{nick}`\n\n(Role lists can still be set with `/server setup` — this wizard covers the core fields.)",
 	'dm.wizard.channel.log_intro': "Verification log channel (screenshots/archive). Current: {current}\nChoose an action:",

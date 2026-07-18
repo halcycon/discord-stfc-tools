@@ -1383,7 +1383,7 @@ const commands = [
 					{
 						type: 3,
 						name: 'tag',
-						description: 'Alliance tag (e.g. KWSN)',
+						description: 'Alliance tag (e.g. ABCD)',
 						required: false,
 					},
 					{

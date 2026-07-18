@@ -2293,8 +2293,8 @@ async function handleDiplomacyChannelsCommand(
 			`• Channels: ${formatDiplomacyChannelMap(refreshed.diplomacy_channel_map)}\n\n` +
 			`Examples:\n` +
 			`\`/diplomacy enable:true write_roles:Diplomat write_ranks:Commodore,Admiral everyone_can_view:true\`\n` +
-			`\`/diplomacy create_tag:KWSN\`\n` +
-			`\`/diplomacy link_tag:KWSN channel:#kwsn-diplo apply_permissions:false\`\n` +
+			`\`/diplomacy create_tag:ABCD\`\n` +
+			`\`/diplomacy link_tag:ABCD channel:#abcd-diplo apply_permissions:false\`\n` +
 			`\`/diplomacy sync_all:true create_missing:true\` — letter buckets + rename/move/A–Z sort\n` +
 			`\`/diplomacy sync_all:true plan:true soft_limit:45\` — preview category splits`,
 		true,

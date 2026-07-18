@@ -60,10 +60,10 @@ Run once (or again to change settings):
 
 ```
 /server setup
-  server:108
-  region:EU
+  server:42
+  region:US
   mode:single_alliance
-  alliance_tag:KWSN
+  alliance_tag:ABCD
   guest_role:@Guest
   member_roles:@Member
   create_missing_roles:true
@@ -112,8 +112,8 @@ On verify (and daily sync), the bot sets the member’s nick from a template.
 
 | Mode | Pattern | Example |
 |------|---------|---------|
-| Single alliance | `{rank_prefix}{player_name}` | `[Adm] Halcynicon` or `Halcynicon` |
-| Multi alliance | `[{alliance_tag}]{rank_paren} {player_name}` | `[KWSN] (Adm) Halcynicon` |
+| Single alliance | `{rank_prefix}{player_name}` | `[Adm] ExamplePlayer` or `ExamplePlayer` |
+| Multi alliance | `[{alliance_tag}]{rank_paren} {player_name}` | `[ABCD] (Adm) ExamplePlayer` |
 
 `{rank_prefix}` is `[Pr] ` / `[Com] ` / `[Adm] ` only (empty for Op/Ag), and only when that rank is in **nickname ranks**.  
 `{rank_paren}` is ` (Adm)` / … when rank is known **and** allowed by nickname ranks.
@@ -493,10 +493,10 @@ These are easy to conflate. They are **not** the same list:
 ### Multi-alliance: track + link suggestions
 
 ```
-/alliance track tag:KWSN                    # scrape now into D1 + keep in morning sync (+ diplomacy if enabled)
-/alliance suggest tag:KWSN                  # match unverified Discord nicks → roster
+/alliance track tag:ABCD                    # scrape now into D1 + keep in morning sync (+ diplomacy if enabled)
+/alliance suggest tag:ABCD                  # match unverified Discord nicks → roster
 /alliance list                              # explicit + diplomacy + combined scrape tags
-/alliance untrack tag:KWSN                  # drop from explicit list only
+/alliance untrack tag:ABCD                  # drop from explicit list only
 /alliance defer-untracked-admirals enabled:true   # optional: defer Admiral roles + diplomacy until track
 ```
 
@@ -681,13 +681,13 @@ Clear mappings (disables auto-create):
 If the server already has member or diplomacy channels, **do not recreate them** — link them:
 
 ```
-/channels link channel:#halcynicon player:Halcynicon
+/channels link channel:#exampleplayer player:ExamplePlayer
 ```
 
 Pick a **text** (or announcement) channel — not a category. If linking fails because the bot can’t see the channel, give the bot **View Channel** there (private member channels often deny `@everyone`), then retry.
 
 ```
-/channels link channel:#kwsn-diplomacy player:301268920
+/channels link channel:#abcd-diplomacy player:123456789
 ```
 
 ```
@@ -706,7 +706,7 @@ Channel names always follow the **current in-game player name** (slugified). Cre
 Examples for an existing framework:
 
 ```
-/channels link channel:#adam-diplomacy player:Adam apply_permissions:false
+/channels link channel:#example-diplomacy player:ExamplePlayer apply_permissions:false
 ```
 
 Status:
@@ -756,7 +756,7 @@ Multi-alliance servers often have **dozens of tags** — Discord’s **50 channe
 ### Create for a tag
 
 ```
-/diplomacy create_tag:KWSN
+/diplomacy create_tag:ABCD
 ```
 
 Also happens automatically on verify/sync in **multi_alliance** mode when diplomacy is enabled and the player has an alliance tag — **unless** `/alliance defer-untracked-admirals` is on and that tag is not yet tracked / on the diplomacy map. Auto-create is intentional; it adds the tag to the diplomacy map (and therefore the morning scrape set). See [scrape set vs tracked vs diplomacy](#multi-alliance-scrape-set-vs-tracked-vs-diplomacy-read-this) above. Existing channels are **renamed** to the current slug and **moved** into the letter-bucket category (or legacy `category` if no map).
@@ -780,8 +780,8 @@ Same spirit as personal-channel rebalance. Progress posts on the slash command; 
 ### Adopt an existing channel
 
 ```
-/diplomacy link_tag:KWSN channel:#kwsn-diplo
-/diplomacy link_tag:KWSN channel:#kwsn-diplo apply_permissions:false
+/diplomacy link_tag:ABCD channel:#abcd-diplo
+/diplomacy link_tag:ABCD channel:#abcd-diplo apply_permissions:false
 ```
 
 ### Status

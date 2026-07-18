@@ -128,7 +128,7 @@ export const en = {
 	'dm.wizard.setup.mode_multi': 'Multi alliance',
 	'dm.wizard.setup.ask_server': 'Step 2/5 — Reply with the **STFC server number** (e.g. `108`).',
 	'dm.wizard.setup.ask_region': 'Step 3/5 — Choose **region**:',
-	'dm.wizard.setup.ask_tag': 'Step 4/5 — Reply with the expected **alliance tag** (e.g. `KWSN`).',
+	'dm.wizard.setup.ask_tag': 'Step 4/5 — Reply with the expected **alliance tag** (e.g. `ABCD`).',
 	'dm.wizard.setup.ask_nick':
 		'Step 5/5 — Reply with a **nickname template**, or `skip` for the mode default.\n' +
 		'Placeholders: `{player_name}` `{alliance_tag}` `{rank}` `{rank_prefix}` `{rank_paren}`',
