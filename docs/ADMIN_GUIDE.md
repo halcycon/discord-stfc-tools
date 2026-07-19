@@ -1015,13 +1015,16 @@ The bot **edits** that pinned message whenever donors or requests change.
 
 ### Player flow
 
-1. Donor registers (button or `/exchange donate resource:Crystal`) — if open requests are waiting, they are DMed about them **oldest first**
-2. Recipient taps **I need this** (or `/exchange need`):
+1. Donor registers (button or `/exchange donate resource:Crystal`) — gets the **Donor** role; if open requests are waiting, they are DMed about them **oldest first**
+2. Recipient taps **I need this** (or `/exchange need`) — gets the **Need** role:
    - If cross-alliance donors exist → they get a DM (name + ops) with **Help** / **Ignore**
    - If none yet → request is **queued** (still counted on the pin); first matching donor who later registers gets DMed in queue order
 3. First **Help** wins → recipient gets donor details + **Completed** / **Ask again**
-4. **Ask again** re-notifies current cross-alliance donors (or stays queued if none)
-5. **I no longer need this** cancels an open/claimed request (e.g. resolved offline); notifies the claimer if someone had claimed Help
+4. **Completed** (or cancel) removes the recipient’s **Need** role; **Stop donating** / `/exchange undonate` removes the **Donor** role
+5. **Ask again** re-notifies current cross-alliance donors (or stays queued if none)
+6. **I no longer need this** cancels an open/claimed request (e.g. resolved offline); notifies the claimer if someone had claimed Help
+
+Keep the bot’s role **above** the exchange Donor/Need roles so it can assign and remove them.
 
 Same-alliance donors are **never** notified (tags compared case-insensitively).
 

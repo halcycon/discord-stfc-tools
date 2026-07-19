@@ -2,6 +2,7 @@ import {
 	addGuildMemberRole,
 	createGuildRole,
 	createGuildTextChannel,
+	DiscordApiError,
 	editChannelMessage,
 	pinChannelMessage,
 	removeGuildMemberRole,
@@ -41,6 +42,29 @@ export function slugifyResourceName(name: string): string {
 		.replace(/^-|-$/g, '')
 		.slice(0, 80);
 	return slug || 'resource';
+}
+
+/** Remove an exchange role; returns a short user-facing warning on failure (null if ok). */
+async function tryRemoveExchangeRole(
+	token: string,
+	guildId: string,
+	userId: string,
+	roleId: string,
+	label: string,
+): Promise<string | null> {
+	try {
+		await removeGuildMemberRole(token, guildId, userId, roleId);
+		return null;
+	} catch (err) {
+		console.error(`Exchange ${label} role remove failed:`, err);
+		if (err instanceof DiscordApiError && err.status === 403) {
+			return (
+				`\n⚠️ Could not remove the ${label} role — move the bot’s role **above** ` +
+				`the exchange roles in Server Settings → Roles.`
+			);
+		}
+		return `\n⚠️ Could not remove the ${label} role (check bot permissions).`;
+	}
 }
 
 /** Donors eligible to help: different alliance tag, not the recipient. */
@@ -361,13 +385,15 @@ export async function unregisterDonor(
 	const resource = await getExchangeResource(env.STFC_DB, resourceId);
 	if (!resource || resource.guild_id !== guildId) return '❌ Resource not found.';
 	await removeExchangeDonor(env.STFC_DB, resourceId, userId);
-	try {
-		await removeGuildMemberRole(env.DISCORD_BOT_TOKEN, guildId, userId, resource.donor_role_id);
-	} catch (err) {
-		console.error('Donor role remove failed:', err);
-	}
+	const roleWarn = await tryRemoveExchangeRole(
+		env.DISCORD_BOT_TOKEN,
+		guildId,
+		userId,
+		resource.donor_role_id,
+		'donor',
+	);
 	await refreshPin(env, resource);
-	return `✅ You are no longer a **${resource.name}** donor.`;
+	return `✅ You are no longer a **${resource.name}** donor.` + (roleWarn ?? '');
 }
 
 async function loadDonorPlayers(
@@ -487,17 +513,16 @@ export async function cancelNeedRequest(
 	const claimerId = existing.status === 'claimed' ? existing.claimed_by : null;
 	await cancelExchangeRequest(env.STFC_DB, existing.id);
 
+	let roleWarn = '';
 	if (env.DISCORD_BOT_TOKEN) {
-		try {
-			await removeGuildMemberRole(
+		roleWarn =
+			(await tryRemoveExchangeRole(
 				env.DISCORD_BOT_TOKEN,
 				guildId,
 				userId,
 				resource.recipient_role_id,
-			);
-		} catch (err) {
-			console.error('Recipient role remove failed:', err);
-		}
+				'Need',
+			)) ?? '';
 		if (claimerId) {
 			try {
 				const channelId = await openDmChannel(env.DISCORD_BOT_TOKEN, claimerId);
@@ -518,7 +543,7 @@ export async function cancelNeedRequest(
 	}
 
 	await refreshPin(env, resource);
-	return `✅ Cancelled your **${resource.name}** request (#${existing.id}).`;
+	return `✅ Cancelled your **${resource.name}** request (#${existing.id}).` + roleWarn;
 }
 
 export async function handleHelpClaim(
@@ -601,26 +626,37 @@ export async function handleRequestCompleted(
 	await completeExchangeRequest(env.STFC_DB, requestId);
 	const resource = await getExchangeResource(env.STFC_DB, request.resource_id);
 
-	if (resource && env.DISCORD_BOT_TOKEN && claimerId) {
-		try {
-			const channelId = await openDmChannel(env.DISCORD_BOT_TOKEN, claimerId);
-			const claimer = await getVerifiedPlayer(env.STFC_DB, resource.guild_id, claimerId);
-			const locale = resolveLocale(claimer?.preferred_locale);
-			await sendMessageWithComponents(env.DISCORD_BOT_TOKEN, channelId, {
-				content: t(locale, 'exchange.dm.request_completed', {
-					userId,
-					resource: resource.name,
-					id: requestId,
-				}),
-				components: [],
-			});
-		} catch (err) {
-			console.error('Claimer completed notice failed:', err);
+	let roleWarn = '';
+	if (resource && env.DISCORD_BOT_TOKEN) {
+		roleWarn =
+			(await tryRemoveExchangeRole(
+				env.DISCORD_BOT_TOKEN,
+				resource.guild_id,
+				userId,
+				resource.recipient_role_id,
+				'Need',
+			)) ?? '';
+		if (claimerId) {
+			try {
+				const channelId = await openDmChannel(env.DISCORD_BOT_TOKEN, claimerId);
+				const claimer = await getVerifiedPlayer(env.STFC_DB, resource.guild_id, claimerId);
+				const locale = resolveLocale(claimer?.preferred_locale);
+				await sendMessageWithComponents(env.DISCORD_BOT_TOKEN, channelId, {
+					content: t(locale, 'exchange.dm.request_completed', {
+						userId,
+						resource: resource.name,
+						id: requestId,
+					}),
+					components: [],
+				});
+			} catch (err) {
+				console.error('Claimer completed notice failed:', err);
+			}
 		}
 	}
 
 	if (resource) await refreshPin(env, resource);
-	return '✅ Request marked completed. Thanks!';
+	return '✅ Request marked completed. Thanks!' + roleWarn;
 }
 
 export async function handleAskAgain(
