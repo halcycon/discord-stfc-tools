@@ -68,49 +68,60 @@ export async function trackAndScrapeAlliance(
 		return { ok: false, error: 'Provide `tag:` or `alliance_id:`.' };
 	}
 
-	const directory = await scrapeServerAlliances(config.stfc_server, config.stfc_region);
-	if (directory.length === 0) {
-		return { ok: false, error: 'Could not load stfc.pro server alliance directory.' };
-	}
-	const fetchedAt = new Date().toISOString();
-	await replaceServerAllianceDirectory(
-		env.STFC_DB,
-		config.guild_id,
-		fetchedAt,
-		directory.map((e) => ({
-			allianceId: e.allianceId,
-			allianceTag: e.allianceTag,
-			allianceName: e.allianceName || null,
-			serverRank: e.serverRank,
-			playerCount: e.playerCount,
-		})),
-	);
-
+	/**
+	 * Prefer cached server directory (from morning/resync) so we only need one stfc.pro
+	 * page fetch. A full directory scrape + alliance scrape can exceed CF waitUntil (~30s).
+	 */
 	let resolvedTag = tagIn;
 	let allianceName: string | null = null;
+	const fetchedAt = new Date().toISOString();
 
 	if (!allianceId && tagIn) {
-		const fromDir = directory.find((e) => e.allianceTag.toUpperCase() === tagIn);
-		allianceId =
-			fromDir?.allianceId ??
-			(await getServerAllianceIdByTag(env.STFC_DB, config.guild_id, tagIn));
-		allianceName = fromDir?.allianceName || null;
-		if (!allianceId) {
+		allianceId = await getServerAllianceIdByTag(env.STFC_DB, config.guild_id, tagIn);
+	}
+
+	if (!allianceId || !resolvedTag) {
+		const directory = await scrapeServerAlliances(config.stfc_server, config.stfc_region);
+		if (directory.length === 0) {
+			return { ok: false, error: 'Could not load stfc.pro server alliance directory.' };
+		}
+		await replaceServerAllianceDirectory(
+			env.STFC_DB,
+			config.guild_id,
+			fetchedAt,
+			directory.map((e) => ({
+				allianceId: e.allianceId,
+				allianceTag: e.allianceTag,
+				allianceName: e.allianceName || null,
+				serverRank: e.serverRank,
+				playerCount: e.playerCount,
+			})),
+		);
+
+		if (!allianceId && tagIn) {
+			const fromDir = directory.find((e) => e.allianceTag.toUpperCase() === tagIn);
+			allianceId = fromDir?.allianceId ?? null;
+			allianceName = fromDir?.allianceName || null;
+		} else if (allianceId) {
+			const fromDir = directory.find((e) => e.allianceId === allianceId);
+			resolvedTag = (fromDir?.allianceTag || tagIn || '').toUpperCase() || null;
+			allianceName = fromDir?.allianceName || null;
+		}
+
+		if (!allianceId && tagIn) {
 			return {
 				ok: false,
 				error: `Alliance tag **${tagIn}** not found on server **${config.stfc_server}** (${config.stfc_region}).`,
 			};
 		}
-	} else if (allianceId) {
-		const fromDir = directory.find((e) => e.allianceId === allianceId);
-		resolvedTag = (fromDir?.allianceTag || tagIn || '').toUpperCase() || null;
-		allianceName = fromDir?.allianceName || null;
-		if (!resolvedTag) {
+		if (allianceId && !resolvedTag) {
 			return {
 				ok: false,
 				error: `Alliance id \`${allianceId}\` not on server directory — pass \`tag:\` as well or check the id.`,
 			};
 		}
+	} else if (allianceId && tagIn) {
+		resolvedTag = tagIn;
 	}
 
 	if (!allianceId || !resolvedTag) {

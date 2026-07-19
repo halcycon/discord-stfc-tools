@@ -264,56 +264,83 @@ export async function handleAllianceCommand(
 		const deferred = deferredResponse();
 		ctx.waitUntil(
 			(async () => {
-				const result = await trackAndScrapeAlliance(env, config, {
-					tag: tag ?? null,
-					allianceId: allianceId ?? null,
-					fromTag: fromTag ?? null,
-				});
-				if (!result.ok) {
-					await editInteractionResponse(appId, interaction.token, `❌ ${result.error}`, true);
-					return;
+				try {
+					await editInteractionResponse(
+						appId,
+						interaction.token,
+						'⏳ Tracking alliance — loading stfc.pro directory + roster…',
+						true,
+						{ config },
+					);
+					const result = await trackAndScrapeAlliance(env, config, {
+						tag: tag ?? null,
+						allianceId: allianceId ?? null,
+						fromTag: fromTag ?? null,
+					});
+					if (!result.ok) {
+						await editInteractionResponse(appId, interaction.token, `❌ ${result.error}`, true, {
+							config,
+						});
+						return;
+					}
+					await postAuditLog(env, config, {
+						title: 'Alliance tracked + scraped',
+						description:
+							`**[${result.allianceTag}]** \`${result.allianceId}\` · **${result.playerCount}** players` +
+							(result.allianceName ? ` · ${result.allianceName}` : '') +
+							(result.diplomacyChannelId ? ` · diplomacy <#${result.diplomacyChannelId}>` : '') +
+							(result.admiralsRolesApplied > 0 || result.admiralsRolesFailed > 0
+								? ` · Admiral roles: **${result.admiralsRolesApplied}** applied` +
+									(result.admiralsRolesFailed
+										? `, **${result.admiralsRolesFailed}** failed`
+										: '')
+								: ''),
+						actorId: interaction.member?.user?.id,
+						source: 'admin',
+						color: AuditColor.success,
+					});
+					const unlinked = result.playerCount - result.alreadyVerifiedOnRoster;
+					await editInteractionResponse(
+						appId,
+						interaction.token,
+						`✅ Tracked **[${result.allianceTag}]**` +
+							(result.allianceName ? ` (${result.allianceName})` : '') +
+							`\n` +
+							`• Alliance id: \`${result.allianceId}\`\n` +
+							`• Players on roster: **${result.playerCount}**` +
+							` (${result.alreadyVerifiedOnRoster} already verified, ~**${unlinked}** unlinked)\n` +
+							`• Guild missing-verify total: **${result.missingVerify}**\n` +
+							`• All tracked tags: ${result.trackedTags.map((t) => `\`${t}\``).join(', ') || '—'}\n` +
+							(result.diplomacyChannelId
+								? `• Diplomacy channel: <#${result.diplomacyChannelId}>\n`
+								: '') +
+							(result.admiralsRolesApplied > 0 || result.admiralsRolesFailed > 0
+								? `• Deferred Admiral roles applied: **${result.admiralsRolesApplied}**` +
+									(result.admiralsRolesFailed
+										? ` (**${result.admiralsRolesFailed}** failed)`
+										: '') +
+									`\n`
+								: '') +
+							`\n` +
+							`Next: \`/alliance suggest tag:${result.allianceTag}\` to match Discord nicks, ` +
+							`or \`/roster missing-verify\`.`,
+						true,
+						{ config },
+					);
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					console.error('alliance track failed:', err);
+					await editInteractionResponse(
+						appId,
+						interaction.token,
+						`❌ Track failed: ${msg}` +
+							(msg.includes('alliance_roster_tag_aliases')
+								? '\n_Run `npm run db:migrate` (migration 044) then retry._'
+								: ''),
+						true,
+						{ config },
+					);
 				}
-				await postAuditLog(env, config, {
-					title: 'Alliance tracked + scraped',
-					description:
-						`**[${result.allianceTag}]** \`${result.allianceId}\` · **${result.playerCount}** players` +
-						(result.allianceName ? ` · ${result.allianceName}` : '') +
-						(result.diplomacyChannelId ? ` · diplomacy <#${result.diplomacyChannelId}>` : '') +
-						(result.admiralsRolesApplied > 0 || result.admiralsRolesFailed > 0
-							? ` · Admiral roles: **${result.admiralsRolesApplied}** applied` +
-								(result.admiralsRolesFailed ? `, **${result.admiralsRolesFailed}** failed` : '')
-							: ''),
-					actorId: interaction.member?.user?.id,
-					source: 'admin',
-					color: AuditColor.success,
-				});
-				const unlinked = result.playerCount - result.alreadyVerifiedOnRoster;
-				await editInteractionResponse(
-					appId,
-					interaction.token,
-					`✅ Tracked **[${result.allianceTag}]**` +
-						(result.allianceName ? ` (${result.allianceName})` : '') +
-						`\n` +
-						`• Alliance id: \`${result.allianceId}\`\n` +
-						`• Players on roster: **${result.playerCount}**` +
-						` (${result.alreadyVerifiedOnRoster} already verified, ~**${unlinked}** unlinked)\n` +
-						`• Guild missing-verify total: **${result.missingVerify}**\n` +
-						`• All tracked tags: ${result.trackedTags.map((t) => `\`${t}\``).join(', ') || '—'}\n` +
-						(result.diplomacyChannelId
-							? `• Diplomacy channel: <#${result.diplomacyChannelId}>\n`
-							: '') +
-						(result.admiralsRolesApplied > 0 || result.admiralsRolesFailed > 0
-							? `• Deferred Admiral roles applied: **${result.admiralsRolesApplied}**` +
-								(result.admiralsRolesFailed
-									? ` (**${result.admiralsRolesFailed}** failed)`
-									: '') +
-								`\n`
-							: '') +
-						`\n` +
-						`Next: \`/alliance suggest tag:${result.allianceTag}\` to match Discord nicks, ` +
-						`or \`/roster missing-verify\`.`,
-					true,
-				);
 			})(),
 		);
 		return deferred;
