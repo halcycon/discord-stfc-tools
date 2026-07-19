@@ -256,6 +256,9 @@ export async function handleAllianceCommand(
 		const tag = getOptionValue(opts, 'tag') as string | undefined;
 		const allianceId = getOptionValue(opts, 'alliance_id') as string | undefined;
 		const fromTag = getOptionValue(opts, 'from_tag') as string | undefined;
+		const applyDiscordRaw = getOptionValue(opts, 'apply_discord');
+		const applyDiscord =
+			applyDiscordRaw === true || applyDiscordRaw === 'true';
 		const appId = interaction.application_id ?? env.DISCORD_APPLICATION_ID;
 		if (!appId) {
 			return interactionResponse('❌ DISCORD_APPLICATION_ID not configured.', true);
@@ -268,7 +271,8 @@ export async function handleAllianceCommand(
 					await editInteractionResponse(
 						appId,
 						interaction.token,
-						'⏳ Tracking alliance — loading stfc.pro directory + roster…',
+						'⏳ Tracking alliance — loading stfc.pro directory + roster…' +
+							(applyDiscord ? '\n_Discord channel rename/move enabled._' : ''),
 						true,
 						{ config },
 					);
@@ -276,6 +280,7 @@ export async function handleAllianceCommand(
 						tag: tag ?? null,
 						allianceId: allianceId ?? null,
 						fromTag: fromTag ?? null,
+						applyDiscord,
 					});
 					if (!result.ok) {
 						await editInteractionResponse(appId, interaction.token, `❌ ${result.error}`, true, {

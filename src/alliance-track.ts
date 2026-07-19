@@ -8,11 +8,12 @@ import {
 	listActiveVerifiedPlayers,
 	listAllianceRosterMembers,
 	listAllianceRosterMeta,
+	rememberAllianceTagAlias,
 	replaceAllianceRoster,
 	replaceServerAllianceDirectory,
 	upsertGuildConfig,
 } from './guild-db';
-import { applyAllianceTagRename } from './diplomacy-maintenance';
+import { applyAllianceTagRename, remapAllianceTagInDb } from './diplomacy-maintenance';
 import { opsLevelToGrade } from './grade-utils';
 import { scrapeAllianceById, scrapeServerAlliances } from './stfc-utils';
 import { applyActivityObservation } from './activity-utils';
@@ -56,7 +57,13 @@ export type TrackAllianceResult =
 export async function trackAndScrapeAlliance(
 	env: Env,
 	config: GuildConfig,
-	opts: { tag?: string | null; allianceId?: string | null; fromTag?: string | null },
+	opts: {
+		tag?: string | null;
+		allianceId?: string | null;
+		fromTag?: string | null;
+		/** Rename/move Discord diplomacy channel even when deploy_mode is testing. */
+		applyDiscord?: boolean;
+	},
 ): Promise<TrackAllianceResult> {
 	if (!isMultiAllianceGuild(config)) {
 		return { ok: false, error: 'Only available in **multi_alliance** mode.' };
@@ -186,10 +193,22 @@ export async function trackAndScrapeAlliance(
 		members,
 	});
 
+	// Explicit from_tag wins (meta may already say the new tag from an earlier scrape).
+	const fromTagOpt = opts.fromTag?.trim().toUpperCase() || null;
+	const renameFrom =
+		fromTagOpt && fromTagOpt !== tag
+			? fromTagOpt
+			: priorTag && priorTag !== tag
+				? priorTag
+				: null;
+
 	const nextTracked = parseTrackedAllianceTags([
-		...(config.tracked_alliance_tags ?? []).map((t) =>
-			priorTag && priorTag !== tag && t.trim().toUpperCase() === priorTag ? tag : t,
-		),
+		...(config.tracked_alliance_tags ?? []).map((t) => {
+			const upper = t.trim().toUpperCase();
+			if (renameFrom && upper === renameFrom) return tag;
+			if (priorTag && priorTag !== tag && upper === priorTag) return tag;
+			return t;
+		}),
 		tag,
 	]);
 	await upsertGuildConfig(env.STFC_DB, {
@@ -203,53 +222,29 @@ export async function trackAndScrapeAlliance(
 	let admiralsRolesFailed = 0;
 
 	const token = env.DISCORD_BOT_TOKEN;
-	const fromTagOpt = opts.fromTag?.trim().toUpperCase() || null;
-	const renameFrom =
-		priorTag && priorTag !== tag
-			? priorTag
-			: fromTagOpt && fromTagOpt !== tag
-				? fromTagOpt
-				: null;
-	if (token && renameFrom && !isDeployTesting(config)) {
-		await applyAllianceTagRename(env, token, config, config.guild_id, renameFrom, tag, {
-			source: 'admin',
-			rebalance: true,
-		});
-		const refreshed = await getGuildConfig(env.STFC_DB, config.guild_id);
-		if (refreshed) Object.assign(config, refreshed);
-	} else if (renameFrom && (isDeployTesting(config) || !token)) {
-		// D1-only: swap tracked/diplomacy keys when Discord moves are skipped.
-		const channelMap = { ...(config.diplomacy_channel_map ?? {}) };
-		const preferred = { ...(config.diplomacy_preferred_locales ?? {}) };
-		if (channelMap[renameFrom] && !channelMap[tag]) {
-			channelMap[tag] = channelMap[renameFrom]!;
-			delete channelMap[renameFrom];
+	const applyDiscord = opts.applyDiscord === true || !isDeployTesting(config);
+	if (renameFrom) {
+		await rememberAllianceTagAlias(env.STFC_DB, config.guild_id, id, renameFrom);
+		await rememberAllianceTagAlias(env.STFC_DB, config.guild_id, id, tag);
+		if (token && applyDiscord) {
+			await applyAllianceTagRename(env, token, config, config.guild_id, renameFrom, tag, {
+				source: 'admin',
+				rebalance: true,
+				allianceId: id,
+			});
+			const refreshed = await getGuildConfig(env.STFC_DB, config.guild_id);
+			if (refreshed) Object.assign(config, refreshed);
 		} else {
-			delete channelMap[renameFrom];
+			// Testing without apply_discord: remap D1 only (Discord channel name stays until override).
+			const dbRemap = await remapAllianceTagInDb(env, config, renameFrom, tag, {
+				source: 'admin',
+				allianceId: id,
+			});
+			if (dbRemap.ok) Object.assign(config, dbRemap.config);
 		}
-		if (preferred[renameFrom] && !preferred[tag]) {
-			preferred[tag] = preferred[renameFrom]!;
-			delete preferred[renameFrom];
-		} else {
-			delete preferred[renameFrom];
-		}
-		const tracked = parseTrackedAllianceTags([
-			...(config.tracked_alliance_tags ?? []).map((t) =>
-				t.trim().toUpperCase() === renameFrom ? tag : t,
-			),
-			tag,
-		]);
-		await upsertGuildConfig(env.STFC_DB, {
-			guild_id: config.guild_id,
-			diplomacy_channel_map: channelMap,
-			diplomacy_preferred_locales: preferred,
-			tracked_alliance_tags: tracked,
-		});
-		config.diplomacy_channel_map = channelMap;
-		config.diplomacy_preferred_locales = preferred;
-		config.tracked_alliance_tags = tracked;
 	}
-	if (token && !isDeployTesting(config)) {
+	if (token && applyDiscord) {
+		// Refresh Discord channel name/placement for the (possibly already remapped) tag.
 		diplomacyChannelId = await applyDiplomacyForAlliance(
 			env,
 			token,
@@ -290,16 +285,22 @@ export async function trackAndScrapeAlliance(
 
 	let alreadyVerifiedOnRoster = 0;
 	if (members.length > 0) {
-		const placeholders = members.map(() => '?').join(',');
-		const linkedRow = await env.STFC_DB.prepare(
-			`SELECT COUNT(*) AS c FROM verified_players
-			 WHERE guild_id = ?
-			   AND verification_status IN ('verified','active','guest')
-			   AND player_id IN (${placeholders})`,
-		)
-			.bind(config.guild_id, ...members.map((m) => m.playerId))
-			.first();
-		alreadyVerifiedOnRoster = Number((linkedRow as { c?: number } | null)?.c ?? 0);
+		// D1/SQLite caps bound variables (~100); chunk large rosters.
+		const ids = members.map((m) => m.playerId);
+		const chunkSize = 80;
+		for (let i = 0; i < ids.length; i += chunkSize) {
+			const chunk = ids.slice(i, i + chunkSize);
+			const placeholders = chunk.map(() => '?').join(',');
+			const linkedRow = await env.STFC_DB.prepare(
+				`SELECT COUNT(*) AS c FROM verified_players
+				 WHERE guild_id = ?
+				   AND verification_status IN ('verified','active','guest')
+				   AND player_id IN (${placeholders})`,
+			)
+				.bind(config.guild_id, ...chunk)
+				.first();
+			alreadyVerifiedOnRoster += Number((linkedRow as { c?: number } | null)?.c ?? 0);
+		}
 	}
 
 	const missingVerify = await countAllianceMembersMissingVerify(env.STFC_DB, config.guild_id);

@@ -1399,6 +1399,13 @@ const commands = [
 							'Previous tag if this alliance renamed (remaps diplomacy / track list)',
 						required: false,
 					},
+					{
+						type: 5,
+						name: 'apply_discord',
+						description:
+							'Also rename/move the diplomacy channel in Discord (even in testing)',
+						required: false,
+					},
 				],
 			},
 			{
