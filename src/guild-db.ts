@@ -2880,6 +2880,22 @@ export async function replaceAllianceRoster(
 	await db.batch(stmts);
 }
 
+/** Drop roster cache for a single alliance id. */
+export async function deleteAllianceRosterForId(
+	db: D1Database,
+	guildId: string,
+	allianceId: string,
+): Promise<void> {
+	await db.batch([
+		db
+			.prepare(`DELETE FROM alliance_roster_members WHERE guild_id = ? AND alliance_id = ?`)
+			.bind(guildId, allianceId),
+		db
+			.prepare(`DELETE FROM alliance_roster_meta WHERE guild_id = ? AND alliance_id = ?`)
+			.bind(guildId, allianceId),
+	]);
+}
+
 /** Drop roster members/meta for alliance ids not in `keepAllianceIds` (multi cleanup). */
 export async function pruneAllianceRostersOutside(
 	db: D1Database,
@@ -3315,12 +3331,17 @@ export type AllianceResyncSessionPayload = {
 		playerCount: number | null;
 		server: number;
 		region: string;
+		requestedTag: string;
+		onDirectory: boolean;
 	}>;
 	offset: number;
 	scrapedAlliances: number;
 	failedTags: string[];
+	vanished: Array<{ tag: string; allianceId: string }>;
 	tagRenames: Array<{ allianceId: string; fromTag: string; toTag: string }>;
 	keepAllianceIds: string[];
+	/** Overflow / not-yet-scraped ids — merge into keep before prune. */
+	preserveAllianceIds: string[];
 	previous: Array<{
 		playerId: number;
 		playerName: string;

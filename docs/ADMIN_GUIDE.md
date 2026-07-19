@@ -494,6 +494,7 @@ These are easy to conflate. They are **not** the same list:
 
 ```
 /alliance track tag:ABCD                    # scrape now into D1 + keep in morning sync (+ diplomacy if enabled)
+/alliance track tag:BLKN from_tag:BLUE      # renamed alliance: scrape new tag + remap diplomacy/track from old tag
 /alliance resync                            # chunked re-scrape (Continue); remaps on last chunk when live
 /alliance resync apply_discord:true         # same, but apply Discord diplomacy remaps even in testing
 /alliance suggest tag:ABCD                  # match unverified Discord nicks → roster
@@ -820,6 +821,8 @@ Same spirit as personal-channel rebalance. Progress posts on the slash command a
 **Why resync matters mid-day:** if players sync with the **new** tag before remap, diplomacy may auto-create a second channel for the new tag while the old map key still exists. Run `/alliance resync` promptly after a rename; remap keeps the original room and unmaps the duplicate (you can delete the extra Discord channel).
 
 **Timeouts (not a Discord 30s command limit):** Discord needs an ack within **3s** (we defer), then allows interaction edits/follow-ups for **15 minutes**. After we reply, Cloudflare only keeps `waitUntil` work alive ~**30s** — that is why slash resync is chunked (Continue). Morning cron is a separate scheduled invocation (~**15 min** wall) and still scrapes all tracked pages in one job. stfc.pro page fetches abort at **25s** so one hung page cannot consume a whole chunk.
+
+**Scrapes are by alliance id**, not tag string. Resync resolves each tracked tag → id (server directory, else prior roster meta/members), then fetches `/alliances/{id}`. If the tag left the directory but the id still scrapes under a new tag → **rename remap**. If the id is gone from the directory **and** the page fails → **vanished** (untrack, unmap diplomacy, archive room). If there is **no id on file** for a tag, it is skipped — use `/alliance track tag:NEW from_tag:OLD` after a rename.
 
 ### Organise existing archive piles (no linking)
 

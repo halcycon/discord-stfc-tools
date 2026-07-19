@@ -12,6 +12,7 @@ import {
 	syncMultiAllianceTrackedRosters,
 	type AllianceTagRename,
 	type MultiAllianceRosterSyncResult,
+	type MultiAllianceScrapeEntry,
 } from './alliance-roster-sync';
 import {
 	allianceRosterDiffHasChanges,
@@ -20,6 +21,7 @@ import {
 } from './alliance-roster-diff';
 import {
 	applyAllianceTagRename,
+	applyVanishedAlliances,
 	runDiplomacyAutoRebalance,
 } from './diplomacy-maintenance';
 import { diplomacyChannelsEnabled } from './diplomacy-channels';
@@ -49,10 +51,12 @@ export type AllianceResyncResult =
 			scrapedAlliances: number;
 			skippedTags: string[];
 			failedTags: string[];
+			vanishedTags: string[];
 			tagRenames: AllianceTagRename[];
 			remapped: number;
 			remapErrors: string[];
 			rebalanced: boolean;
+			archived: number;
 			diffHasChanges: boolean;
 			summary: string;
 	  }
@@ -193,11 +197,14 @@ async function finalizeMultiResync(
 	progress.report('⏳ Alliance resync: finalizing (prune cache, remaps, audit)…');
 	await progress.flush();
 
-	if (payload.scrapedAlliances === 0) {
+	if (payload.scrapedAlliances === 0 && payload.vanished.length === 0) {
 		return { ok: false, error: 'All alliance scrapes failed this resync.' };
 	}
 
-	await pruneAllianceRostersOutside(env.STFC_DB, config.guild_id, payload.keepAllianceIds);
+	const keepAllianceIds = [
+		...new Set([...payload.keepAllianceIds, ...payload.preserveAllianceIds]),
+	];
+	await pruneAllianceRostersOutside(env.STFC_DB, config.guild_id, keepAllianceIds);
 
 	if (payload.tagRenames.length) {
 		const renameMap = new Map(payload.tagRenames.map((r) => [r.fromTag, r.toTag]));
@@ -217,16 +224,25 @@ async function finalizeMultiResync(
 	}
 
 	let current = (await getGuildConfig(env.STFC_DB, config.guild_id)) ?? config;
+	const forceDiscord = opts.forceDiscord ?? payload.forceDiscord;
 	const renameResult = await applyTagRenamesFromSync(env, current, payload.tagRenames, {
 		actorId: opts.actorId,
 		source,
 		rebalance: true,
 		onProgress: opts.onProgress,
-		forceDiscord: opts.forceDiscord ?? payload.forceDiscord,
+		forceDiscord,
 	});
 	current = renameResult.config;
 
-	const allowDiscord = (opts.forceDiscord ?? payload.forceDiscord) || !isDeployTesting(current);
+	const vanishResult = await applyVanishedAlliances(env, current, payload.vanished, {
+		actorId: opts.actorId,
+		source,
+		forceDiscord,
+		onProgress: opts.onProgress,
+	});
+	current = vanishResult.config;
+
+	const allowDiscord = forceDiscord || !isDeployTesting(current);
 	if (
 		!renameResult.rebalanced &&
 		!renameResult.skippedTesting &&
@@ -269,7 +285,14 @@ async function finalizeMultiResync(
 		extra += `\n⚠ Failed: ${payload.failedTags.slice(0, 15).join(', ')}`;
 	}
 	if (payload.skippedTags.length) {
-		extra += `\n⏭ Skipped: ${payload.skippedTags.slice(0, 15).join(', ')}`;
+		extra += `\n⏭ Skipped (no alliance id on file): ${payload.skippedTags.slice(0, 15).join(', ')}`;
+		extra += `\n_If a skipped tag renamed, run \`/alliance track tag:NEW from_tag:OLD\`_`;
+	}
+	if (payload.vanished.length) {
+		extra += `\n🕊 Vanished (untracked/archived): ${payload.vanished
+			.map((v) => v.tag)
+			.slice(0, 15)
+			.join(', ')}`;
 	}
 	if (payload.tagRenames.length) {
 		extra += `\n🏷 Tag renames: ${payload.tagRenames
@@ -307,7 +330,19 @@ async function finalizeMultiResync(
 		summaryLines.push(`• Failed: ${payload.failedTags.slice(0, 10).join(', ')}`);
 	}
 	if (payload.skippedTags.length) {
-		summaryLines.push(`• Skipped: ${payload.skippedTags.slice(0, 10).join(', ')}`);
+		summaryLines.push(
+			`• Skipped (no alliance id on file): ${payload.skippedTags.slice(0, 10).join(', ')}`,
+		);
+		summaryLines.push(
+			`_If renamed: \`/alliance track tag:NEW from_tag:OLD\`_`,
+		);
+	}
+	if (payload.vanished.length) {
+		summaryLines.push(
+			`• Vanished (untracked` +
+				(vanishResult.archived ? ` + archived **${vanishResult.archived}**` : '') +
+				`): ${payload.vanished.map((v) => v.tag).slice(0, 10).join(', ')}`,
+		);
 	}
 	if (payload.tagRenames.length) {
 		summaryLines.push(
@@ -327,6 +362,9 @@ async function finalizeMultiResync(
 	if (renameResult.errors.length) {
 		summaryLines.push(`• Remap issues: ${renameResult.errors.slice(0, 3).join('; ')}`);
 	}
+	if (vanishResult.errors.length) {
+		summaryLines.push(`• Vanish issues: ${vanishResult.errors.slice(0, 3).join('; ')}`);
+	}
 	if (renameResult.rebalanced) summaryLines.push(`• Diplomacy rebalanced`);
 	summaryLines.push(
 		`\n_Verified player roles/nicks update on the next morning sync or when members re-verify._`,
@@ -340,10 +378,12 @@ async function finalizeMultiResync(
 		scrapedAlliances: payload.scrapedAlliances,
 		skippedTags: payload.skippedTags,
 		failedTags: payload.failedTags,
+		vanishedTags: payload.vanished.map((v) => v.tag),
 		tagRenames: payload.tagRenames,
 		remapped: renameResult.remapped,
 		remapErrors: renameResult.errors,
 		rebalanced: renameResult.rebalanced,
+		archived: vanishResult.archived,
 		diffHasChanges: allianceRosterDiffHasChanges(diff),
 		summary: summaryLines.join('\n'),
 	};
@@ -373,18 +413,26 @@ async function runResyncChunk(
 		});
 	}
 
-	const batch = await scrapeMultiAllianceEntries(env, config, chunk, {
-		fetchedAt: payload.fetchedAt,
-		progressOffset: payload.offset,
-		progressTotal: total,
-		onProgress: opts.onProgress,
-	});
+	const batch = await scrapeMultiAllianceEntries(
+		env,
+		config,
+		chunk as MultiAllianceScrapeEntry[],
+		{
+			fetchedAt: payload.fetchedAt,
+			progressOffset: payload.offset,
+			progressTotal: total,
+			onProgress: opts.onProgress,
+		},
+	);
 
 	payload.offset += chunk.length;
 	payload.scrapedAlliances += batch.scrapedAlliances;
 	payload.failedTags.push(...batch.failedTags);
+	payload.vanished.push(...batch.vanished);
 	payload.tagRenames.push(...batch.tagRenames);
 	payload.keepAllianceIds.push(...batch.keepAllianceIds);
+	// Remaining entries must not be pruned mid-resync.
+	payload.preserveAllianceIds = payload.entries.slice(payload.offset).map((e) => e.allianceId);
 
 	const remaining = total - payload.offset;
 	if (remaining > 0) {
@@ -495,21 +543,7 @@ export async function runAllianceResync(
 		if (!multi.ok) {
 			return { ok: false, error: `Multi roster sync failed: ${multi.reason}` };
 		}
-		const payload: AllianceResyncSessionPayload = {
-			forceDiscord,
-			fetchedAt: new Date().toISOString(),
-			directoryCount: multi.directoryCount,
-			trackedTagCount: multi.trackedTags,
-			skippedTags: multi.skippedTags,
-			entries: [],
-			offset: 0,
-			scrapedAlliances: multi.scrapedAlliances,
-			failedTags: multi.failedTags,
-			tagRenames: multi.tagRenames,
-			keepAllianceIds: [],
-			previous: [],
-		};
-		// Full sync already pruned + updated tracked tags; only remaps/audit left.
+		// Full sync already pruned + updated tracked tags; remaps + vanish cleanup left.
 		let current = (await getGuildConfig(env.STFC_DB, config.guild_id)) ?? config;
 		const renameResult = await applyTagRenamesFromSync(env, current, multi.tagRenames, {
 			actorId: opts?.actorId,
@@ -519,6 +553,13 @@ export async function runAllianceResync(
 			forceDiscord,
 		});
 		current = renameResult.config;
+		const vanishResult = await applyVanishedAlliances(env, current, multi.vanished, {
+			actorId: opts?.actorId,
+			source,
+			forceDiscord,
+			onProgress: opts?.onProgress,
+		});
+		current = vanishResult.config;
 		const changeReport = formatAllianceRosterChangeReport(multi.diff, {
 			allianceTag: 'multi',
 			mode: 'multi',
@@ -532,12 +573,21 @@ export async function runAllianceResync(
 					`\n_Directory **${multi.directoryCount}** · tracked **${multi.trackedTags}** · full resync_` +
 					(multi.tagRenames.length
 						? `\n🏷 ${multi.tagRenames.map((r) => `\`${r.fromTag}\`→\`${r.toTag}\``).join(', ')}`
+						: '') +
+					(multi.vanished.length
+						? `\n🕊 Vanished: ${multi.vanished.map((v) => v.tag).join(', ')}`
+						: '') +
+					(multi.skippedTags.length
+						? `\n⏭ No id on file: ${multi.skippedTags.slice(0, 15).join(', ')}`
 						: ''),
 				actorId: opts?.actorId,
 				source,
-				color: allianceRosterDiffHasChanges(multi.diff) || multi.tagRenames.length
-					? AuditColor.warn
-					: AuditColor.info,
+				color:
+					allianceRosterDiffHasChanges(multi.diff) ||
+					multi.tagRenames.length ||
+					multi.vanished.length
+						? AuditColor.warn
+						: AuditColor.info,
 			});
 		}
 		return {
@@ -548,16 +598,24 @@ export async function runAllianceResync(
 			scrapedAlliances: multi.scrapedAlliances,
 			skippedTags: multi.skippedTags,
 			failedTags: multi.failedTags,
+			vanishedTags: multi.vanished.map((v) => v.tag),
 			tagRenames: multi.tagRenames,
 			remapped: renameResult.remapped,
 			remapErrors: renameResult.errors,
 			rebalanced: renameResult.rebalanced,
+			archived: vanishResult.archived,
 			diffHasChanges: allianceRosterDiffHasChanges(multi.diff),
 			summary:
 				`✅ **Alliance resync** complete (full)\n` +
 				`• Scraped: **${multi.scrapedAlliances}**\n` +
 				`• Tag renames: ${multi.tagRenames.length ? multi.tagRenames.map((r) => `\`${r.fromTag}\`→\`${r.toTag}\``).join(', ') : 'none'}\n` +
-				`• Remapped: **${renameResult.remapped}**`,
+				`• Remapped: **${renameResult.remapped}**` +
+				(multi.vanished.length
+					? `\n• Vanished: ${multi.vanished.map((v) => v.tag).join(', ')}`
+					: '') +
+				(multi.skippedTags.length
+					? `\n• Skipped (no id): ${multi.skippedTags.join(', ')} — use \`from_tag\` if renamed`
+					: ''),
 		};
 	}
 
@@ -576,8 +634,10 @@ export async function runAllianceResync(
 		offset: 0,
 		scrapedAlliances: 0,
 		failedTags: [],
-		tagRenames: [],
+		vanished: [],
+		tagRenames: [...planned.plan.plannedRenames],
 		keepAllianceIds: [],
+		preserveAllianceIds: planned.plan.preserveAllianceIds,
 		previous: planned.plan.previous,
 	};
 

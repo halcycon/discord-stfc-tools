@@ -2,6 +2,7 @@
  * Diplomacy auto-rebalance + alliance tag remap orchestration (cron / track / verify).
  */
 import { postAuditLog, AuditColor } from './audit-log';
+import { categoryForLetterName } from './channel-utils';
 import {
 	diplomacyChannelsEnabled,
 	diplomacyNeedsRebalance,
@@ -9,7 +10,15 @@ import {
 	remapDiplomacyAllianceTag,
 	resolveDiplomacySoftLimit,
 } from './diplomacy-channels';
-import { getGuildConfig, upsertGuildConfig } from './guild-db';
+import { listGuildChannels, patchGuildChannel } from './discord-api';
+import {
+	deleteAllianceRosterForId,
+	getGuildConfig,
+	upsertGuildConfig,
+} from './guild-db';
+import { resolveArchiveCategory } from './personal-channels';
+import { isDeployTesting } from './deploy-mode';
+import type { AllianceVanished } from './alliance-roster-sync';
 import type { GuildConfig } from './types';
 
 export async function persistDiplomacySoftLimit(
@@ -128,6 +137,130 @@ export async function applyAllianceTagRename(
 	}
 
 	return { ok: true, rebalanced };
+}
+
+/**
+ * Untrack + unmap diplomacy + archive Discord room when an alliance is gone from stfc.pro
+ * (not on server directory and `/alliances/{id}` scrape failed).
+ */
+export async function applyVanishedAlliances(
+	env: Env,
+	config: GuildConfig,
+	vanished: AllianceVanished[],
+	opts?: {
+		actorId?: string;
+		source?: 'cron' | 'admin' | 'system';
+		forceDiscord?: boolean;
+		onProgress?: (message: string) => Promise<void>;
+	},
+): Promise<{ config: GuildConfig; archived: number; untracked: string[]; errors: string[] }> {
+	if (!vanished.length) {
+		return { config, archived: 0, untracked: [], errors: [] };
+	}
+
+	let current = config;
+	const errors: string[] = [];
+	const untracked: string[] = [];
+	let archived = 0;
+	const token = env.DISCORD_BOT_TOKEN;
+	const allowDiscord =
+		Boolean(token) && ((opts?.forceDiscord === true) || !isDeployTesting(current));
+
+	const report = opts?.onProgress;
+	const tags = [...new Set(vanished.map((v) => v.tag.trim().toUpperCase()).filter(Boolean))];
+
+	for (const v of vanished) {
+		const tag = v.tag.trim().toUpperCase();
+		if (!tag) continue;
+		await report?.(`⏳ Alliance gone: untracking \`[${tag}]\`…`);
+
+		const channelMap = { ...(current.diplomacy_channel_map ?? {}) };
+		const preferred = { ...(current.diplomacy_preferred_locales ?? {}) };
+		const channelId = channelMap[tag] ?? null;
+		delete channelMap[tag];
+		delete preferred[tag];
+
+		const nextTracked = (current.tracked_alliance_tags ?? [])
+			.map((t) => t.trim().toUpperCase())
+			.filter((t) => t && t !== tag);
+
+		await upsertGuildConfig(env.STFC_DB, {
+			guild_id: current.guild_id,
+			diplomacy_channel_map: channelMap,
+			diplomacy_preferred_locales: preferred,
+			tracked_alliance_tags: nextTracked,
+		});
+		current = {
+			...current,
+			diplomacy_channel_map: channelMap,
+			diplomacy_preferred_locales: preferred,
+			tracked_alliance_tags: nextTracked,
+		};
+		untracked.push(tag);
+
+		try {
+			await deleteAllianceRosterForId(env.STFC_DB, current.guild_id, v.allianceId);
+		} catch (err) {
+			errors.push(
+				`[${tag}] roster delete: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+
+		if (allowDiscord && channelId && /^\d{15,20}$/.test(channelId)) {
+			try {
+				const archiveMap = current.diplomacy_archive_category_map ?? {};
+				let parentId =
+					categoryForLetterName(archiveMap, tag) ||
+					current.diplomacy_archive_category_id ||
+					null;
+				if (!parentId) {
+					const resolved = await resolveArchiveCategory(token!, current.guild_id, {
+						archiveName: 'Diplomacy Channels Archive',
+						configArchiveCategoryId: current.diplomacy_archive_category_id,
+						createIfMissing: true,
+					});
+					parentId = resolved.categoryId;
+					if (parentId && resolved.created) {
+						await upsertGuildConfig(env.STFC_DB, {
+							guild_id: current.guild_id,
+							diplomacy_archive_category_id: parentId,
+						});
+						current = { ...current, diplomacy_archive_category_id: parentId };
+					}
+				}
+				if (parentId) {
+					const channels = await listGuildChannels(token!, current.guild_id);
+					const ch = channels.find((c) => c.id === channelId);
+					if (ch && ch.parent_id !== parentId) {
+						await patchGuildChannel(token!, channelId, { parent_id: parentId });
+					}
+					archived++;
+				} else {
+					errors.push(`[${tag}] no archive category available`);
+				}
+			} catch (err) {
+				errors.push(
+					`[${tag}] archive: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		}
+
+		await postAuditLog(env, current, {
+			title: 'Alliance vanished (untracked)',
+			description:
+				`**[${tag}]** id \`${v.allianceId}\` — not on server directory and alliance page scrape failed.` +
+				(channelId ? `\nDiplomacy <#${channelId}> unmapped` + (archived ? ' + archived' : '') : '') +
+				(isDeployTesting(config) && !opts?.forceDiscord
+					? '\n_Discord archive skipped (testing) — D1 untracked/unmapped_'
+					: ''),
+			actorId: opts?.actorId,
+			source: opts?.source ?? 'system',
+			color: AuditColor.warn,
+		});
+	}
+
+	const refreshed = (await getGuildConfig(env.STFC_DB, current.guild_id)) ?? current;
+	return { config: refreshed, archived, untracked: tags, errors };
 }
 
 /**

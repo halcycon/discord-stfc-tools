@@ -255,6 +255,7 @@ export async function handleAllianceCommand(
 	if (subName === 'track') {
 		const tag = getOptionValue(opts, 'tag') as string | undefined;
 		const allianceId = getOptionValue(opts, 'alliance_id') as string | undefined;
+		const fromTag = getOptionValue(opts, 'from_tag') as string | undefined;
 		const appId = interaction.application_id ?? env.DISCORD_APPLICATION_ID;
 		if (!appId) {
 			return interactionResponse('❌ DISCORD_APPLICATION_ID not configured.', true);
@@ -266,6 +267,7 @@ export async function handleAllianceCommand(
 				const result = await trackAndScrapeAlliance(env, config, {
 					tag: tag ?? null,
 					allianceId: allianceId ?? null,
+					fromTag: fromTag ?? null,
 				});
 				if (!result.ok) {
 					await editInteractionResponse(appId, interaction.token, `❌ ${result.error}`, true);

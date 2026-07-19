@@ -8,7 +8,7 @@ Release log for the STFC Discord bot (Cloudflare Worker). Versions use **MAJOR.M
 | **MINOR** | New user-facing capability (new slash area, cron product, admin workflow) |
 | **INCREMENTAL** | Fixes, polish, docs, refactors, small command option tweaks |
 
-**Current version:** **1.17.0**
+**Current version:** **1.17.1**
 
 **Sources of truth**
 
@@ -27,6 +27,10 @@ Bump all three together when cutting a release. Prefer a short entry under the n
 Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. **1.0.0** marks the alliance-management product that was prepared for public use. Later **1.x** minors track feature areas shipped in Jul 2026 (git history + migrations `001`–`027`).
 
 ---
+
+## 1.17.1 — Resync by alliance id: renames + vanished archive (2026-07-19)
+
+Planning always resolves tracked tags to a stored **alliance id** (directory / roster meta / members), then scrapes `/alliances/{id}`. Tag missing from the server list but id known → still scrape (rename) or mark **vanished** (untrack + unmap + archive diplomacy). Tags with **no id on file** stay skipped — recover renames with `/alliance track tag:NEW from_tag:OLD`.
 
 ## 1.17.0 — Chunked `/alliance resync` (Continue) (2026-07-19)
 

@@ -56,7 +56,7 @@ export type TrackAllianceResult =
 export async function trackAndScrapeAlliance(
 	env: Env,
 	config: GuildConfig,
-	opts: { tag?: string | null; allianceId?: string | null },
+	opts: { tag?: string | null; allianceId?: string | null; fromTag?: string | null },
 ): Promise<TrackAllianceResult> {
 	if (!isMultiAllianceGuild(config)) {
 		return { ok: false, error: 'Only available in **multi_alliance** mode.' };
@@ -192,15 +192,53 @@ export async function trackAndScrapeAlliance(
 	let admiralsRolesFailed = 0;
 
 	const token = env.DISCORD_BOT_TOKEN;
-	if (token && !isDeployTesting(config)) {
-		if (priorTag && priorTag !== tag) {
-			await applyAllianceTagRename(env, token, config, config.guild_id, priorTag, tag, {
-				source: 'admin',
-				rebalance: true,
-			});
-			const refreshed = await getGuildConfig(env.STFC_DB, config.guild_id);
-			if (refreshed) Object.assign(config, refreshed);
+	const fromTagOpt = opts.fromTag?.trim().toUpperCase() || null;
+	const renameFrom =
+		priorTag && priorTag !== tag
+			? priorTag
+			: fromTagOpt && fromTagOpt !== tag
+				? fromTagOpt
+				: null;
+	if (token && renameFrom && !isDeployTesting(config)) {
+		await applyAllianceTagRename(env, token, config, config.guild_id, renameFrom, tag, {
+			source: 'admin',
+			rebalance: true,
+		});
+		const refreshed = await getGuildConfig(env.STFC_DB, config.guild_id);
+		if (refreshed) Object.assign(config, refreshed);
+	} else if (renameFrom && (isDeployTesting(config) || !token)) {
+		// D1-only: swap tracked/diplomacy keys when Discord moves are skipped.
+		const channelMap = { ...(config.diplomacy_channel_map ?? {}) };
+		const preferred = { ...(config.diplomacy_preferred_locales ?? {}) };
+		if (channelMap[renameFrom] && !channelMap[tag]) {
+			channelMap[tag] = channelMap[renameFrom]!;
+			delete channelMap[renameFrom];
+		} else {
+			delete channelMap[renameFrom];
 		}
+		if (preferred[renameFrom] && !preferred[tag]) {
+			preferred[tag] = preferred[renameFrom]!;
+			delete preferred[renameFrom];
+		} else {
+			delete preferred[renameFrom];
+		}
+		const tracked = parseTrackedAllianceTags([
+			...(config.tracked_alliance_tags ?? []).map((t) =>
+				t.trim().toUpperCase() === renameFrom ? tag : t,
+			),
+			tag,
+		]);
+		await upsertGuildConfig(env.STFC_DB, {
+			guild_id: config.guild_id,
+			diplomacy_channel_map: channelMap,
+			diplomacy_preferred_locales: preferred,
+			tracked_alliance_tags: tracked,
+		});
+		config.diplomacy_channel_map = channelMap;
+		config.diplomacy_preferred_locales = preferred;
+		config.tracked_alliance_tags = tracked;
+	}
+	if (token && !isDeployTesting(config)) {
 		diplomacyChannelId = await applyDiplomacyForAlliance(
 			env,
 			token,

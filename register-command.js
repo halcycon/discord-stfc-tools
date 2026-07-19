@@ -1392,6 +1392,13 @@ const commands = [
 						description: 'stfc.pro alliance id (optional if tag is set)',
 						required: false,
 					},
+					{
+						type: 3,
+						name: 'from_tag',
+						description:
+							'Previous tag if this alliance renamed (remaps diplomacy / track list)',
+						required: false,
+					},
 				],
 			},
 			{

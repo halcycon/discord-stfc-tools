@@ -224,7 +224,10 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 					extra += `\n⚠ Failed alliance pages: ${multiResult.failedTags.slice(0, 15).join(', ')}`;
 				}
 				if (multiResult.skippedTags.length) {
-					extra += `\n⏭ Skipped (not on server list / over batch cap): ${multiResult.skippedTags.slice(0, 15).join(', ')}`;
+					extra += `\n⏭ Skipped (no alliance id on file): ${multiResult.skippedTags.slice(0, 15).join(', ')}`;
+				}
+				if (multiResult.vanished.length) {
+					extra += `\n🕊 Vanished: ${multiResult.vanished.map((v) => v.tag).slice(0, 15).join(', ')}`;
 				}
 				if (multiResult.tagRenames.length) {
 					extra += `\n🏷 Alliance tag renames: ${multiResult.tagRenames
@@ -238,14 +241,25 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 						`\n_Directory **${multiResult.directoryCount}** · tracked tags **${multiResult.trackedTags}**_` +
 						extra,
 					source: 'cron',
-					color: allianceRosterDiffHasChanges(multiResult.diff)
-						? AuditColor.warn
-						: AuditColor.info,
+					color:
+						allianceRosterDiffHasChanges(multiResult.diff) ||
+						multiResult.tagRenames.length ||
+						multiResult.vanished.length
+							? AuditColor.warn
+							: AuditColor.info,
 				});
 
 				if (multiResult.tagRenames.length && env.DISCORD_BOT_TOKEN && !isDeployTesting(config)) {
 					allianceTagRenames = multiResult.tagRenames.length;
 					config = await applyMultiAllianceTagRenamesForCron(env, config, multiResult);
+					rosterMap = await loadRosterPlayerMap(env, config);
+				}
+				if (multiResult.vanished.length) {
+					const { applyVanishedAlliances } = await import('./diplomacy-maintenance');
+					const vanished = await applyVanishedAlliances(env, config, multiResult.vanished, {
+						source: 'cron',
+					});
+					config = vanished.config;
 					rosterMap = await loadRosterPlayerMap(env, config);
 				}
 			} else {
