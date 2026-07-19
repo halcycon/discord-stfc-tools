@@ -1439,6 +1439,12 @@ const commands = [
 					},
 				],
 			},
+			{
+				type: 1,
+				name: 'resync',
+				description:
+					'Re-scrape tracked alliance rosters now; remap tag renames and diplomacy rooms',
+			},
 		],
 	},
 	{

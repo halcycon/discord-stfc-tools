@@ -8,7 +8,7 @@ Release log for the STFC Discord bot (Cloudflare Worker). Versions use **MAJOR.M
 | **MINOR** | New user-facing capability (new slash area, cron product, admin workflow) |
 | **INCREMENTAL** | Fixes, polish, docs, refactors, small command option tweaks |
 
-**Current version:** **1.15.2**
+**Current version:** **1.16.0**
 
 **Sources of truth**
 
@@ -27,6 +27,10 @@ Bump all three together when cutting a release. Prefer a short entry under the n
 Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. **1.0.0** marks the alliance-management product that was prepared for public use. Later **1.x** minors track feature areas shipped in Jul 2026 (git history + migrations `001`–`027`).
 
 ---
+
+## 1.16.0 — `/alliance resync` (mid-day roster + tag rename remap) (2026-07-19)
+
+Admin `/alliance resync` re-scrapes tracked alliance pages (same as morning), remaps diplomacy/DB when an alliance id’s tag changed, and rebalances buckets. `/alliance track` also remaps when the scraped tag differs from the prior cache. Duplicate new-tag diplomacy rooms are unmapped in favour of the original channel. Diagnostic `persist=1` uses the same path.
 
 ## 1.15.2 — Diplomacy sync_all no longer hangs (2026-07-18)
 

@@ -19,6 +19,7 @@ import {
 	type AllianceRosterMemberRow,
 } from './guild-db';
 import { collectTrackedAllianceTags, isMultiAllianceGuild } from './alliance-roster-sync';
+import { runAllianceResync } from './alliance-resync';
 import { trackAndScrapeAlliance, untrackAllianceTag } from './alliance-track';
 import {
 	buildApproveContinueComponents,
@@ -194,7 +195,7 @@ export async function handleAllianceCommand(
 				`• Plus any tags on verified players\n` +
 				`• Defer untracked Admiral roles: **${config.defer_untracked_admiral_roles ? 'on' : 'off'}**` +
 				` (\`/alliance defer-untracked-admirals\`)\n\n` +
-				`Track + scrape now: \`/alliance track tag:TAG\``,
+				`Track + scrape now: \`/alliance track tag:TAG\` · mid-day: \`/alliance resync\``,
 			true,
 		);
 	}
@@ -353,9 +354,48 @@ export async function handleAllianceCommand(
 		return deferred;
 	}
 
+	if (subName === 'resync') {
+		const appId = interaction.application_id ?? env.DISCORD_APPLICATION_ID;
+		if (!appId) {
+			return interactionResponse('❌ DISCORD_APPLICATION_ID not configured.', true);
+		}
+		const deferred = deferredResponse();
+		ctx.waitUntil(
+			(async () => {
+				try {
+					await editInteractionResponse(
+						appId,
+						interaction.token,
+						'⏳ Resyncing tracked alliance rosters from stfc.pro (may take a minute)…',
+						true,
+					);
+					const result = await runAllianceResync(env, config, {
+						actorId: interaction.member?.user?.id,
+						source: 'admin',
+						postAudit: true,
+					});
+					if (!result.ok) {
+						await editInteractionResponse(appId, interaction.token, `❌ ${result.error}`, true);
+						return;
+					}
+					await editInteractionResponse(appId, interaction.token, result.summary, true);
+				} catch (err) {
+					await editInteractionResponse(
+						appId,
+						interaction.token,
+						`❌ Resync failed: ${err instanceof Error ? err.message : String(err)}`,
+						true,
+					);
+				}
+			})(),
+		);
+		return deferred;
+	}
+
 	return interactionResponse(
 		`🏷 **Alliance** (multi)\n` +
 			`• \`/alliance track tag:TAG\` — scrape now + keep in morning sync\n` +
+			`• \`/alliance resync\` — re-scrape tracked rosters now + remap tag renames / diplomacy\n` +
 			`• \`/alliance suggest [tag:]\` — match unverified Discord members to roster (Approve buttons)\n` +
 			`• \`/alliance list\` · \`/alliance untrack tag:\``,
 		true,

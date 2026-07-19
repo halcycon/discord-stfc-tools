@@ -28,10 +28,8 @@ import {
 	syncGuildAllianceRoster,
 	syncMultiAllianceTrackedRosters,
 } from './alliance-roster-sync';
-import {
-	applyAllianceTagRename,
-	runDiplomacyAutoRebalance,
-} from './diplomacy-maintenance';
+import { applyMultiAllianceTagRenamesForCron } from './alliance-resync';
+import { runDiplomacyAutoRebalance } from './diplomacy-maintenance';
 import { diplomacyChannelsEnabled } from './diplomacy-channels';
 import {
 	allianceRosterDiffHasChanges,
@@ -247,19 +245,7 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 
 				if (multiResult.tagRenames.length && env.DISCORD_BOT_TOKEN && !isDeployTesting(config)) {
 					allianceTagRenames = multiResult.tagRenames.length;
-					for (const ren of multiResult.tagRenames) {
-						const latest = (await getGuildConfig(env.STFC_DB, config.guild_id)) ?? config;
-						await applyAllianceTagRename(
-							env,
-							env.DISCORD_BOT_TOKEN,
-							latest,
-							config.guild_id,
-							ren.fromTag,
-							ren.toTag,
-							{ source: 'cron', rebalance: false },
-						);
-					}
-					config = (await getGuildConfig(env.STFC_DB, config.guild_id)) ?? config;
+					config = await applyMultiAllianceTagRenamesForCron(env, config, multiResult);
 					rosterMap = await loadRosterPlayerMap(env, config);
 				}
 			} else {

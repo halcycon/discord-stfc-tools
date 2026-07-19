@@ -494,6 +494,7 @@ These are easy to conflate. They are **not** the same list:
 
 ```
 /alliance track tag:ABCD                    # scrape now into D1 + keep in morning sync (+ diplomacy if enabled)
+/alliance resync                            # re-scrape tracked rosters now + remap tag renames / diplomacy
 /alliance suggest tag:ABCD                  # match unverified Discord nicks → roster
 /alliance list                              # explicit + diplomacy + combined scrape tags
 /alliance untrack tag:ABCD                  # drop from explicit list only
@@ -813,7 +814,9 @@ Same spirit as personal-channel rebalance. Progress posts on the slash command a
 
 **Auto-rebalance:** when `/alliance track` (or verify) adds a diplomacy channel that would overflow a bucket, or after the morning multi-alliance roster scrape, the bot rebalances using the **persisted** soft limit (sticky: it will not merge categories if you raise the limit later).
 
-**Alliance tag rename:** if a tracked alliance changes its tag on stfc.pro (same alliance id, new tag string), the morning job remaps `diplomacy_channel_map` / preferred languages / `tracked_alliance_tags` / verified player tags, renames and re-places the diplomacy room, then rebalances letter buckets if needed. This is **not** the same as a player moving between alliances.
+**Alliance tag rename:** if a tracked alliance changes its tag on stfc.pro (same alliance id, new tag string), the morning job (or `/alliance resync`) remaps `diplomacy_channel_map` / preferred languages / `tracked_alliance_tags` / verified player tags, renames and re-places the diplomacy room, then rebalances letter buckets if needed. This is **not** the same as a player moving between alliances.
+
+**Why resync matters mid-day:** if players sync with the **new** tag before remap, diplomacy may auto-create a second channel for the new tag while the old map key still exists. Run `/alliance resync` promptly after a rename; remap keeps the original room and unmaps the duplicate (you can delete the extra Discord channel).
 
 ### Organise existing archive piles (no linking)
 

@@ -3,13 +3,16 @@
  */
 import {
 	countAllianceMembersMissingVerify,
+	getGuildConfig,
 	getServerAllianceIdByTag,
 	listActiveVerifiedPlayers,
 	listAllianceRosterMembers,
+	listAllianceRosterMeta,
 	replaceAllianceRoster,
 	replaceServerAllianceDirectory,
 	upsertGuildConfig,
 } from './guild-db';
+import { applyAllianceTagRename } from './diplomacy-maintenance';
 import { opsLevelToGrade } from './grade-utils';
 import { scrapeAllianceById, scrapeServerAlliances } from './stfc-utils';
 import { applyActivityObservation } from './activity-utils';
@@ -124,6 +127,10 @@ export async function trackAndScrapeAlliance(
 
 	const tag = (scrape.allianceTag || resolvedTag).toUpperCase();
 	const id = scrape.allianceId || allianceId;
+	const priorMeta = (await listAllianceRosterMeta(env.STFC_DB, config.guild_id)).find(
+		(m) => m.alliance_id === id,
+	);
+	const priorTag = priorMeta?.alliance_tag?.trim().toUpperCase() || null;
 	const previous = await listAllianceRosterMembers(env.STFC_DB, config.guild_id);
 	const previousById = new Map(previous.map((m) => [m.player_id, m]));
 
@@ -169,7 +176,9 @@ export async function trackAndScrapeAlliance(
 	});
 
 	const nextTracked = parseTrackedAllianceTags([
-		...(config.tracked_alliance_tags ?? []),
+		...(config.tracked_alliance_tags ?? []).map((t) =>
+			priorTag && priorTag !== tag && t.trim().toUpperCase() === priorTag ? tag : t,
+		),
 		tag,
 	]);
 	await upsertGuildConfig(env.STFC_DB, {
@@ -184,6 +193,14 @@ export async function trackAndScrapeAlliance(
 
 	const token = env.DISCORD_BOT_TOKEN;
 	if (token && !isDeployTesting(config)) {
+		if (priorTag && priorTag !== tag) {
+			await applyAllianceTagRename(env, token, config, config.guild_id, priorTag, tag, {
+				source: 'admin',
+				rebalance: true,
+			});
+			const refreshed = await getGuildConfig(env.STFC_DB, config.guild_id);
+			if (refreshed) Object.assign(config, refreshed);
+		}
 		diplomacyChannelId = await applyDiplomacyForAlliance(
 			env,
 			token,

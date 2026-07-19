@@ -9,8 +9,8 @@ import { getGuildConfig } from './guild-db';
 import {
 	isMultiAllianceGuild,
 	syncGuildAllianceRoster,
-	syncMultiAllianceTrackedRosters,
 } from './alliance-roster-sync';
+import { runAllianceResync } from './alliance-resync';
 import { handleAgreementBackfillContinue } from './agreement';
 import { handleAdminApi } from './admin-api';
 
@@ -177,33 +177,50 @@ export default {
 					}
 					const started = Date.now();
 					if (isMultiAllianceGuild(guild)) {
-						const result = await syncMultiAllianceTrackedRosters(env, guild);
+						const result = await runAllianceResync(env, guild, {
+							source: 'system',
+							postAudit: false,
+						});
+						if (!result.ok) {
+							return Response.json(
+								{
+									ok: false,
+									persist: true,
+									mode: 'multi_alliance',
+									ms: Date.now() - started,
+									guild_id: guild.guild_id,
+									reason: result.error,
+								},
+								{ headers: { 'Cache-Control': 'no-store' } },
+							);
+						}
+						if (result.mode !== 'multi_alliance') {
+							return Response.json(
+								{
+									ok: false,
+									persist: true,
+									reason: 'unexpected resync mode',
+									guild_id: guild.guild_id,
+								},
+								{ status: 500, headers: { 'Cache-Control': 'no-store' } },
+							);
+						}
 						return Response.json(
 							{
-								ok: result.ok,
+								ok: true,
 								persist: true,
 								mode: 'multi_alliance',
 								ms: Date.now() - started,
 								guild_id: guild.guild_id,
-								...(result.ok
-									? {
-											directoryCount: result.directoryCount,
-											trackedTags: result.trackedTags,
-											scrapedAlliances: result.scrapedAlliances,
-											skippedTags: result.skippedTags,
-											failedTags: result.failedTags,
-											diff: {
-												isInitial: result.diff.isInitial,
-												joined: result.diff.joined.length,
-												left: result.diff.left.length,
-												tagMoved: result.diff.tagMoved.length,
-												opsUp: result.diff.opsUp.length,
-												opsDown: result.diff.opsDown.length,
-												rankChanged: result.diff.rankChanged.length,
-												renamed: result.diff.renamed.length,
-											},
-										}
-									: { reason: result.reason }),
+								directoryCount: result.directoryCount,
+								trackedTags: result.trackedTags,
+								scrapedAlliances: result.scrapedAlliances,
+								skippedTags: result.skippedTags,
+								failedTags: result.failedTags,
+								tagRenames: result.tagRenames,
+								remapped: result.remapped,
+								rebalanced: result.rebalanced,
+								remapErrors: result.remapErrors,
 							},
 							{ headers: { 'Cache-Control': 'no-store' } },
 						);

@@ -141,7 +141,8 @@ List subcommands (`grade`, `ops`, `rank`, `inactive`, `missing-verify`) share op
 
 | Subcommand | Notes |
 |------------|-------|
-| `track` | `tag:` and/or `alliance_id:` — scrape HTML now, store roster, add to morning tracked set |
+| `track` | `tag:` and/or `alliance_id:` — scrape HTML now, store roster, add to morning tracked set; remaps diplomacy if that alliance id’s tag changed |
+| `resync` | Re-scrape all tracked alliance pages now (same as morning roster job) + remap tag renames / diplomacy rooms |
 | `suggest` | Optional `tag:` — table of matches + **Approve 🟢/🟡/🟠** per confidence, individual **#** buttons, **Continue** |
 | `list` | Explicit + diplomacy + combined tracked tags |
 | `untrack` | Remove from explicit list (diplomacy/verified tags still track) |

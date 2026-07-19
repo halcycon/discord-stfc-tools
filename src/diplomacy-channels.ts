@@ -113,6 +113,8 @@ export async function remapDiplomacyAllianceTag(
 			trackedTags: string[];
 			renamed: boolean;
 			moved: boolean;
+			/** Auto-created channel for the new tag that was unmapped in favour of the original room. */
+			duplicateChannelId?: string;
 	  }
 	| { ok: false; error: string }
 > {
@@ -129,15 +131,18 @@ export async function remapDiplomacyAllianceTag(
 	if (!channelId) {
 		return { ok: false, error: `No diplomacy channel mapped for [${fromTag}].` };
 	}
-	if (channelMap[toTag] && channelMap[toTag] !== channelId) {
-		return {
-			ok: false,
-			error: `[${toTag}] already has a different diplomacy channel — resolve manually.`,
-		};
-	}
+	// If players already spawned a NEW-tag channel, keep the original (fromTag) room as
+	// canonical and drop the duplicate map entry (Discord channel left for admin cleanup).
+	const duplicateId =
+		channelMap[toTag] && channelMap[toTag] !== channelId ? channelMap[toTag]! : null;
 
 	delete channelMap[fromTag];
 	channelMap[toTag] = channelId;
+	if (duplicateId) {
+		console.warn(
+			`Diplomacy tag remap [${fromTag}]→[${toTag}]: unmapped duplicate <#${duplicateId}> (kept <#${channelId}>)`,
+		);
+	}
 	if (preferredLocales[fromTag]) {
 		if (!preferredLocales[toTag]) preferredLocales[toTag] = preferredLocales[fromTag]!;
 		delete preferredLocales[fromTag];
@@ -169,6 +174,7 @@ export async function remapDiplomacyAllianceTag(
 		trackedTags: trackedUnique,
 		renamed: ensured.renamed,
 		moved: ensured.moved,
+		...(duplicateId ? { duplicateChannelId: duplicateId } : {}),
 	};
 }
 

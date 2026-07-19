@@ -107,7 +107,10 @@ export async function applyAllianceTagRename(
 		description:
 			`**[${result.fromTag}]** → **[${result.toTag}]** → <#${result.channelId}>` +
 			(result.renamed ? ' (renamed)' : '') +
-			(result.moved ? ' (moved)' : ''),
+			(result.moved ? ' (moved)' : '') +
+			(result.duplicateChannelId
+				? `\n⚠ Duplicate map entry <#${result.duplicateChannelId}> unmapped — delete that channel if unwanted.`
+				: ''),
 		actorId: opts?.actorId,
 		source: opts?.source ?? 'system',
 		color: AuditColor.warn,
