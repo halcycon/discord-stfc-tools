@@ -2837,6 +2837,21 @@ export async function replaceAllianceRoster(
 			),
 	);
 
+	const aliasTag = opts.allianceTag?.trim().toUpperCase();
+	if (aliasTag) {
+		stmts.push(
+			db
+				.prepare(
+					`INSERT INTO alliance_roster_tag_aliases (guild_id, alliance_id, alliance_tag, seen_at)
+					 VALUES (?, ?, ?, ?)
+					 ON CONFLICT(guild_id, alliance_tag) DO UPDATE SET
+					   alliance_id = excluded.alliance_id,
+					   seen_at = excluded.seen_at`,
+				)
+				.bind(opts.guildId, opts.allianceId, aliasTag, opts.fetchedAt),
+		);
+	}
+
 	for (const m of opts.members) {
 		const daysInactive = Math.max(0, Math.floor(Number(m.daysInactive ?? 0) || 0));
 		stmts.push(
@@ -2893,7 +2908,51 @@ export async function deleteAllianceRosterForId(
 		db
 			.prepare(`DELETE FROM alliance_roster_meta WHERE guild_id = ? AND alliance_id = ?`)
 			.bind(guildId, allianceId),
+		db
+			.prepare(`DELETE FROM alliance_roster_tag_aliases WHERE guild_id = ? AND alliance_id = ?`)
+			.bind(guildId, allianceId),
 	]);
+}
+
+/** Record that this tag string maps to this alliance id (survives tag renames on meta). */
+export async function rememberAllianceTagAlias(
+	db: D1Database,
+	guildId: string,
+	allianceId: string,
+	allianceTag: string,
+): Promise<void> {
+	const id = allianceId.trim();
+	const tag = allianceTag.trim().toUpperCase();
+	if (!id || !tag) return;
+	await db
+		.prepare(
+			`INSERT INTO alliance_roster_tag_aliases (guild_id, alliance_id, alliance_tag, seen_at)
+			 VALUES (?, ?, ?, datetime('now'))
+			 ON CONFLICT(guild_id, alliance_tag) DO UPDATE SET
+			   alliance_id = excluded.alliance_id,
+			   seen_at = excluded.seen_at`,
+		)
+		.bind(guildId, id, tag)
+		.run();
+}
+
+/** Resolve a (possibly old) tag string to alliance id via alias history. */
+export async function getAllianceIdByTagAlias(
+	db: D1Database,
+	guildId: string,
+	allianceTag: string,
+): Promise<string | null> {
+	const tag = allianceTag.trim().toUpperCase();
+	if (!tag) return null;
+	const row = await db
+		.prepare(
+			`SELECT alliance_id FROM alliance_roster_tag_aliases
+			 WHERE guild_id = ? AND alliance_tag = ?
+			 LIMIT 1`,
+		)
+		.bind(guildId, tag)
+		.first();
+	return row ? String((row as { alliance_id: string }).alliance_id).trim() || null : null;
 }
 
 /** Drop roster members/meta for alliance ids not in `keepAllianceIds` (multi cleanup). */

@@ -136,7 +136,7 @@ describe('channel-utils', () => {
 			diplomacy_category_map: { 'A-M': 'dip-am', 'N-#': 'dip-nz' },
 			diplomacy_category_id: 'legacy-cat',
 		});
-		expect(categoryForAllianceTag(config, 'KWSN')).toBe('dip-am');
+		expect(categoryForAllianceTag(config, 'ALPHA')).toBe('dip-am');
 		expect(categoryForAllianceTag(config, 'ROME')).toBe('dip-nz');
 		expect(categoryForAllianceTag(config, 'ŁTAG')).toBe('dip-am');
 	});
@@ -146,7 +146,7 @@ describe('channel-utils', () => {
 			diplomacy_category_map: {},
 			diplomacy_category_id: 'legacy-cat',
 		});
-		expect(categoryForAllianceTag(config, 'KWSN')).toBe('legacy-cat');
+		expect(categoryForAllianceTag(config, 'ALPHA')).toBe('legacy-cat');
 	});
 
 	it('parseCategoryMapInput parses bulk maps', () => {

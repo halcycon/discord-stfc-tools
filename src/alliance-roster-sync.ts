@@ -5,9 +5,12 @@ import {
 	getAllianceRosterMemberByName,
 	getAllianceRosterMeta,
 	listActiveVerifiedPlayers,
+	getAllianceIdByTagAlias,
+	getServerAllianceIdByTag,
 	listAllianceRosterMembers,
 	listAllianceRosterMeta,
 	pruneAllianceRostersOutside,
+	rememberAllianceTagAlias,
 	replaceAllianceRoster,
 	replaceServerAllianceDirectory,
 	setGuildStfcAllianceId,
@@ -369,6 +372,13 @@ export async function planMultiAllianceScrape(
 		if (t && id && !memberIdByTag.has(t)) memberIdByTag.set(t, id);
 	}
 
+	// Resolve ids from *previous* server directory BEFORE we overwrite it (rename window).
+	const priorDirIds = new Map<string, string>();
+	for (const tag of trackedTags) {
+		const id = await getServerAllianceIdByTag(env.STFC_DB, config.guild_id, tag);
+		if (id) priorDirIds.set(tag, id.trim());
+	}
+
 	report(`⏳ Alliance sync: loading server directory (${trackedTags.size} tracked tag(s))…`);
 	const directory = await scrapeServerAlliances(config.stfc_server, config.stfc_region);
 	if (directory.length === 0) {
@@ -394,12 +404,15 @@ export async function planMultiAllianceScrape(
 	const byId = new Map<string, ServerAllianceDirectoryEntry>();
 	for (const e of directory) {
 		byTag.set(e.allianceTag.toUpperCase(), e);
-		byId.set(e.allianceId, e);
+		byId.set(e.allianceId.trim(), e);
 	}
 
 	const priorMeta = await listAllianceRosterMeta(env.STFC_DB, config.guild_id);
 	const metaByTag = new Map<string, (typeof priorMeta)[0]>();
+	const metaById = new Map<string, (typeof priorMeta)[0]>();
 	for (const m of priorMeta) {
+		const id = m.alliance_id?.trim();
+		if (id) metaById.set(id, m);
 		if (m.alliance_tag?.trim()) metaByTag.set(m.alliance_tag.trim().toUpperCase(), m);
 	}
 
@@ -410,13 +423,29 @@ export async function planMultiAllianceScrape(
 
 	for (const tag of trackedTags) {
 		let dirEntry = byTag.get(tag);
-		let allianceId: string | null = dirEntry?.allianceId ?? null;
+		let allianceId: string | null = dirEntry?.allianceId?.trim() ?? null;
 		let onDirectory = Boolean(dirEntry);
 
 		if (!allianceId) {
 			const meta = metaByTag.get(tag);
-			if (meta?.alliance_id) {
-				allianceId = meta.alliance_id;
+			if (meta?.alliance_id?.trim()) {
+				allianceId = meta.alliance_id.trim();
+				dirEntry = byId.get(allianceId);
+				onDirectory = Boolean(dirEntry);
+			}
+		}
+		if (!allianceId) {
+			const fromAlias = await getAllianceIdByTagAlias(env.STFC_DB, config.guild_id, tag);
+			if (fromAlias) {
+				allianceId = fromAlias;
+				dirEntry = byId.get(allianceId);
+				onDirectory = Boolean(dirEntry);
+			}
+		}
+		if (!allianceId) {
+			const fromPriorDir = priorDirIds.get(tag);
+			if (fromPriorDir) {
+				allianceId = fromPriorDir;
 				dirEntry = byId.get(allianceId);
 				onDirectory = Boolean(dirEntry);
 			}
@@ -436,10 +465,11 @@ export async function planMultiAllianceScrape(
 			continue;
 		}
 
-		const meta = priorMeta.find((m) => m.alliance_id === allianceId);
+		const meta = metaById.get(allianceId);
 		const entry: MultiAllianceScrapeEntry = dirEntry
 			? {
 					...dirEntry,
+					allianceId,
 					requestedTag: tag,
 					onDirectory: true,
 				}
@@ -537,45 +567,63 @@ export async function scrapeMultiAllianceEntries(
 		);
 		if (i > 0) await sleep(MULTI_ALLIANCE_SCRAPE_DELAY_MS);
 		const started = Date.now();
-		const scrape = await scrapeAllianceById(
+		let scrape = await scrapeAllianceById(
 			entry.allianceId,
 			config.stfc_server,
 			config.stfc_region,
 		);
 		const ms = Date.now() - started;
 		if (!scrape || scrape.players.length === 0) {
-			failedTags.push(labelTag);
+			// Always keep cache on failure (timeout ≠ disbanded). Off-directory: one retry, then vanish.
+			keepAllianceIds.push(entry.allianceId.trim());
+			let giveUp = !entry.onDirectory;
 			if (!entry.onDirectory) {
-				// Gone from server list and page empty/missing → treat as disbanded.
-				vanished.push({ tag: labelTag, allianceId: entry.allianceId });
-				console.warn(
-					`Alliance vanished guild=${config.guild_id} tag=${labelTag} id=${entry.allianceId} (${ms}ms)`,
+				await sleep(2000);
+				const retry = await scrapeAllianceById(
+					entry.allianceId,
+					config.stfc_server,
+					config.stfc_region,
 				);
-			} else {
-				keepAllianceIds.push(entry.allianceId);
-				console.warn(
-					`Alliance scrape failed guild=${config.guild_id} tag=${labelTag} id=${entry.allianceId} (${ms}ms)`,
-				);
+				if (retry && retry.players.length > 0) {
+					scrape = retry;
+					giveUp = false;
+				}
 			}
-			report(
-				`⏳ Alliance sync: scrape **${abs}/${progressTotal}** \`[${labelTag}]\` ❌` +
-					` (${ms}ms; ok ${scrapedAlliances}, fail ${failedTags.length}` +
-					(!entry.onDirectory ? ', vanished' : '') +
-					`)…`,
-			);
-			continue;
+			if (!scrape || scrape.players.length === 0) {
+				failedTags.push(labelTag);
+				if (giveUp) {
+					vanished.push({ tag: labelTag, allianceId: entry.allianceId.trim() });
+					console.warn(
+						`Alliance vanished guild=${config.guild_id} tag=${labelTag} id=${entry.allianceId} (${ms}ms)`,
+					);
+				} else {
+					console.warn(
+						`Alliance scrape failed guild=${config.guild_id} tag=${labelTag} id=${entry.allianceId} (${ms}ms)`,
+					);
+				}
+				report(
+					`⏳ Alliance sync: scrape **${abs}/${progressTotal}** \`[${labelTag}]\` ❌` +
+						` (${ms}ms; ok ${scrapedAlliances}, fail ${failedTags.length}` +
+						(giveUp ? ', vanished' : '') +
+						`)…`,
+				);
+				continue;
+			}
 		}
 		const tag = (scrape.allianceTag || entry.allianceTag).trim().toUpperCase();
-		const allianceId = scrape.allianceId || entry.allianceId;
+		const allianceId = (scrape.allianceId || entry.allianceId).trim();
 		const prior = metaById.get(allianceId);
 		const priorTag = prior?.alliance_tag?.trim().toUpperCase();
 		if (priorTag && tag && priorTag !== tag) {
 			pushUniqueRename(tagRenames, { allianceId, fromTag: priorTag, toTag: tag });
+			await rememberAllianceTagAlias(env.STFC_DB, config.guild_id, allianceId, priorTag);
 		}
 		const requested = entry.requestedTag?.trim().toUpperCase();
 		if (requested && tag && requested !== tag) {
 			pushUniqueRename(tagRenames, { allianceId, fromTag: requested, toTag: tag });
+			await rememberAllianceTagAlias(env.STFC_DB, config.guild_id, allianceId, requested);
 		}
+		await rememberAllianceTagAlias(env.STFC_DB, config.guild_id, allianceId, tag);
 		const previousForAlliance = await listAllianceRosterMembers(env.STFC_DB, config.guild_id);
 		const previousById = new Map(previousForAlliance.map((m) => [m.player_id, m]));
 		const members = membersFromScrape(scrape, allianceId, tag, previousById);

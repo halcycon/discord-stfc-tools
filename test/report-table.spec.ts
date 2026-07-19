@@ -64,7 +64,7 @@ describe('formatAllianceRosterChangeReport tables', () => {
 				playerName: 'Ada',
 				allianceRank: 'Operative',
 				opsLevel: 40,
-				allianceTag: 'KWSN',
+				allianceTag: 'ALPHA',
 			},
 		];
 		const next = [
@@ -73,18 +73,18 @@ describe('formatAllianceRosterChangeReport tables', () => {
 				playerName: 'Ada',
 				allianceRank: 'Operative',
 				opsLevel: 41,
-				allianceTag: 'KWSN',
+				allianceTag: 'ALPHA',
 			},
 			{
 				playerId: 2,
 				playerName: 'Bea',
 				allianceRank: 'Agent',
 				opsLevel: 50,
-				allianceTag: 'KWSN',
+				allianceTag: 'ALPHA',
 			},
 		];
 		const diff = diffAllianceRosters(prev, next);
-		const report = formatAllianceRosterChangeReport(diff, { allianceTag: 'KWSN' });
+		const report = formatAllianceRosterChangeReport(diff, { allianceTag: 'ALPHA' });
 		expect(report.description).toContain('**Ops up (1)**');
 		expect(report.description).toContain('**Joined tracked roster (1)**');
 		expect(report.description).toContain('```');

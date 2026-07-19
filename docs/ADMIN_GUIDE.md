@@ -494,7 +494,7 @@ These are easy to conflate. They are **not** the same list:
 
 ```
 /alliance track tag:ABCD                    # scrape now into D1 + keep in morning sync (+ diplomacy if enabled)
-/alliance track tag:BLKN from_tag:BLUE      # renamed alliance: scrape new tag + remap diplomacy/track from old tag
+/alliance track tag:NEWT from_tag:OLDT      # renamed alliance: scrape new tag + remap diplomacy/track from old tag
 /alliance resync                            # chunked re-scrape (Continue); remaps on last chunk when live
 /alliance resync apply_discord:true         # same, but apply Discord diplomacy remaps even in testing
 /alliance suggest tag:ABCD                  # match unverified Discord nicks → roster
@@ -822,7 +822,7 @@ Same spirit as personal-channel rebalance. Progress posts on the slash command a
 
 **Timeouts (not a Discord 30s command limit):** Discord needs an ack within **3s** (we defer), then allows interaction edits/follow-ups for **15 minutes**. After we reply, Cloudflare only keeps `waitUntil` work alive ~**30s** — that is why slash resync is chunked (Continue). Morning cron is a separate scheduled invocation (~**15 min** wall) and still scrapes all tracked pages in one job. stfc.pro page fetches abort at **25s** so one hung page cannot consume a whole chunk.
 
-**Scrapes are by alliance id**, not tag string. Resync resolves each tracked tag → id (server directory, else prior roster meta/members), then fetches `/alliances/{id}`. If the tag left the directory but the id still scrapes under a new tag → **rename remap**. If the id is gone from the directory **and** the page fails → **vanished** (untrack, unmap diplomacy, archive room). If there is **no id on file** for a tag, it is skipped — use `/alliance track tag:NEW from_tag:OLD` after a rename.
+**Scrapes are by alliance id**, not tag string. Resync resolves each tracked tag → id (live directory, **previous** directory, tag alias history, roster meta/members), then fetches `/alliances/{id}`. Rename updates D1 diplomacy/track keys even in **testing** (Discord channel rename/move still needs live mode or `apply_discord:true`). If the id is gone from the directory **and** the page fails twice → **vanished** (untrack, unmap, archive). Stuck old tags from before 1.17.2: `/alliance track tag:NEW from_tag:OLD` once.
 
 ### Organise existing archive piles (no linking)
 

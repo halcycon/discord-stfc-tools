@@ -118,18 +118,17 @@ export async function applyTagRenamesFromSync(
 	const token = env.DISCORD_BOT_TOKEN;
 	const progress = createProgressReporter(opts?.onProgress);
 	const report = (message: string) => progress.report(message);
-	if (!token || tagRenames.length === 0) {
+	if (tagRenames.length === 0) {
 		return { config: current, remapped: 0, errors, rebalanced: false, skippedTesting: false };
 	}
-	if (isDeployTesting(config) && !opts?.forceDiscord) {
+
+	const dbOnly = isDeployTesting(config) && !opts?.forceDiscord;
+	if (dbOnly) {
 		report(
-			`⏳ Alliance resync: **${tagRenames.length}** tag rename(s) detected — Discord remap skipped (deploy mode **testing**).\n` +
+			`⏳ Alliance resync: **${tagRenames.length}** tag rename(s) — updating D1 maps; Discord channel rename skipped (testing).\n` +
 				`_Override: \`/alliance resync apply_discord:true\`_`,
 		);
-		await progress.flush();
-		return { config: current, remapped: 0, errors, rebalanced: false, skippedTesting: true };
-	}
-	if (isDeployTesting(config) && opts?.forceDiscord) {
+	} else if (isDeployTesting(config) && opts?.forceDiscord) {
 		report(
 			`⏳ Alliance resync: **${tagRenames.length}** tag rename(s) — applying Discord remaps (**testing** override)…`,
 		);
@@ -142,6 +141,21 @@ export async function applyTagRenamesFromSync(
 				`\`${ren.fromTag}\`→\`${ren.toTag}\`…`,
 		);
 		const latest = (await getGuildConfig(env.STFC_DB, current.guild_id)) ?? current;
+		if (dbOnly || !token) {
+			const { remapAllianceTagInDb } = await import('./diplomacy-maintenance');
+			const result = await remapAllianceTagInDb(env, latest, ren.fromTag, ren.toTag, {
+				source: opts?.source ?? 'system',
+				actorId: opts?.actorId,
+				allianceId: ren.allianceId,
+			});
+			if (result.ok) {
+				remapped++;
+				current = result.config;
+			} else if (result.error) {
+				errors.push(`[${ren.fromTag}→${ren.toTag}] ${result.error}`);
+			}
+			continue;
+		}
 		const result = await applyAllianceTagRename(
 			env,
 			token,
@@ -153,6 +167,7 @@ export async function applyTagRenamesFromSync(
 				source: opts?.source ?? 'system',
 				actorId: opts?.actorId,
 				rebalance: false,
+				allianceId: ren.allianceId,
 			},
 		);
 		if (result.ok) {
@@ -163,10 +178,15 @@ export async function applyTagRenamesFromSync(
 		}
 	}
 
+	if (dbOnly) {
+		await progress.flush();
+		return { config: current, remapped, errors, rebalanced: false, skippedTesting: true };
+	}
+
 	let rebalanced = false;
 	if (opts?.rebalance !== false && diplomacyChannelsEnabled(current) && remapped > 0) {
 		report('⏳ Alliance resync: diplomacy auto-rebalance…');
-		const rb = await runDiplomacyAutoRebalance(env, token, current, current.guild_id, {
+		const rb = await runDiplomacyAutoRebalance(env, token!, current, current.guild_id, {
 			force: Object.keys(current.diplomacy_channel_map ?? {}).length > 0,
 			reason: `tag rename remap (${remapped})`,
 			source: opts?.source ?? 'system',
@@ -431,8 +451,13 @@ async function runResyncChunk(
 	payload.vanished.push(...batch.vanished);
 	payload.tagRenames.push(...batch.tagRenames);
 	payload.keepAllianceIds.push(...batch.keepAllianceIds);
-	// Remaining entries must not be pruned mid-resync.
-	payload.preserveAllianceIds = payload.entries.slice(payload.offset).map((e) => e.allianceId);
+	// Keep overflow ids from plan + not-yet-scraped entries (do not drop overflow).
+	payload.preserveAllianceIds = [
+		...new Set([
+			...payload.preserveAllianceIds,
+			...payload.entries.slice(payload.offset).map((e) => e.allianceId),
+		]),
+	];
 
 	const remaining = total - payload.offset;
 	if (remaining > 0) {

@@ -52,7 +52,7 @@ describe('multi-alliance empty tag is not a demotion candidate', () => {
 	it('rejects empty tag on single_alliance', () => {
 		expect(
 			playerMatchesGuildAlliance(
-				{ mode: 'single_alliance', alliance_tag: 'KWSN' },
+				{ mode: 'single_alliance', alliance_tag: 'ALPHA' },
 				'',
 			),
 		).toBe(false);

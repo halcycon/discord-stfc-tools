@@ -249,8 +249,9 @@ export async function runDailyPlayerSync(env: Env): Promise<void> {
 							: AuditColor.info,
 				});
 
-				if (multiResult.tagRenames.length && env.DISCORD_BOT_TOKEN && !isDeployTesting(config)) {
+				if (multiResult.tagRenames.length) {
 					allianceTagRenames = multiResult.tagRenames.length;
+					// Always remap D1 maps; Discord channel rename skipped inside when testing.
 					config = await applyMultiAllianceTagRenamesForCron(env, config, multiResult);
 					rosterMap = await loadRosterPlayerMap(env, config);
 				}

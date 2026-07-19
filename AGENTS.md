@@ -221,6 +221,7 @@ migrations/
   041_diplomacy_archive_category_map.sql  # letter-bucket diplomacy archive categories
   042_diplomacy_soft_limit.sql            # persisted diplomacy soft_limit (default 45)
   043_alliance_resync_sessions.sql       # chunked /alliance resync Continue sessions
+  044_alliance_tag_aliases.sql           # tag→alliance id history for renames
 
 archive/officers/          # REMOVED officer feature (scripts, SQL, assets, docs)
 

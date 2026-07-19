@@ -12,7 +12,7 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 		mode: 'single_alliance',
 		stfc_server: 108,
 		stfc_region: 'EU',
-		alliance_tag: 'KWSN',
+		alliance_tag: 'ALPHA',
 		guest_role_id: '999999999999999999',
 		member_role_ids: ['111111111111111111'],
 		operative_role_ids: [],
@@ -88,8 +88,8 @@ function baseConfig(overrides: Partial<GuildConfig> = {}): GuildConfig {
 
 describe('playerMatchesGuildAlliance', () => {
 	it('matches same tag case-insensitively on single_alliance', () => {
-		expect(playerMatchesGuildAlliance(baseConfig(), 'kwsn')).toBe(true);
-		expect(playerMatchesGuildAlliance(baseConfig(), 'KWSN')).toBe(true);
+		expect(playerMatchesGuildAlliance(baseConfig(), 'alpha')).toBe(true);
+		expect(playerMatchesGuildAlliance(baseConfig(), 'ALPHA')).toBe(true);
 	});
 
 	it('treats empty / wrong tag as mismatch on single_alliance', () => {

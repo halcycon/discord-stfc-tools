@@ -8,7 +8,7 @@ Release log for the STFC Discord bot (Cloudflare Worker). Versions use **MAJOR.M
 | **MINOR** | New user-facing capability (new slash area, cron product, admin workflow) |
 | **INCREMENTAL** | Fixes, polish, docs, refactors, small command option tweaks |
 
-**Current version:** **1.17.1**
+**Current version:** **1.17.2**
 
 **Sources of truth**
 
@@ -27,6 +27,10 @@ Bump all three together when cutting a release. Prefer a short entry under the n
 Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. **1.0.0** marks the alliance-management product that was prepared for public use. Later **1.x** minors track feature areas shipped in Jul 2026 (git history + migrations `001`–`027`).
 
 ---
+
+## 1.17.2 — Tag rename: D1 remap in testing + alias history (2026-07-19)
+
+Root cause of “scraped under old tag but skipped”: meta only stores the **current** tag, and **testing** skipped all remap (including D1 diplomacy keys), so the old tag stayed on the diplomacy map after meta moved to the new tag. Now testing always remaps D1 (Discord channel rename still needs `apply_discord:true`). Alias table `044` remembers every tag→id; planner also reads the previous server directory before overwrite. Chunked resync no longer drops overflow preserve ids; scrape failures keep cache (retry before vanish).
 
 ## 1.17.1 — Resync by alliance id: renames + vanished archive (2026-07-19)
 

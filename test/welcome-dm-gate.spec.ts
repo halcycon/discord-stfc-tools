@@ -40,7 +40,7 @@ describe('formatOnboardingPath', () => {
 	it('marks consent and welcome when enabled', () => {
 		const text = formatOnboardingPath({
 			mode: 'single_alliance',
-			alliance_tag: 'KWSN',
+			alliance_tag: 'ALPHA',
 			deploy_mode: 'live',
 			verification_enabled: true,
 			data_consent_enabled: true,

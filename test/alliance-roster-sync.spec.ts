@@ -14,13 +14,13 @@ import type { GuildConfig, VerifiedPlayer } from '../src/types';
 describe('alliance roster mode gates', () => {
 	it('enables single-alliance scrape only for single_alliance with a tag', () => {
 		expect(
-			shouldUseAllianceRoster({ mode: 'single_alliance', alliance_tag: 'KWSN' }),
+			shouldUseAllianceRoster({ mode: 'single_alliance', alliance_tag: 'ALPHA' }),
 		).toBe(true);
 		expect(
 			shouldUseAllianceRoster({ mode: 'single_alliance', alliance_tag: '  ' }),
 		).toBe(false);
 		expect(
-			shouldUseAllianceRoster({ mode: 'multi_alliance', alliance_tag: 'KWSN' }),
+			shouldUseAllianceRoster({ mode: 'multi_alliance', alliance_tag: 'ALPHA' }),
 		).toBe(false);
 	});
 
@@ -28,7 +28,7 @@ describe('alliance roster mode gates', () => {
 		expect(canReadAllianceRosterCache({ mode: 'multi_alliance', alliance_tag: null })).toBe(
 			true,
 		);
-		expect(canReadAllianceRosterCache({ mode: 'single_alliance', alliance_tag: 'KWSN' })).toBe(
+		expect(canReadAllianceRosterCache({ mode: 'single_alliance', alliance_tag: 'ALPHA' })).toBe(
 			true,
 		);
 	});
@@ -36,15 +36,15 @@ describe('alliance roster mode gates', () => {
 	it('collects verified tags and diplomacy map tags', () => {
 		const config = {
 			mode: 'multi_alliance',
-			diplomacy_channel_map: { BLUE: '111', gold: '222' },
+			diplomacy_channel_map: { BETA: '111', gold: '222' },
 		} as unknown as GuildConfig;
 		const verified = [
-			{ alliance_tag: 'KWSN' },
-			{ alliance_tag: 'blue' },
+			{ alliance_tag: 'ALPHA' },
+			{ alliance_tag: 'beta' },
 			{ alliance_tag: null },
 		] as VerifiedPlayer[];
 		const tags = collectTrackedAllianceTags(config, verified);
-		expect([...tags].sort()).toEqual(['BLUE', 'GOLD', 'KWSN']);
+		expect([...tags].sort()).toEqual(['ALPHA', 'BETA', 'GOLD']);
 	});
 });
 
@@ -55,21 +55,21 @@ describe('alliance roster day-over-day diff', () => {
 			playerName: 'Ada',
 			allianceRank: 'Recruit',
 			opsLevel: 40,
-			allianceTag: 'KWSN',
+			allianceTag: 'ALPHA',
 		},
 		{
 			playerId: 2,
 			playerName: 'Bob',
 			allianceRank: 'Operative',
 			opsLevel: 50,
-			allianceTag: 'KWSN',
+			allianceTag: 'ALPHA',
 		},
 		{
 			playerId: 3,
 			playerName: 'Cara',
 			allianceRank: 'Agent',
 			opsLevel: 55,
-			allianceTag: 'BLUE',
+			allianceTag: 'BETA',
 		},
 	];
 
@@ -79,7 +79,7 @@ describe('alliance roster day-over-day diff', () => {
 		expect(diff.joined).toHaveLength(0);
 		expect(diff.tagMoved).toHaveLength(0);
 		expect(allianceRosterDiffHasChanges(diff)).toBe(false);
-		const report = formatAllianceRosterChangeReport(diff, { allianceTag: 'KWSN' });
+		const report = formatAllianceRosterChangeReport(diff, { allianceTag: 'ALPHA' });
 		expect(report.title).toMatch(/initial/i);
 	});
 
@@ -90,21 +90,21 @@ describe('alliance roster day-over-day diff', () => {
 				playerName: 'Bobby',
 				allianceRank: 'Agent',
 				opsLevel: 52,
-				allianceTag: 'BLUE',
+				allianceTag: 'BETA',
 			},
 			{
 				playerId: 3,
 				playerName: 'Cara',
 				allianceRank: 'Agent',
 				opsLevel: 54,
-				allianceTag: 'BLUE',
+				allianceTag: 'BETA',
 			},
 			{
 				playerId: 4,
 				playerName: 'Dee',
 				allianceRank: 'Recruit',
 				opsLevel: 30,
-				allianceTag: 'KWSN',
+				allianceTag: 'ALPHA',
 			},
 		];
 		const diff = diffAllianceRosters(prev, next);
@@ -113,8 +113,8 @@ describe('alliance roster day-over-day diff', () => {
 		expect(diff.left.map((m) => m.playerId)).toEqual([1]);
 		expect(diff.tagMoved).toHaveLength(1);
 		expect(diff.tagMoved[0]?.playerId).toBe(2);
-		expect(diff.tagMoved[0]?.previousTag).toBe('KWSN');
-		expect(diff.tagMoved[0]?.allianceTag).toBe('BLUE');
+		expect(diff.tagMoved[0]?.previousTag).toBe('ALPHA');
+		expect(diff.tagMoved[0]?.allianceTag).toBe('BETA');
 		expect(allianceRosterDiffHasChanges(diff)).toBe(true);
 
 		const report = formatAllianceRosterChangeReport(diff, {
@@ -123,7 +123,7 @@ describe('alliance roster day-over-day diff', () => {
 			alliancesScraped: 2,
 		});
 		expect(report.description).toContain('Alliance moves');
-		expect(report.description).toContain('BLUE');
+		expect(report.description).toContain('BETA');
 		expect(report.description).toContain('Joined');
 	});
 

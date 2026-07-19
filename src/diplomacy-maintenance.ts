@@ -35,6 +35,98 @@ export async function persistDiplomacySoftLimit(
 }
 
 /**
+ * D1-only tag remap (diplomacy map keys, preferred langs, tracked list, verified_players).
+ * Always safe in testing — does not touch Discord channels.
+ */
+export async function remapAllianceTagInDb(
+	env: Env,
+	config: GuildConfig,
+	fromTagRaw: string,
+	toTagRaw: string,
+	opts?: { actorId?: string; source?: 'cron' | 'admin' | 'system'; allianceId?: string | null },
+): Promise<{ ok: boolean; error?: string; config: GuildConfig }> {
+	const fromTag = fromTagRaw.trim().toUpperCase();
+	const toTag = toTagRaw.trim().toUpperCase();
+	if (!fromTag || !toTag || fromTag === toTag) {
+		return { ok: false, error: 'Tags are identical or missing.', config };
+	}
+
+	const channelMap = { ...(config.diplomacy_channel_map ?? {}) };
+	const preferredLocales = { ...(config.diplomacy_preferred_locales ?? {}) };
+	const channelId = channelMap[fromTag];
+	if (channelId) {
+		const duplicateId =
+			channelMap[toTag] && channelMap[toTag] !== channelId ? channelMap[toTag]! : null;
+		delete channelMap[fromTag];
+		channelMap[toTag] = channelId;
+		if (duplicateId) {
+			console.warn(
+				`Diplomacy DB remap [${fromTag}]→[${toTag}]: left duplicate map entry <#${duplicateId}>`,
+			);
+		}
+	}
+	if (preferredLocales[fromTag]) {
+		if (!preferredLocales[toTag]) preferredLocales[toTag] = preferredLocales[fromTag]!;
+		delete preferredLocales[fromTag];
+	}
+
+	const trackedTags = [
+		...new Set(
+			(config.tracked_alliance_tags ?? [])
+				.map((t) => (t.trim().toUpperCase() === fromTag ? toTag : t.trim().toUpperCase()))
+				.filter(Boolean),
+		),
+	];
+	if (!trackedTags.includes(toTag) && (config.tracked_alliance_tags ?? []).some((t) => t.trim().toUpperCase() === fromTag)) {
+		trackedTags.push(toTag);
+	}
+
+	await upsertGuildConfig(env.STFC_DB, {
+		guild_id: config.guild_id,
+		diplomacy_channel_map: channelMap,
+		diplomacy_preferred_locales: preferredLocales,
+		tracked_alliance_tags: trackedTags,
+	});
+
+	try {
+		await env.STFC_DB.prepare(
+			`UPDATE verified_players
+			 SET alliance_tag = ?, updated_at = datetime('now')
+			 WHERE guild_id = ? AND UPPER(TRIM(alliance_tag)) = ?`,
+		)
+			.bind(toTag, config.guild_id, fromTag)
+			.run();
+	} catch (err) {
+		console.warn('verified_players tag remap failed:', err);
+	}
+
+	const { rememberAllianceTagAlias } = await import('./guild-db');
+	const allianceId = opts?.allianceId?.trim();
+	if (allianceId) {
+		await rememberAllianceTagAlias(env.STFC_DB, config.guild_id, allianceId, fromTag);
+		await rememberAllianceTagAlias(env.STFC_DB, config.guild_id, allianceId, toTag);
+	}
+
+	const next: GuildConfig = {
+		...config,
+		diplomacy_channel_map: channelMap,
+		diplomacy_preferred_locales: preferredLocales,
+		tracked_alliance_tags: trackedTags,
+	};
+	await postAuditLog(env, next, {
+		title: 'Alliance tag renamed (database)',
+		description:
+			`**[${fromTag}]** → **[${toTag}]**` +
+			(channelId ? ` · map <#${channelId}>` : ' · tracked/verified only') +
+			(isDeployTesting(config) ? '\n_Discord channel rename not applied (testing)_' : ''),
+		actorId: opts?.actorId,
+		source: opts?.source ?? 'system',
+		color: AuditColor.info,
+	});
+	return { ok: true, config: next };
+}
+
+/**
  * Remap diplomacy channel + tracked tag when an alliance renames (same stfc alliance id).
  * Persists D1 maps and optionally rebalances letter buckets.
  */
@@ -45,48 +137,41 @@ export async function applyAllianceTagRename(
 	guildId: string,
 	fromTag: string,
 	toTag: string,
-	opts?: { rebalance?: boolean; actorId?: string; source?: 'cron' | 'admin' | 'system' },
+	opts?: {
+		rebalance?: boolean;
+		actorId?: string;
+		source?: 'cron' | 'admin' | 'system';
+		allianceId?: string | null;
+		/** When true, only D1 maps (no Discord channel rename/move). */
+		dbOnly?: boolean;
+	},
 ): Promise<{ ok: boolean; error?: string; rebalanced?: boolean }> {
 	if (!diplomacyChannelsEnabled(config) && !(config.tracked_alliance_tags ?? []).length) {
 		// Still allow tracked-tag rename even if diplomacy off.
 	}
 
+	if (opts?.dbOnly) {
+		const dbResult = await remapAllianceTagInDb(env, config, fromTag, toTag, {
+			actorId: opts?.actorId,
+			source: opts?.source,
+			allianceId: opts?.allianceId,
+		});
+		if (dbResult.ok) Object.assign(config, dbResult.config);
+		return { ok: dbResult.ok, error: dbResult.error, rebalanced: false };
+	}
+
 	const result = await remapDiplomacyAllianceTag(token, config, guildId, fromTag, toTag);
 	if (!result.ok) {
-		// If no diplomacy channel, still rename tracked tag list.
-		const from = fromTag.trim().toUpperCase();
-		const to = toTag.trim().toUpperCase();
-		if (!from || !to || from === to) return { ok: false, error: result.error };
-		const tracked = (config.tracked_alliance_tags ?? []).map((t) =>
-			t.trim().toUpperCase() === from ? to : t.trim().toUpperCase(),
-		);
-		const nextTracked = [...new Set(tracked.filter(Boolean))];
-		const changed = nextTracked.join(',') !== (config.tracked_alliance_tags ?? []).join(',');
-		if (!changed) return { ok: false, error: result.error };
-		await upsertGuildConfig(env.STFC_DB, {
-			guild_id: guildId,
-			tracked_alliance_tags: nextTracked,
-		});
-		config.tracked_alliance_tags = nextTracked;
-		try {
-			await env.STFC_DB.prepare(
-				`UPDATE verified_players
-				 SET alliance_tag = ?, updated_at = datetime('now')
-				 WHERE guild_id = ? AND UPPER(TRIM(alliance_tag)) = ?`,
-			)
-				.bind(to, guildId, from)
-				.run();
-		} catch (err) {
-			console.warn('verified_players tag remap failed:', err);
-		}
-		await postAuditLog(env, config, {
-			title: 'Alliance tag renamed (tracked list)',
-			description: `**[${from}]** → **[${to}]** (no diplomacy channel mapped)`,
+		const dbResult = await remapAllianceTagInDb(env, config, fromTag, toTag, {
 			actorId: opts?.actorId,
-			source: opts?.source ?? 'system',
-			color: AuditColor.info,
+			source: opts?.source,
+			allianceId: opts?.allianceId,
 		});
-		return { ok: true, rebalanced: false };
+		if (dbResult.ok) {
+			Object.assign(config, dbResult.config);
+			return { ok: true, rebalanced: false };
+		}
+		return { ok: false, error: result.error };
 	}
 
 	await upsertGuildConfig(env.STFC_DB, {
@@ -109,6 +194,12 @@ export async function applyAllianceTagRename(
 			.run();
 	} catch (err) {
 		console.warn('verified_players tag remap failed:', err);
+	}
+
+	const { rememberAllianceTagAlias } = await import('./guild-db');
+	if (opts?.allianceId?.trim()) {
+		await rememberAllianceTagAlias(env.STFC_DB, guildId, opts.allianceId.trim(), result.fromTag);
+		await rememberAllianceTagAlias(env.STFC_DB, guildId, opts.allianceId.trim(), result.toTag);
 	}
 
 	await postAuditLog(env, config, {

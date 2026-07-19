@@ -93,8 +93,8 @@ describe('defer untracked admiral roles', () => {
 	it('treats explicit track + diplomacy map as tracked', () => {
 		expect(
 			isAllianceExplicitlyTracked(
-				{ tracked_alliance_tags: ['KWSN'], diplomacy_channel_map: {} },
-				'kwsn',
+				{ tracked_alliance_tags: ['ALPHA'], diplomacy_channel_map: {} },
+				'alpha',
 			),
 		).toBe(true);
 		expect(
@@ -115,11 +115,11 @@ describe('defer untracked admiral roles', () => {
 		const cfg = baseConfig();
 		expect(shouldDeferUntrackedAdmiralRoles(cfg, 'XYZ', 'Admiral')).toBe(true);
 		expect(shouldDeferUntrackedAdmiralRoles(cfg, 'XYZ', 'Commodore')).toBe(false);
-		expect(shouldDeferUntrackedAdmiralRoles(cfg, 'KWSN', 'Admiral')).toBe(true);
+		expect(shouldDeferUntrackedAdmiralRoles(cfg, 'ALPHA', 'Admiral')).toBe(true);
 		expect(
 			shouldDeferUntrackedAdmiralRoles(
-				baseConfig({ tracked_alliance_tags: ['KWSN'] }),
-				'KWSN',
+				baseConfig({ tracked_alliance_tags: ['ALPHA'] }),
+				'ALPHA',
 				'Admiral',
 			),
 		).toBe(false);
@@ -139,9 +139,9 @@ describe('defer untracked admiral roles', () => {
 	it('omits admiral + overlay roles when deferred', () => {
 		const cfg = baseConfig();
 		expect(getMemberRoleIdsForRank(cfg, 'Admiral', 'XYZ').sort()).toEqual(['111']);
-		expect(getMemberRoleIdsForRank(cfg, 'Admiral', 'KWSN').sort()).toEqual(['111']);
+		expect(getMemberRoleIdsForRank(cfg, 'Admiral', 'ALPHA').sort()).toEqual(['111']);
 		expect(
-			getMemberRoleIdsForRank(baseConfig({ tracked_alliance_tags: ['KWSN'] }), 'Admiral', 'KWSN').sort(),
+			getMemberRoleIdsForRank(baseConfig({ tracked_alliance_tags: ['ALPHA'] }), 'Admiral', 'ALPHA').sort(),
 		).toEqual(['111', '222', '333']);
 	});
 });

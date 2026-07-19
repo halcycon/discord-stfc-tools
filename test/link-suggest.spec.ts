@@ -9,8 +9,8 @@ import {
 
 describe('parseDiscordNick', () => {
 	it('parses [TAG] (Adm) Name', () => {
-		expect(parseDiscordNick('[KWSN] (Adm) Hal')).toEqual({
-			tag: 'KWSN',
+		expect(parseDiscordNick('[ALPHA] (Adm) Hal')).toEqual({
+			tag: 'ALPHA',
 			name: 'Hal',
 			rankToken: 'Adm',
 		});
@@ -35,8 +35,8 @@ describe('parseDiscordNick', () => {
 
 describe('suggestRosterDiscordLinks', () => {
 	const roster = [
-		{ playerId: 1, playerName: 'Ada', allianceTag: 'KWSN', opsLevel: 50 },
-		{ playerId: 2, playerName: 'Bob', allianceTag: 'KWSN', opsLevel: 40 },
+		{ playerId: 1, playerName: 'Ada', allianceTag: 'ALPHA', opsLevel: 50 },
+		{ playerId: 2, playerName: 'Bob', allianceTag: 'ALPHA', opsLevel: 40 },
 		{ playerId: 3, playerName: 'Cara', allianceTag: 'HORUS', opsLevel: 60 },
 	];
 
@@ -46,7 +46,7 @@ describe('suggestRosterDiscordLinks', () => {
 				{
 					discordUserId: 'u1',
 					username: 'x',
-					serverNick: '[KWSN] Ada',
+					serverNick: '[ALPHA] Ada',
 					globalName: null,
 				},
 			],
@@ -56,7 +56,7 @@ describe('suggestRosterDiscordLinks', () => {
 		expect(suggestions[0]!.playerId).toBe(1);
 		expect(suggestions[0]!.confidence).toBe('high');
 		expect(suggestions[0]!.reason).toContain('TAG');
-		expect(suggestions[0]!.serverNick).toBe('[KWSN] Ada');
+		expect(suggestions[0]!.serverNick).toBe('[ALPHA] Ada');
 	});
 
 	it('shows global display name in Nick when server nick is unset', () => {
@@ -99,26 +99,26 @@ describe('suggestRosterDiscordLinks', () => {
 		expect(formatLinkSuggestions([], { rosterCount: 3, discordCount: 10 })).toContain(
 			'No confident matches',
 		);
-		expect(formatLinkSuggestions([], { tag: 'KWSN', rosterCount: 0 })).toContain(
+		expect(formatLinkSuggestions([], { tag: 'ALPHA', rosterCount: 0 })).toContain(
 			'No unlinked roster players',
 		);
 		const text = formatLinkSuggestions([
 			{
 				discordUserId: '9',
-				discordLabel: '[KWSN] Ada',
-				serverNick: '[KWSN] Ada',
+				discordLabel: '[ALPHA] Ada',
+				serverNick: '[ALPHA] Ada',
 				globalName: null,
 				username: 'ada_user',
 				playerId: 1,
 				playerName: 'Ada',
-				allianceTag: 'KWSN',
+				allianceTag: 'ALPHA',
 				confidence: 'high',
 				reason: 'exact name + [TAG]',
 			},
 		]);
 		expect(text).toContain('```');
 		expect(text).toContain('Nick');
-		expect(text).toContain('[KWSN] Ada');
+		expect(text).toContain('[ALPHA] Ada');
 		expect(text).toContain('ada_user');
 		expect(text).toContain('Buttons:');
 		expect(text).toContain('🟢 **1**');
@@ -130,13 +130,13 @@ describe('suggestRosterDiscordLinks', () => {
 			[
 				{
 					discordUserId: '111111111111111111',
-					discordLabel: '[KWSN] Ada',
-					serverNick: '[KWSN] Ada',
+					discordLabel: '[ALPHA] Ada',
+					serverNick: '[ALPHA] Ada',
 					globalName: null,
 					username: 'ada',
 					playerId: 42,
 					playerName: 'Ada',
-					allianceTag: 'KWSN',
+					allianceTag: 'ALPHA',
 					confidence: 'high',
 					reason: 'exact',
 				},
@@ -148,7 +148,7 @@ describe('suggestRosterDiscordLinks', () => {
 					username: 'bobx',
 					playerId: 43,
 					playerName: 'Bob',
-					allianceTag: 'KWSN',
+					allianceTag: 'ALPHA',
 					confidence: 'medium',
 					reason: 'fuzzy Δ1',
 				},
@@ -165,15 +165,15 @@ describe('suggestRosterDiscordLinks', () => {
 					reason: 'fuzzy Δ2',
 				},
 			],
-			'KWSN',
+			'ALPHA',
 		);
 		expect(rows[0]!.components.map((c) => c.custom_id)).toEqual([
-			'alink:grp:h:123456789012345678:KWSN',
-			'alink:grp:m:123456789012345678:KWSN',
-			'alink:grp:l:123456789012345678:KWSN',
+			'alink:grp:h:123456789012345678:ALPHA',
+			'alink:grp:m:123456789012345678:ALPHA',
+			'alink:grp:l:123456789012345678:ALPHA',
 		]);
 		expect(rows[1]!.components[0]!.custom_id).toBe(
-			'alink:1:123456789012345678:111111111111111111:42:KWSN',
+			'alink:1:123456789012345678:111111111111111111:42:ALPHA',
 		);
 	});
 
@@ -186,11 +186,11 @@ describe('suggestRosterDiscordLinks', () => {
 			username: `u${i}`,
 			playerId: i + 1,
 			playerName: `P${i}`,
-			allianceTag: 'KWSN',
+			allianceTag: 'ALPHA',
 			confidence: 'high' as const,
 			reason: 'exact',
 		}));
-		const rows = buildLinkSuggestComponents('123456789012345678', many, 'KWSN', {
+		const rows = buildLinkSuggestComponents('123456789012345678', many, 'ALPHA', {
 			approveChunkSize: 2,
 		});
 		expect(rows[0]!.components[0]!.label).toContain('2/click');
