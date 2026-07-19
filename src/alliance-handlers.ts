@@ -359,32 +359,40 @@ export async function handleAllianceCommand(
 		if (!appId) {
 			return interactionResponse('❌ DISCORD_APPLICATION_ID not configured.', true);
 		}
+		const applyDiscordRaw = getOptionValue(opts, 'apply_discord');
+		const forceDiscord =
+			applyDiscordRaw === true || applyDiscordRaw === 'true';
 		const deferred = deferredResponse();
 		ctx.waitUntil(
 			(async () => {
+				const progress = async (message: string) => {
+					await editInteractionResponse(appId, interaction.token, message, true, {
+						config,
+					});
+				};
 				try {
-					await editInteractionResponse(
-						appId,
-						interaction.token,
-						'⏳ Resyncing tracked alliance rosters from stfc.pro (may take a minute)…',
-						true,
+					await progress(
+						'⏳ Alliance resync starting…\n' +
+							`_Scrapes ~1.2s apart. Progress is throttled so Discord rate limits cannot stall the job._` +
+							(forceDiscord
+								? `\n_Discord remaps **enabled** (testing override)._`
+								: ''),
 					);
 					const result = await runAllianceResync(env, config, {
 						actorId: interaction.member?.user?.id,
 						source: 'admin',
 						postAudit: true,
+						onProgress: progress,
+						forceDiscord,
 					});
 					if (!result.ok) {
-						await editInteractionResponse(appId, interaction.token, `❌ ${result.error}`, true);
+						await progress(`❌ ${result.error}`);
 						return;
 					}
-					await editInteractionResponse(appId, interaction.token, result.summary, true);
+					await progress(result.summary);
 				} catch (err) {
-					await editInteractionResponse(
-						appId,
-						interaction.token,
+					await progress(
 						`❌ Resync failed: ${err instanceof Error ? err.message : String(err)}`,
-						true,
 					);
 				}
 			})(),
@@ -395,7 +403,7 @@ export async function handleAllianceCommand(
 	return interactionResponse(
 		`🏷 **Alliance** (multi)\n` +
 			`• \`/alliance track tag:TAG\` — scrape now + keep in morning sync\n` +
-			`• \`/alliance resync\` — re-scrape tracked rosters now + remap tag renames / diplomacy\n` +
+			`• \`/alliance resync\` — re-scrape tracked rosters; \`apply_discord:true\` to remap rooms even in testing\n` +
 			`• \`/alliance suggest [tag:]\` — match unverified Discord members to roster (Approve buttons)\n` +
 			`• \`/alliance list\` · \`/alliance untrack tag:\``,
 		true,

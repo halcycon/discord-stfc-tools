@@ -82,6 +82,66 @@ async function discordFetch(
 	throw new DiscordApiError(`Discord API ${path} failed after retries`, 500);
 }
 
+/**
+ * Interaction webhook calls (follow-ups / edit @original) — no bot token.
+ * Must not hang forever: progress loops used to await raw fetch and stall scrapes
+ * when Discord rate-limited around ~12–15 edits.
+ */
+async function discordInteractionWebhookFetch(
+	url: string,
+	init: RequestInit = {},
+): Promise<Response> {
+	const maxAttempts = 4;
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		let response: Response;
+		try {
+			response = await fetch(url, {
+				...init,
+				signal: init.signal ?? AbortSignal.timeout(12_000),
+			});
+		} catch (err) {
+			const aborted =
+				(err instanceof Error && err.name === 'AbortError') ||
+				(err instanceof Error && err.name === 'TimeoutError');
+			if (aborted) {
+				throw new DiscordApiError(`Discord webhook timed out after 12s`, 408);
+			}
+			throw err;
+		}
+
+		if (response.status === 429) {
+			const retryAfterHdr = response.headers.get('Retry-After');
+			const retryAfterSec = retryAfterHdr != null ? Number(retryAfterHdr) : NaN;
+			// Cap wait — progress reporters should not block jobs for long.
+			const waitMs = Number.isFinite(retryAfterSec)
+				? Math.min(Math.max(retryAfterSec * 1000, 500), 5_000)
+				: Math.min(500 * attempt, 3_000);
+			await response.text().catch(() => undefined);
+			if (attempt === maxAttempts) {
+				throw new DiscordApiError(
+					`Discord webhook failed (HTTP 429) after ${maxAttempts} attempts`,
+					429,
+				);
+			}
+			await sleepMs(waitMs);
+			continue;
+		}
+
+		if (!response.ok) {
+			const body = await response.text();
+			throw new DiscordApiError(
+				`Discord webhook failed (HTTP ${response.status})${body ? `: ${body.slice(0, 200)}` : ''}`,
+				response.status,
+				body,
+			);
+		}
+
+		return response;
+	}
+
+	throw new DiscordApiError('Discord webhook failed after retries', 500);
+}
+
 export interface DiscordGuildMember {
 	user: {
 		id: string;
@@ -746,7 +806,7 @@ export async function createInteractionFollowup(
 	},
 ): Promise<void> {
 	const url = `${DISCORD_API}/webhooks/${applicationId}/${interactionToken}`;
-	await fetch(url, {
+	await discordInteractionWebhookFetch(url, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
@@ -772,7 +832,7 @@ export async function editInteractionResponse(
 	},
 ): Promise<void> {
 	const url = `${DISCORD_API}/webhooks/${applicationId}/${interactionToken}/messages/@original`;
-	const response = await fetch(url, {
+	await discordInteractionWebhookFetch(url, {
 		method: 'PATCH',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
@@ -782,12 +842,6 @@ export async function editInteractionResponse(
 			...(opts?.embeds !== undefined ? { embeds: opts.embeds } : {}),
 		}),
 	});
-	if (!response.ok) {
-		const body = await response.text().catch(() => '');
-		throw new Error(
-			`editInteractionResponse failed (HTTP ${response.status})${body ? `: ${body.slice(0, 200)}` : ''}`,
-		);
-	}
 }
 
 export function interactionResponse(

@@ -31,6 +31,7 @@ import {
 import { formatLocaleFlagSuffix } from './i18n/locales';
 import { normalizeAllianceRank, type AllianceRankKey } from './nickname-utils';
 import type { GuildConfig } from './types';
+import { createProgressReporter } from './progress-reporter';
 
 const DEFAULT_DIPLOMACY_CATEGORY_NAME_TEMPLATE = 'Diplomacy Channels {range}';
 const DEFAULT_DIPLOMACY_ARCHIVE_NAME = 'Diplomacy Channels Archive';
@@ -658,20 +659,14 @@ export async function rebalanceDiplomacyChannels(
 	let categoriesReusedByName = 0;
 	const channelMap = { ...config.diplomacy_channel_map };
 
-	const report = async (message: string) => {
-		if (!opts.onProgress) return;
-		try {
-			await opts.onProgress(message);
-		} catch {
-			/* non-fatal */
-		}
-	};
+	const progress = createProgressReporter(opts.onProgress);
+	const report = (message: string) => progress.report(message);
 
 	const tagList = collectDiplomacyTags(channelMap, opts.createMissingTags);
 	const minBuckets = Math.max(1, Object.keys(config.diplomacy_category_map ?? {}).length);
 	const plan = planCategoryBuckets(buildLetterHistogram(tagList), softLimit, { minBuckets });
 
-	await report(
+	report(
 		`⏳ Diplomacy sync: preparing **${plan.buckets.length}** categor${plan.buckets.length === 1 ? 'y' : 'ies'} for **${tagList.length}** tag(s)…`,
 	);
 
@@ -832,7 +827,7 @@ export async function rebalanceDiplomacyChannels(
 		}
 	}
 
-	await report(
+	report(
 		`⏳ Diplomacy sync: categories ready (` +
 			`${categoriesCreated} created, ${categoriesRenamed} renamed, ${categoriesReusedByName} reused by name). ` +
 			`Moving/creating channels (0/${tagList.length})…` +
@@ -854,7 +849,7 @@ export async function rebalanceDiplomacyChannels(
 		if (!result.ok) {
 			channelsFailed++;
 			errors.push(`[${tag}] ${result.error}`);
-			await report(
+			report(
 				`⏳ Diplomacy sync: ${processed}/${tagList.length}` +
 					` (moved ${channelsMoved}, renamed ${channelsRenamed}, created ${channelsCreated}, failed ${channelsFailed})…` +
 					` last \`${tag}\` ❌`,
@@ -871,7 +866,7 @@ export async function rebalanceDiplomacyChannels(
 		if (opts.onChannelMapped) {
 			await opts.onChannelMapped(tag, result.channelId);
 		}
-		await report(
+		report(
 			`⏳ Diplomacy sync: ${processed}/${tagList.length}` +
 				` (moved ${channelsMoved}, renamed ${channelsRenamed}, created ${channelsCreated}, failed ${channelsFailed})…` +
 				` last \`${tag}\``,
@@ -888,7 +883,7 @@ export async function rebalanceDiplomacyChannels(
 			errors.push('Archive requested but no archive category is available.');
 		} else {
 			try {
-				await report(`⏳ Diplomacy sync: archiving unlinked channels…`);
+				report(`⏳ Diplomacy sync: archiving unlinked channels…`);
 				try {
 					const listed = await listGuildChannels(token, guildId);
 					channelById = new Map(listed.map((ch) => [ch.id, ch]));
@@ -946,7 +941,7 @@ export async function rebalanceDiplomacyChannels(
 						channelsArchived++;
 						archivedProgress++;
 						if (archivedProgress === 1 || archivedProgress % 10 === 0) {
-							await report(
+							report(
 								`⏳ Diplomacy sync: archived ${channelsArchived}/${unlinked.length} unlinked channel(s)…`,
 							);
 						}
@@ -970,7 +965,7 @@ export async function rebalanceDiplomacyChannels(
 	let specialCategoryId = config.diplomacy_special_category_id;
 	let specialSynced = false;
 	if (specialChannelId && /^\d{15,20}$/.test(specialChannelId)) {
-		await report(`⏳ Diplomacy sync: placing special (non-listed) channel…`);
+		report(`⏳ Diplomacy sync: placing special (non-listed) channel…`);
 		const specialCfg: GuildConfig = {
 			...configWithMap,
 			diplomacy_channel_map: channelMap,
@@ -991,7 +986,7 @@ export async function rebalanceDiplomacyChannels(
 		}
 	}
 
-	await report(`⏳ Diplomacy sync: sorting channels alphabetically within categories…`);
+	report(`⏳ Diplomacy sync: sorting channels alphabetically within categories…`);
 	let categoriesAlphaSorted = 0;
 	try {
 		const listed = await listGuildChannels(token, guildId);
@@ -1052,6 +1047,8 @@ export async function rebalanceDiplomacyChannels(
 		`• Channel map: ${formatDiplomacyChannelMap(channelMap, config.diplomacy_preferred_locales)}` +
 		(errors.length ? `\n\n⚠ Errors (${errors.length}):\n${errors.slice(0, 8).join('\n')}` : '')
 	).slice(0, 1900);
+
+	await progress.flush();
 
 	return {
 		ok: mapComplete && channelsFailed === 0,
@@ -1195,14 +1192,8 @@ export async function rebalanceDiplomacyArchiveChannels(
 	let categoriesRenamed = 0;
 	let categoriesReusedByName = 0;
 
-	const report = async (message: string) => {
-		if (!opts.onProgress) return;
-		try {
-			await opts.onProgress(message);
-		} catch {
-			/* non-fatal */
-		}
-	};
+	const progress = createProgressReporter(opts.onProgress);
+	const report = (message: string) => progress.report(message);
 
 	const sourceIds = [
 		...new Set(opts.sourceCategoryIds.filter((id) => /^\d{15,20}$/.test(id))),
@@ -1269,7 +1260,7 @@ export async function rebalanceDiplomacyArchiveChannels(
 		softLimit,
 	);
 
-	await report(
+	report(
 		`⏳ Archive sync: preparing **${plan.buckets.length}** categor${plan.buckets.length === 1 ? 'y' : 'ies'} for **${toOrganise.length}** channel(s)…`,
 	);
 
@@ -1368,7 +1359,7 @@ export async function rebalanceDiplomacyArchiveChannels(
 		}
 	}
 
-	await report(
+	report(
 		`⏳ Archive sync: moving channels (0/${toOrganise.length})…`,
 	);
 
@@ -1376,7 +1367,7 @@ export async function rebalanceDiplomacyArchiveChannels(
 	for (const ch of toOrganise) {
 		processed++;
 		if (processed === 1 || processed % 10 === 0 || processed === toOrganise.length) {
-			await report(
+			report(
 				`⏳ Archive sync: ${processed}/${toOrganise.length}` +
 					` (moved ${channelsMoved}, failed ${channelsFailed})…`,
 			);
@@ -1401,7 +1392,7 @@ export async function rebalanceDiplomacyArchiveChannels(
 		}
 	}
 
-	await report(`⏳ Archive sync: sorting alphabetically…`);
+	report(`⏳ Archive sync: sorting alphabetically…`);
 	let categoriesAlphaSorted = 0;
 	try {
 		const listed = [...channelById.values()];
@@ -1438,6 +1429,8 @@ export async function rebalanceDiplomacyArchiveChannels(
 		}` +
 		(errors.length ? `\n\n⚠ Errors (${errors.length}):\n${errors.slice(0, 8).join('\n')}` : '')
 	).slice(0, 1900);
+
+	await progress.flush();
 
 	return {
 		ok: mapComplete && channelsFailed === 0 && errors.filter((e) => !e.startsWith('Source')).length === 0,

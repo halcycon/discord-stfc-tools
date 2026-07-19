@@ -19,6 +19,7 @@ import { diplomacyChannelsEnabled } from './diplomacy-channels';
 import { getGuildConfig } from './guild-db';
 import { AuditColor, postAuditLog } from './audit-log';
 import { isDeployTesting } from './deploy-mode';
+import { createProgressReporter } from './progress-reporter';
 import type { GuildConfig } from './types';
 
 export type AllianceResyncResult =
@@ -56,22 +57,49 @@ export async function applyTagRenamesFromSync(
 		actorId?: string;
 		source?: 'cron' | 'admin' | 'system';
 		rebalance?: boolean;
+		onProgress?: (message: string) => Promise<void>;
+		/**
+		 * Apply Discord diplomacy remaps even when deploy mode is testing.
+		 * (D1 roster scrape always runs; this only gates Discord mutations.)
+		 */
+		forceDiscord?: boolean;
 	},
 ): Promise<{
 	config: GuildConfig;
 	remapped: number;
 	errors: string[];
 	rebalanced: boolean;
+	skippedTesting: boolean;
 }> {
 	let current = config;
 	const errors: string[] = [];
 	let remapped = 0;
 	const token = env.DISCORD_BOT_TOKEN;
-	if (!token || isDeployTesting(config) || tagRenames.length === 0) {
-		return { config: current, remapped: 0, errors, rebalanced: false };
+	const progress = createProgressReporter(opts?.onProgress);
+	const report = (message: string) => progress.report(message);
+	if (!token || tagRenames.length === 0) {
+		return { config: current, remapped: 0, errors, rebalanced: false, skippedTesting: false };
+	}
+	if (isDeployTesting(config) && !opts?.forceDiscord) {
+		report(
+			`⏳ Alliance resync: **${tagRenames.length}** tag rename(s) detected — Discord remap skipped (deploy mode **testing**).\n` +
+				`_Override: \`/alliance resync apply_discord:true\`_`,
+		);
+		await progress.flush();
+		return { config: current, remapped: 0, errors, rebalanced: false, skippedTesting: true };
+	}
+	if (isDeployTesting(config) && opts?.forceDiscord) {
+		report(
+			`⏳ Alliance resync: **${tagRenames.length}** tag rename(s) — applying Discord remaps (**testing** override)…`,
+		);
 	}
 
-	for (const ren of tagRenames) {
+	for (let i = 0; i < tagRenames.length; i++) {
+		const ren = tagRenames[i]!;
+		report(
+			`⏳ Alliance resync: remapping tag **${i + 1}/${tagRenames.length}** ` +
+				`\`${ren.fromTag}\`→\`${ren.toTag}\`…`,
+		);
 		const latest = (await getGuildConfig(env.STFC_DB, current.guild_id)) ?? current;
 		const result = await applyAllianceTagRename(
 			env,
@@ -96,6 +124,7 @@ export async function applyTagRenamesFromSync(
 
 	let rebalanced = false;
 	if (opts?.rebalance !== false && diplomacyChannelsEnabled(current) && remapped > 0) {
+		report('⏳ Alliance resync: diplomacy auto-rebalance…');
 		const rb = await runDiplomacyAutoRebalance(env, token, current, current.guild_id, {
 			force: Object.keys(current.diplomacy_channel_map ?? {}).length > 0,
 			reason: `tag rename remap (${remapped})`,
@@ -106,7 +135,8 @@ export async function applyTagRenamesFromSync(
 		if (rb.config) current = rb.config;
 	}
 
-	return { config: current, remapped, errors, rebalanced };
+	await progress.flush();
+	return { config: current, remapped, errors, rebalanced, skippedTesting: false };
 }
 
 /**
@@ -121,30 +151,39 @@ export async function runAllianceResync(
 		source?: 'cron' | 'admin' | 'system';
 		/** Post the day-over-day roster audit embed (default true for admin). */
 		postAudit?: boolean;
+		onProgress?: (message: string) => Promise<void>;
+		/** Apply Discord remaps/rebalance even in deploy mode testing. */
+		forceDiscord?: boolean;
 	},
 ): Promise<AllianceResyncResult> {
 	const source = opts?.source ?? 'admin';
 	const postAudit = opts?.postAudit ?? source === 'admin';
+	const progress = createProgressReporter(opts?.onProgress);
+	const say = (message: string) => progress.report(message);
+	const forceDiscord = opts?.forceDiscord === true;
 
 	if (config.mode === 'single_alliance' && config.alliance_tag?.trim()) {
+		say('⏳ Alliance resync: scraping home alliance…');
 		const result = await syncGuildAllianceRoster(env, config);
 		if (!result.ok) {
+			await progress.flush();
 			return { ok: false, error: `Roster sync failed: ${result.reason}` };
 		}
-		const report = formatAllianceRosterChangeReport(result.diff, {
+		const changeReport = formatAllianceRosterChangeReport(result.diff, {
 			allianceTag: result.scrape.allianceTag || config.alliance_tag || 'alliance',
 			allianceId: config.stfc_alliance_id ?? result.scrape.allianceId,
 			mode: 'single',
 		});
 		if (postAudit) {
 			await postAuditLog(env, config, {
-				title: report.title,
-				description: report.description + '\n_Manual `/alliance resync`_',
+				title: changeReport.title,
+				description: changeReport.description + '\n_Manual `/alliance resync`_',
 				actorId: opts?.actorId,
 				source,
 				color: allianceRosterDiffHasChanges(result.diff) ? AuditColor.warn : AuditColor.info,
 			});
 		}
+		await progress.flush();
 		return {
 			ok: true,
 			mode: 'single_alliance',
@@ -162,26 +201,43 @@ export async function runAllianceResync(
 		};
 	}
 
-	const multi = await syncMultiAllianceTrackedRosters(env, config);
+	// syncMultiAllianceTrackedRosters owns non-blocking progress during scrapes.
+	const multi = await syncMultiAllianceTrackedRosters(env, config, {
+		onProgress: opts?.onProgress,
+	});
 	if (!multi.ok) {
+		await progress.flush();
 		return { ok: false, error: `Multi roster sync failed: ${multi.reason}` };
 	}
+
+	say(
+		`⏳ Alliance resync: scrapes done (**${multi.scrapedAlliances}** ok` +
+			(multi.failedTags.length ? `, ${multi.failedTags.length} failed` : '') +
+			(multi.tagRenames.length ? `, ${multi.tagRenames.length} rename(s)` : '') +
+			`)…`,
+	);
 
 	let current = (await getGuildConfig(env.STFC_DB, config.guild_id)) ?? config;
 	const renameResult = await applyTagRenamesFromSync(env, current, multi.tagRenames, {
 		actorId: opts?.actorId,
 		source,
 		rebalance: true,
+		onProgress: opts?.onProgress,
+		forceDiscord,
 	});
 	current = renameResult.config;
 
 	// If no renames but buckets overflowed (e.g. new diplomacy channels), still rebalance.
+	const allowDiscord =
+		forceDiscord || !isDeployTesting(current);
 	if (
 		!renameResult.rebalanced &&
+		!renameResult.skippedTesting &&
 		diplomacyChannelsEnabled(current) &&
 		env.DISCORD_BOT_TOKEN &&
-		!isDeployTesting(current)
+		allowDiscord
 	) {
+		say('⏳ Alliance resync: checking diplomacy buckets…');
 		const rb = await runDiplomacyAutoRebalance(
 			env,
 			env.DISCORD_BOT_TOKEN,
@@ -197,7 +253,9 @@ export async function runAllianceResync(
 		renameResult.rebalanced = rb.ran;
 	}
 
-	const report = formatAllianceRosterChangeReport(multi.diff, {
+	await progress.flush();
+
+	const changeReport = formatAllianceRosterChangeReport(multi.diff, {
 		allianceTag: 'multi',
 		mode: 'multi',
 		alliancesScraped: multi.scrapedAlliances,
@@ -214,6 +272,9 @@ export async function runAllianceResync(
 			.map((r) => `\`${r.fromTag}\`→\`${r.toTag}\``)
 			.join(', ')}`;
 		extra += `\n· Remapped diplomacy/DB: **${renameResult.remapped}**`;
+		if (renameResult.skippedTesting) {
+			extra += ` _(skipped — testing mode)_`;
+		}
 		if (renameResult.errors.length) {
 			extra += `\n· Remap errors: ${renameResult.errors.slice(0, 5).join('; ')}`;
 		}
@@ -224,9 +285,9 @@ export async function runAllianceResync(
 
 	if (postAudit) {
 		await postAuditLog(env, current, {
-			title: report.title,
+			title: changeReport.title,
 			description:
-				report.description +
+				changeReport.description +
 				`\n_Directory **${multi.directoryCount}** · tracked **${multi.trackedTags}** · manual resync_` +
 				extra,
 			actorId: opts?.actorId,
@@ -252,7 +313,14 @@ export async function runAllianceResync(
 		summaryLines.push(
 			`• Tag renames: ${multi.tagRenames.map((r) => `\`${r.fromTag}\`→\`${r.toTag}\``).join(', ')}`,
 		);
-		summaryLines.push(`• Remapped: **${renameResult.remapped}**`);
+		summaryLines.push(
+			`• Remapped: **${renameResult.remapped}**` +
+				(renameResult.skippedTesting
+					? ' _(testing — Discord remap skipped; use `apply_discord:true`)_'
+					: forceDiscord && isDeployTesting(config)
+						? ' _(testing override `apply_discord:true`)_'
+						: ''),
+		);
 	} else {
 		summaryLines.push(`• Tag renames: none detected`);
 	}

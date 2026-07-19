@@ -28,6 +28,7 @@ import {
 	type AllianceRosterDiff,
 } from './alliance-roster-diff';
 import { applyActivityObservation } from './activity-utils';
+import { createProgressReporter } from './progress-reporter';
 
 /** Prefer morning scrape through the next daily run (with slack). */
 export const ALLIANCE_ROSTER_MAX_AGE_MS = 36 * 60 * 60 * 1000;
@@ -273,6 +274,10 @@ export type MultiAllianceRosterSyncResult =
 	  }
 	| { ok: false; reason: string };
 
+export type MultiAllianceRosterSyncOptions = {
+	onProgress?: (message: string) => Promise<void>;
+};
+
 /**
  * Multi-alliance morning job:
  * 1) Fetch /servers/{n} directory
@@ -283,10 +288,16 @@ export type MultiAllianceRosterSyncResult =
 export async function syncMultiAllianceTrackedRosters(
 	env: Env,
 	config: GuildConfig,
+	opts?: MultiAllianceRosterSyncOptions,
 ): Promise<MultiAllianceRosterSyncResult> {
 	if (!isMultiAllianceGuild(config)) {
 		return { ok: false, reason: 'not_multi_alliance' };
 	}
+
+	// Never await Discord webhook edits in the scrape loop — rate limits ~12+ edits
+	// used to stall the entire morning/resync job.
+	const progress = createProgressReporter(opts?.onProgress);
+	const report = (message: string) => progress.report(message);
 
 	const verified = await listActiveVerifiedPlayers(env.STFC_DB, config.guild_id);
 	const trackedTags = collectTrackedAllianceTags(config, verified);
@@ -303,8 +314,10 @@ export async function syncMultiAllianceTrackedRosters(
 		allianceTag: m.alliance_tag,
 	}));
 
+	report(`⏳ Alliance resync: loading server directory (${trackedTags.size} tracked tag(s))…`);
 	const directory = await scrapeServerAlliances(config.stfc_server, config.stfc_region);
 	if (directory.length === 0) {
+		await progress.flush();
 		return { ok: false, reason: 'server_directory_failed' };
 	}
 
@@ -366,18 +379,38 @@ export async function syncMultiAllianceTrackedRosters(
 	const tagRenames: AllianceTagRename[] = [];
 	let scrapedAlliances = 0;
 
+	report(
+		`⏳ Alliance resync: directory **${directory.length}** · scraping **${batch.length}** alliance page(s)` +
+			(overflow.length ? ` (${overflow.length} over batch cap skipped)` : '') +
+			`…`,
+	);
+
 	for (let i = 0; i < batch.length; i++) {
 		const entry = batch[i]!;
+		report(
+			`⏳ Alliance resync: scrape **${i + 1}/${batch.length}** \`[${entry.allianceTag}]\`` +
+				` (ok ${scrapedAlliances}, fail ${failedTags.length})…` +
+				`\n_Fetching stfc.pro (≤25s timeout)…_`,
+		);
 		if (i > 0) await sleep(MULTI_ALLIANCE_SCRAPE_DELAY_MS);
+		const started = Date.now();
 		const scrape = await scrapeAllianceById(
 			entry.allianceId,
 			config.stfc_server,
 			config.stfc_region,
 		);
+		const ms = Date.now() - started;
 		if (!scrape || scrape.players.length === 0) {
 			failedTags.push(entry.allianceTag);
 			// Keep prior cache for this alliance so we don't wipe day-over-day history on a blip.
 			keepAllianceIds.push(entry.allianceId);
+			console.warn(
+				`Alliance scrape failed guild=${config.guild_id} tag=${entry.allianceTag} id=${entry.allianceId} (${ms}ms)`,
+			);
+			report(
+				`⏳ Alliance resync: scrape **${i + 1}/${batch.length}** \`[${entry.allianceTag}]\` ❌` +
+					` (${ms}ms; ok ${scrapedAlliances}, fail ${failedTags.length})…`,
+			);
 			continue;
 		}
 		const tag = (scrape.allianceTag || entry.allianceTag).trim().toUpperCase();
@@ -401,9 +434,14 @@ export async function syncMultiAllianceTrackedRosters(
 		});
 		keepAllianceIds.push(allianceId);
 		scrapedAlliances++;
+		report(
+			`⏳ Alliance resync: scrape **${i + 1}/${batch.length}** \`[${tag}]\` ✅` +
+				` ${scrape.players.length} players (${ms}ms; ok ${scrapedAlliances}, fail ${failedTags.length})…`,
+		);
 	}
 
 	if (scrapedAlliances === 0) {
+		await progress.flush();
 		return { ok: false, reason: 'all_alliance_scrapes_failed' };
 	}
 
@@ -441,6 +479,8 @@ export async function syncMultiAllianceTrackedRosters(
 	console.log(
 		`Multi alliance roster sync guild ${config.guild_id}: dir=${directory.length} tracked=${trackedTags.size} scraped=${scrapedAlliances} failed=${failedTags.length} skipped=${skippedTags.length}`,
 	);
+
+	await progress.flush();
 
 	return {
 		ok: true,

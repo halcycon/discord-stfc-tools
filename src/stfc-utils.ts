@@ -16,8 +16,36 @@ const STFC_HTML_HEADERS = {
 	Accept: 'text/html,application/xhtml+xml',
 };
 
+/**
+ * Hard cap for stfc.pro HTTP (HTML scrapes + API). Without this, a hung TCP
+ * connection can stall morning cron / `/alliance resync` forever on one alliance.
+ */
+export const STFC_FETCH_TIMEOUT_MS = 25_000;
+
 /** Cloudflare / datacenter egress is blocked on /api/players (403 forbidden). */
 const API_BLOCKED_ERRORS = new Set(['forbidden']);
+
+/** Fetch stfc.pro HTML with a timeout; returns null on network/timeout/non-OK. */
+async function fetchStfcHtml(url: string): Promise<string | null> {
+	try {
+		const res = await fetch(url, {
+			headers: STFC_HTML_HEADERS,
+			signal: AbortSignal.timeout(STFC_FETCH_TIMEOUT_MS),
+		});
+		if (!res.ok) {
+			console.warn(`stfc.pro HTML ${res.status}: ${url}`);
+			return null;
+		}
+		return await res.text();
+	} catch (err) {
+		const name = err instanceof Error ? err.name : '';
+		const msg = err instanceof Error ? err.message : String(err);
+		console.warn(
+			`stfc.pro HTML fetch failed (${name || 'error'}, ${STFC_FETCH_TIMEOUT_MS}ms cap): ${url} — ${msg}`,
+		);
+		return null;
+	}
+}
 
 function shortDelay(): Promise<void> {
 	const ms = (Math.floor(Math.random() * 3) + 2) * 1000;
@@ -290,21 +318,12 @@ async function fetchPlayerFromHtml(
 		`https://stfc.pro/players/${playerId}`,
 	];
 
-	let lastStatus: number | null = null;
 	for (const playerUrl of urls) {
-		try {
-			const pageRes = await fetch(playerUrl, { headers: STFC_HTML_HEADERS });
-			lastStatus = pageRes.status;
-			if (!pageRes.ok) continue;
-			const html = await pageRes.text();
-			const mapped = extractInitialPlayerFromHtml(html, server, region);
-			if (mapped?.playerId) return mapped;
-		} catch {
-			/* try next URL */
-		}
+		const html = await fetchStfcHtml(playerUrl);
+		if (!html) continue;
+		const mapped = extractInitialPlayerFromHtml(html, server, region);
+		if (mapped?.playerId) return mapped;
 	}
-
-	if (lastStatus === 404) return null;
 	return null;
 }
 
@@ -340,6 +359,7 @@ async function fetchPlayersPageResult(url: string, env: Env, retried = false): P
 				Cookie: auth.cookie,
 				'X-STFC-Token': auth.token,
 			},
+			signal: AbortSignal.timeout(STFC_FETCH_TIMEOUT_MS),
 		});
 
 		if (response.status === 429) {
@@ -692,17 +712,16 @@ export async function scrapeAllianceById(
 	];
 
 	for (const url of urls) {
+		const html = await fetchStfcHtml(url);
+		if (!html) continue;
 		try {
-			const res = await fetch(url, { headers: STFC_HTML_HEADERS });
-			if (!res.ok) continue;
-			const html = await res.text();
 			const scraped = extractAllianceRosterFromHtml(html, server, upperRegion);
 			if (scraped && scraped.players.length > 0) {
 				if (!scraped.allianceId) scraped.allianceId = id;
 				return scraped;
 			}
-		} catch {
-			/* try next */
+		} catch (err) {
+			console.warn(`Alliance HTML parse failed for ${id}:`, err);
 		}
 	}
 	return null;
@@ -765,14 +784,13 @@ export async function scrapeServerAlliances(
 		`https://stfc.pro/servers/${server}`,
 	];
 	for (const url of urls) {
+		const html = await fetchStfcHtml(url);
+		if (!html) continue;
 		try {
-			const res = await fetch(url, { headers: STFC_HTML_HEADERS });
-			if (!res.ok) continue;
-			const html = await res.text();
 			const entries = extractServerAlliancesFromHtml(html, server, upperRegion);
 			if (entries.length > 0) return entries;
-		} catch {
-			/* try next */
+		} catch (err) {
+			console.warn('Server alliance directory parse failed:', err);
 		}
 	}
 	return [];

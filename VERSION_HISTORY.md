@@ -8,7 +8,7 @@ Release log for the STFC Discord bot (Cloudflare Worker). Versions use **MAJOR.M
 | **MINOR** | New user-facing capability (new slash area, cron product, admin workflow) |
 | **INCREMENTAL** | Fixes, polish, docs, refactors, small command option tweaks |
 
-**Current version:** **1.16.0**
+**Current version:** **1.16.4**
 
 **Sources of truth**
 
@@ -27,6 +27,22 @@ Bump all three together when cutting a release. Prefer a short entry under the n
 Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. **1.0.0** marks the alliance-management product that was prepared for public use. Later **1.x** minors track feature areas shipped in Jul 2026 (git history + migrations `001`–`027`).
 
 ---
+
+## 1.16.4 — Progress edits no longer stall bulk jobs (2026-07-19)
+
+Root cause of “hangs after ~12–13” on resync / diplomacy sync: progress awaited Discord interaction webhook PATCHes with **no timeout / weak 429 handling**, so rate limits blocked the scrape/move loop. Webhook edits now use a 12s timeout + capped 429 retries; progress is **non-blocking** (coalesced + throttled) for alliance resync and diplomacy sync_all. stfc.pro 25s fetch timeouts from 1.16.3 remain.
+
+## 1.16.3 — stfc.pro scrape timeout (cron + resync) (2026-07-19)
+
+HTML/API fetches to stfc.pro now use a **25s** `AbortSignal.timeout`. A hung alliance page no longer stalls `/alliance resync` or the morning multi-roster cron forever; that alliance is marked failed and prior cache is kept. Resync progress reports per-scrape ✅/❌ with elapsed ms.
+
+## 1.16.2 — `/alliance resync apply_discord` testing override (2026-07-19)
+
+`/alliance resync apply_discord:true` applies diplomacy tag remaps / rebalance even when deploy mode is **testing** (roster scrape always runs either way).
+
+## 1.16.1 — `/alliance resync` progress updates (2026-07-19)
+
+Deferred reply now updates per alliance scrape (`1/N [TAG]`), then remap/rebalance steps, then the final summary. Testing mode notes when Discord tag remaps are skipped.
 
 ## 1.16.0 — `/alliance resync` (mid-day roster + tag rename remap) (2026-07-19)
 

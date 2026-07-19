@@ -1444,6 +1444,15 @@ const commands = [
 				name: 'resync',
 				description:
 					'Re-scrape tracked alliance rosters now; remap tag renames and diplomacy rooms',
+				options: [
+					{
+						type: 5,
+						name: 'apply_discord',
+						description:
+							'Also rename/move diplomacy rooms in Discord (even when deploy mode is testing)',
+						required: false,
+					},
+				],
 			},
 		],
 	},
