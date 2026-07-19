@@ -19,7 +19,7 @@ import {
 	type AllianceRosterMemberRow,
 } from './guild-db';
 import { collectTrackedAllianceTags, isMultiAllianceGuild } from './alliance-roster-sync';
-import { runAllianceResync } from './alliance-resync';
+import { continueAllianceResync, runAllianceResync } from './alliance-resync';
 import { trackAndScrapeAlliance, untrackAllianceTag } from './alliance-track';
 import {
 	buildApproveContinueComponents,
@@ -389,7 +389,17 @@ export async function handleAllianceCommand(
 						await progress(`❌ ${result.error}`);
 						return;
 					}
-					await progress(result.summary);
+					if (result.mode === 'multi_alliance_continue') {
+						await editInteractionResponse(appId, interaction.token, result.summary, true, {
+							components: result.components,
+							config,
+						});
+						return;
+					}
+					await editInteractionResponse(appId, interaction.token, result.summary, true, {
+						components: [],
+						config,
+					});
 				} catch (err) {
 					await progress(
 						`❌ Resync failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -403,7 +413,7 @@ export async function handleAllianceCommand(
 	return interactionResponse(
 		`🏷 **Alliance** (multi)\n` +
 			`• \`/alliance track tag:TAG\` — scrape now + keep in morning sync\n` +
-			`• \`/alliance resync\` — re-scrape tracked rosters; \`apply_discord:true\` to remap rooms even in testing\n` +
+			`• \`/alliance resync\` — chunked re-scrape (Continue); \`apply_discord:true\` remaps rooms even in testing\n` +
 			`• \`/alliance suggest [tag:]\` — match unverified Discord members to roster (Approve buttons)\n` +
 			`• \`/alliance list\` · \`/alliance untrack tag:\``,
 		true,
@@ -621,6 +631,77 @@ async function runConfidenceApproveChunk(
  * `alink:1:…`, `alink:grp:h|m|l:…`, `alink:more:h|m|l:…`
  * (legacy `alink:high:` still accepted as high group).
  */
+export async function handleAllianceResyncComponent(
+	env: Env,
+	ctx: ExecutionContext,
+	interaction: {
+		guild_id?: string;
+		application_id?: string;
+		token: string;
+		member?: { permissions?: string; user?: { id: string } };
+		data?: { custom_id?: string };
+	},
+): Promise<Response> {
+	const adminError = requireGuildAdmin(interaction);
+	if (adminError) return adminError;
+
+	const customId = interaction.data?.custom_id ?? '';
+	const cont = customId.match(/^aresync:cont:([a-f0-9]{32})$/);
+	if (!cont) {
+		return interactionResponse('❌ Unknown resync button.', true);
+	}
+	const sessionToken = cont[1]!;
+	const guildId = interaction.guild_id;
+	if (!guildId) {
+		return interactionResponse('❌ Run this inside your server.', true);
+	}
+	const appId = interaction.application_id ?? env.DISCORD_APPLICATION_ID;
+	if (!appId) {
+		return interactionResponse('❌ DISCORD_APPLICATION_ID not configured.', true);
+	}
+	const config = await getGuildConfig(env.STFC_DB, guildId);
+	if (!config) {
+		return interactionResponse('❌ Server not configured.', true);
+	}
+
+	const deferred = deferredComponentResponse();
+	ctx.waitUntil(
+		(async () => {
+			const progress = async (message: string) => {
+				await editInteractionResponse(appId, interaction.token, message, true, {
+					config,
+					components: [],
+				});
+			};
+			try {
+				await progress('⏳ Continuing alliance resync…');
+				const result = await continueAllianceResync(env, config, sessionToken, {
+					actorId: interaction.member?.user?.id,
+					onProgress: progress,
+				});
+				if (!result.ok) {
+					await progress(`❌ ${result.error}`);
+					return;
+				}
+				if (result.mode === 'multi_alliance_continue') {
+					await editInteractionResponse(appId, interaction.token, result.summary, true, {
+						components: result.components,
+						config,
+					});
+					return;
+				}
+				await editInteractionResponse(appId, interaction.token, result.summary, true, {
+					components: [],
+					config,
+				});
+			} catch (err) {
+				await progress(`❌ Resync failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		})(),
+	);
+	return deferred;
+}
+
 export async function handleAllianceLinkComponent(
 	env: Env,
 	ctx: ExecutionContext,

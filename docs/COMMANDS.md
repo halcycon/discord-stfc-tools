@@ -142,7 +142,7 @@ List subcommands (`grade`, `ops`, `rank`, `inactive`, `missing-verify`) share op
 | Subcommand | Notes |
 |------------|-------|
 | `track` | `tag:` and/or `alliance_id:` — scrape HTML now, store roster, add to morning tracked set; remaps diplomacy if that alliance id’s tag changed |
-| `resync` | Re-scrape all tracked alliance pages now + remap tag renames. In **testing**, Discord remaps are skipped unless `apply_discord:true` |
+| `resync` | Re-scrape tracked alliance pages in **chunks of 5** (Continue button) — Cloudflare `waitUntil` ~30s after each deferred reply. Tag remaps + diplomacy rebalance run on the **last** chunk. In **testing**, Discord remaps are skipped unless `apply_discord:true` |
 | `suggest` | Optional `tag:` — table of matches + **Approve 🟢/🟡/🟠** per confidence, individual **#** buttons, **Continue** |
 | `list` | Explicit + diplomacy + combined tracked tags |
 | `untrack` | Remove from explicit list (diplomacy/verified tags still track) |

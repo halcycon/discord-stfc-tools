@@ -180,6 +180,7 @@ export default {
 						const result = await runAllianceResync(env, guild, {
 							source: 'system',
 							postAudit: false,
+							fullSync: true,
 						});
 						if (!result.ok) {
 							return Response.json(

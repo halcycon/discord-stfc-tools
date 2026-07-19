@@ -494,7 +494,7 @@ These are easy to conflate. They are **not** the same list:
 
 ```
 /alliance track tag:ABCD                    # scrape now into D1 + keep in morning sync (+ diplomacy if enabled)
-/alliance resync                            # re-scrape tracked rosters now (+ remap renames when live)
+/alliance resync                            # chunked re-scrape (Continue); remaps on last chunk when live
 /alliance resync apply_discord:true         # same, but apply Discord diplomacy remaps even in testing
 /alliance suggest tag:ABCD                  # match unverified Discord nicks → roster
 /alliance list                              # explicit + diplomacy + combined scrape tags
@@ -818,6 +818,8 @@ Same spirit as personal-channel rebalance. Progress posts on the slash command a
 **Alliance tag rename:** if a tracked alliance changes its tag on stfc.pro (same alliance id, new tag string), the morning job (or `/alliance resync`) remaps `diplomacy_channel_map` / preferred languages / `tracked_alliance_tags` / verified player tags, renames and re-places the diplomacy room, then rebalances letter buckets if needed. This is **not** the same as a player moving between alliances.
 
 **Why resync matters mid-day:** if players sync with the **new** tag before remap, diplomacy may auto-create a second channel for the new tag while the old map key still exists. Run `/alliance resync` promptly after a rename; remap keeps the original room and unmaps the duplicate (you can delete the extra Discord channel).
+
+**Timeouts (not a Discord 30s command limit):** Discord needs an ack within **3s** (we defer), then allows interaction edits/follow-ups for **15 minutes**. After we reply, Cloudflare only keeps `waitUntil` work alive ~**30s** — that is why slash resync is chunked (Continue). Morning cron is a separate scheduled invocation (~**15 min** wall) and still scrapes all tracked pages in one job. stfc.pro page fetches abort at **25s** so one hung page cannot consume a whole chunk.
 
 ### Organise existing archive piles (no linking)
 

@@ -3298,3 +3298,130 @@ export async function getVerifyReassignSession(
 export async function deleteVerifyReassignSession(db: D1Database, token: string): Promise<void> {
 	await db.prepare(`DELETE FROM verify_reassign_sessions WHERE token = ?`).bind(token).run();
 }
+
+// --- Alliance resync sessions (chunked Continue) ---
+
+export type AllianceResyncSessionPayload = {
+	forceDiscord: boolean;
+	fetchedAt: string;
+	directoryCount: number;
+	trackedTagCount: number;
+	skippedTags: string[];
+	entries: Array<{
+		allianceId: string;
+		allianceTag: string;
+		allianceName: string;
+		serverRank: number | null;
+		playerCount: number | null;
+		server: number;
+		region: string;
+	}>;
+	offset: number;
+	scrapedAlliances: number;
+	failedTags: string[];
+	tagRenames: Array<{ allianceId: string; fromTag: string; toTag: string }>;
+	keepAllianceIds: string[];
+	previous: Array<{
+		playerId: number;
+		playerName: string;
+		allianceRank: string;
+		opsLevel: number;
+		allianceTag: string;
+	}>;
+};
+
+export type AllianceResyncSession = {
+	token: string;
+	guild_id: string;
+	actor_id: string | null;
+	payload: AllianceResyncSessionPayload;
+	expires_at: string;
+};
+
+function newAllianceResyncToken(): string {
+	const bytes = new Uint8Array(16);
+	crypto.getRandomValues(bytes);
+	return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function createAllianceResyncSession(
+	db: D1Database,
+	opts: {
+		guildId: string;
+		actorId?: string | null;
+		payload: AllianceResyncSessionPayload;
+		ttlSeconds?: number;
+	},
+): Promise<AllianceResyncSession> {
+	const token = newAllianceResyncToken();
+	const ttl = opts.ttlSeconds ?? 3600;
+	const expiresAt = new Date(Date.now() + ttl * 1000).toISOString();
+	await db
+		.prepare(
+			`INSERT INTO alliance_resync_sessions (token, guild_id, actor_id, payload, expires_at)
+			 VALUES (?, ?, ?, ?, ?)`,
+		)
+		.bind(token, opts.guildId, opts.actorId ?? null, JSON.stringify(opts.payload), expiresAt)
+		.run();
+	return {
+		token,
+		guild_id: opts.guildId,
+		actor_id: opts.actorId ?? null,
+		payload: opts.payload,
+		expires_at: expiresAt,
+	};
+}
+
+export async function getAllianceResyncSession(
+	db: D1Database,
+	token: string,
+): Promise<AllianceResyncSession | null> {
+	const row = await db
+		.prepare(
+			`SELECT token, guild_id, actor_id, payload, expires_at
+			 FROM alliance_resync_sessions WHERE token = ?`,
+		)
+		.bind(token)
+		.first();
+	if (!row) return null;
+	const r = row as Record<string, unknown>;
+	const expiresAt = String(r.expires_at ?? '');
+	if (expiresAt && Date.parse(expiresAt) < Date.now()) {
+		await db.prepare(`DELETE FROM alliance_resync_sessions WHERE token = ?`).bind(token).run();
+		return null;
+	}
+	let payload: AllianceResyncSessionPayload;
+	try {
+		payload = JSON.parse(String(r.payload ?? '{}')) as AllianceResyncSessionPayload;
+	} catch {
+		return null;
+	}
+	return {
+		token: String(r.token),
+		guild_id: String(r.guild_id),
+		actor_id: r.actor_id != null ? String(r.actor_id) : null,
+		payload,
+		expires_at: expiresAt,
+	};
+}
+
+export async function updateAllianceResyncSessionPayload(
+	db: D1Database,
+	token: string,
+	payload: AllianceResyncSessionPayload,
+	ttlSeconds = 3600,
+): Promise<void> {
+	const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+	await db
+		.prepare(
+			`UPDATE alliance_resync_sessions
+			 SET payload = ?, expires_at = ?
+			 WHERE token = ?`,
+		)
+		.bind(JSON.stringify(payload), expiresAt, token)
+		.run();
+}
+
+export async function deleteAllianceResyncSession(db: D1Database, token: string): Promise<void> {
+	await db.prepare(`DELETE FROM alliance_resync_sessions WHERE token = ?`).bind(token).run();
+}

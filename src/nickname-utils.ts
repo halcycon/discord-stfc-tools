@@ -62,7 +62,7 @@ export function isLeadershipRank(rank: AllianceRankKey | null): boolean {
  * Empty / invalid → all ranks (default). Dedupes, preserves canonical order.
  */
 export function parseNicknameDisplayRanks(
-	raw: string | string[] | null | undefined,
+	raw: string | readonly string[] | null | undefined,
 ): AllianceRankKey[] {
 	let parts: string[] = [];
 	if (Array.isArray(raw)) {

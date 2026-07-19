@@ -140,7 +140,7 @@ Morning job scrapes stfc.pro **HTML** (API `/api/players` is 403 from Worker egr
 - **DM assistant** — HAL refusal for unknown asks; Badgey voice + admin menu wizards; roster Q&A gated by `/server assistant`
 - **Discord agreement** — optional CoC gate (`/server agreement`); DM Agree button; timing before/after verify; channel react planned
 - **Alliance roster cache** (single-alliance) — morning HTML scrape of `/alliances/{id}`; verify + daily sync prefer cache; audit report of joins/leaves/ops/rank/renames
-- `/alliance track|suggest|list|untrack|resync|defer-untracked-admirals` (multi) — scrape now / mid-day resync (tag-rename remap) + nick-based link suggestions (ASCII table); **Approve 🟢/🟡/🟠** per confidence + **Continue** (Free **2**/click, Paid **6**/click, max **10**) — `src/workers-plan.ts`, `docs/ADMIN_GUIDE.md` § Approve-all chunking; optional deferral of Admiral roles + diplomacy until track
+- `/alliance track|suggest|list|untrack|resync|defer-untracked-admirals` (multi) — scrape now / mid-day **chunked resync** (Continue; CF `waitUntil` ~30s) + tag-rename remap on last chunk + nick-based link suggestions (ASCII table); **Approve 🟢/🟡/🟠** per confidence + **Continue** (Free **2**/click, Paid **6**/click, max **10**) — `src/workers-plan.ts`, `docs/ADMIN_GUIDE.md` § Approve-all chunking; optional deferral of Admiral roles + diplomacy until track
 
 **Personal channel permissions (agents):** Prefer **not** Discord “sync category → children” when existing channels have per-member allows — that wipes them. Audit first (`permissions-audit`), lock a good sample (`permissions-template-from`), then create/link. Template lives on `guild_configs.personal_channel_perm_template` (JSON); null = built-in bot + deny @everyone + member + `personal_channel_extra_roles`. Bot overwrite is always applied first so the bot can post surveys. Docs: `docs/ADMIN_GUIDE.md` § personal channels.
 
@@ -177,6 +177,7 @@ src/
   verification-access.ts   # Roles, nick, personal/diplomacy channel apply
   alliance-roster-sync.ts  # Scrape/persist/load roster; single_alliance gate
   alliance-roster-diff.ts  # Day-over-day joins/leaves/ops/rank/renames + audit format
+  alliance-resync.ts       # /alliance resync (chunked Continue + fullSync for cron/HTTP)
   alliance-handlers.ts     # /alliance track|suggest|resync + Approve/Continue button chunks
   alliance-resync.ts       # mid-day roster scrape + tag-rename remap + diplomacy rebalance
   link-suggest.ts          # Nick parse + Discord↔roster match suggestions
@@ -219,6 +220,7 @@ migrations/
   040_diplomacy_special_channel.sql  # non-listed alliances diplomacy channel + placement
   041_diplomacy_archive_category_map.sql  # letter-bucket diplomacy archive categories
   042_diplomacy_soft_limit.sql            # persisted diplomacy soft_limit (default 45)
+  043_alliance_resync_sessions.sql       # chunked /alliance resync Continue sessions
 
 archive/officers/          # REMOVED officer feature (scripts, SQL, assets, docs)
 

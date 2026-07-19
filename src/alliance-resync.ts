@@ -1,7 +1,13 @@
 /**
  * Manual / shared multi-alliance roster resync (scrape + tag-rename remap + diplomacy rebalance).
+ *
+ * Slash `/alliance resync` is **chunked** (Continue buttons): Cloudflare `waitUntil` after a
+ * deferred Discord reply only extends ~30s. Morning cron uses the full scrape in one job (~15 min).
  */
 import {
+	ALLIANCE_RESYNC_INTERACTION_CHUNK,
+	planMultiAllianceScrape,
+	scrapeMultiAllianceEntries,
 	syncGuildAllianceRoster,
 	syncMultiAllianceTrackedRosters,
 	type AllianceTagRename,
@@ -9,6 +15,7 @@ import {
 } from './alliance-roster-sync';
 import {
 	allianceRosterDiffHasChanges,
+	diffAllianceRosters,
 	formatAllianceRosterChangeReport,
 } from './alliance-roster-diff';
 import {
@@ -16,10 +23,21 @@ import {
 	runDiplomacyAutoRebalance,
 } from './diplomacy-maintenance';
 import { diplomacyChannelsEnabled } from './diplomacy-channels';
-import { getGuildConfig } from './guild-db';
+import {
+	createAllianceResyncSession,
+	deleteAllianceResyncSession,
+	getAllianceResyncSession,
+	getGuildConfig,
+	listAllianceRosterMembers,
+	pruneAllianceRostersOutside,
+	updateAllianceResyncSessionPayload,
+	upsertGuildConfig,
+	type AllianceResyncSessionPayload,
+} from './guild-db';
 import { AuditColor, postAuditLog } from './audit-log';
 import { isDeployTesting } from './deploy-mode';
 import { createProgressReporter } from './progress-reporter';
+import type { DiscordActionRow } from './discord-api';
 import type { GuildConfig } from './types';
 
 export type AllianceResyncResult =
@@ -44,7 +62,30 @@ export type AllianceResyncResult =
 			playerCount: number;
 			summary: string;
 	  }
+	| {
+			ok: true;
+			mode: 'multi_alliance_continue';
+			sessionToken: string;
+			summary: string;
+			components: DiscordActionRow[];
+	  }
 	| { ok: false; error: string };
+
+export function buildAllianceResyncContinueComponents(sessionToken: string): DiscordActionRow[] {
+	return [
+		{
+			type: 1,
+			components: [
+				{
+					type: 2,
+					style: 1,
+					label: 'Continue resync',
+					custom_id: `aresync:cont:${sessionToken}`,
+				},
+			],
+		},
+	];
+}
 
 /**
  * Apply detected alliance tag renames (Discord diplomacy + D1), then optional rebalance.
@@ -58,10 +99,6 @@ export async function applyTagRenamesFromSync(
 		source?: 'cron' | 'admin' | 'system';
 		rebalance?: boolean;
 		onProgress?: (message: string) => Promise<void>;
-		/**
-		 * Apply Discord diplomacy remaps even when deploy mode is testing.
-		 * (D1 roster scrape always runs; this only gates Discord mutations.)
-		 */
 		forceDiscord?: boolean;
 	},
 ): Promise<{
@@ -139,9 +176,259 @@ export async function applyTagRenamesFromSync(
 	return { config: current, remapped, errors, rebalanced, skippedTesting: false };
 }
 
+async function finalizeMultiResync(
+	env: Env,
+	config: GuildConfig,
+	payload: AllianceResyncSessionPayload,
+	opts: {
+		actorId?: string;
+		source?: 'cron' | 'admin' | 'system';
+		postAudit?: boolean;
+		onProgress?: (message: string) => Promise<void>;
+		forceDiscord?: boolean;
+	},
+): Promise<AllianceResyncResult> {
+	const source = opts.source ?? 'admin';
+	const progress = createProgressReporter(opts.onProgress);
+	progress.report('⏳ Alliance resync: finalizing (prune cache, remaps, audit)…');
+	await progress.flush();
+
+	if (payload.scrapedAlliances === 0) {
+		return { ok: false, error: 'All alliance scrapes failed this resync.' };
+	}
+
+	await pruneAllianceRostersOutside(env.STFC_DB, config.guild_id, payload.keepAllianceIds);
+
+	if (payload.tagRenames.length) {
+		const renameMap = new Map(payload.tagRenames.map((r) => [r.fromTag, r.toTag]));
+		const nextTracked = [
+			...new Set(
+				(config.tracked_alliance_tags ?? []).map((t) => {
+					const upper = t.trim().toUpperCase();
+					return renameMap.get(upper) ?? upper;
+				}),
+			),
+		].filter(Boolean);
+		await upsertGuildConfig(env.STFC_DB, {
+			guild_id: config.guild_id,
+			tracked_alliance_tags: nextTracked,
+		});
+		config.tracked_alliance_tags = nextTracked;
+	}
+
+	let current = (await getGuildConfig(env.STFC_DB, config.guild_id)) ?? config;
+	const renameResult = await applyTagRenamesFromSync(env, current, payload.tagRenames, {
+		actorId: opts.actorId,
+		source,
+		rebalance: true,
+		onProgress: opts.onProgress,
+		forceDiscord: opts.forceDiscord ?? payload.forceDiscord,
+	});
+	current = renameResult.config;
+
+	const allowDiscord = (opts.forceDiscord ?? payload.forceDiscord) || !isDeployTesting(current);
+	if (
+		!renameResult.rebalanced &&
+		!renameResult.skippedTesting &&
+		diplomacyChannelsEnabled(current) &&
+		env.DISCORD_BOT_TOKEN &&
+		allowDiscord
+	) {
+		const rb = await runDiplomacyAutoRebalance(
+			env,
+			env.DISCORD_BOT_TOKEN,
+			current,
+			current.guild_id,
+			{
+				reason: 'manual resync',
+				source,
+				actorId: opts.actorId,
+			},
+		);
+		if (rb.config) current = rb.config;
+		renameResult.rebalanced = rb.ran;
+	}
+
+	const currentRows = await listAllianceRosterMembers(env.STFC_DB, config.guild_id);
+	const currentSnap = currentRows.map((m) => ({
+		playerId: m.player_id,
+		playerName: m.player_name,
+		allianceRank: m.alliance_rank,
+		opsLevel: m.ops_level,
+		allianceTag: m.alliance_tag,
+	}));
+	const diff = diffAllianceRosters(payload.previous, currentSnap);
+	const changeReport = formatAllianceRosterChangeReport(diff, {
+		allianceTag: 'multi',
+		mode: 'multi',
+		alliancesScraped: payload.scrapedAlliances,
+	});
+
+	let extra = '';
+	if (payload.failedTags.length) {
+		extra += `\n⚠ Failed: ${payload.failedTags.slice(0, 15).join(', ')}`;
+	}
+	if (payload.skippedTags.length) {
+		extra += `\n⏭ Skipped: ${payload.skippedTags.slice(0, 15).join(', ')}`;
+	}
+	if (payload.tagRenames.length) {
+		extra += `\n🏷 Tag renames: ${payload.tagRenames
+			.map((r) => `\`${r.fromTag}\`→\`${r.toTag}\``)
+			.join(', ')}`;
+		extra += `\n· Remapped diplomacy/DB: **${renameResult.remapped}**`;
+		if (renameResult.skippedTesting) extra += ` _(skipped — testing mode)_`;
+		if (renameResult.errors.length) {
+			extra += `\n· Remap errors: ${renameResult.errors.slice(0, 5).join('; ')}`;
+		}
+	}
+	if (renameResult.rebalanced) extra += `\n· Diplomacy auto-rebalance ran`;
+
+	if (opts.postAudit !== false) {
+		await postAuditLog(env, current, {
+			title: changeReport.title,
+			description:
+				changeReport.description +
+				`\n_Directory **${payload.directoryCount}** · tracked **${payload.trackedTagCount}** · manual resync_` +
+				extra,
+			actorId: opts.actorId,
+			source,
+			color: allianceRosterDiffHasChanges(diff) || payload.tagRenames.length
+				? AuditColor.warn
+				: AuditColor.info,
+		});
+	}
+
+	const summaryLines = [
+		`✅ **Alliance resync** complete`,
+		`• Scraped: **${payload.scrapedAlliances}** alliance page(s)`,
+		`• Directory: ${payload.directoryCount} · tracked tags: ${payload.trackedTagCount}`,
+	];
+	if (payload.failedTags.length) {
+		summaryLines.push(`• Failed: ${payload.failedTags.slice(0, 10).join(', ')}`);
+	}
+	if (payload.skippedTags.length) {
+		summaryLines.push(`• Skipped: ${payload.skippedTags.slice(0, 10).join(', ')}`);
+	}
+	if (payload.tagRenames.length) {
+		summaryLines.push(
+			`• Tag renames: ${payload.tagRenames.map((r) => `\`${r.fromTag}\`→\`${r.toTag}\``).join(', ')}`,
+		);
+		summaryLines.push(
+			`• Remapped: **${renameResult.remapped}**` +
+				(renameResult.skippedTesting
+					? ' _(testing — Discord remap skipped; use `apply_discord:true`)_'
+					: payload.forceDiscord && isDeployTesting(config)
+						? ' _(testing override `apply_discord:true`)_'
+						: ''),
+		);
+	} else {
+		summaryLines.push(`• Tag renames: none detected`);
+	}
+	if (renameResult.errors.length) {
+		summaryLines.push(`• Remap issues: ${renameResult.errors.slice(0, 3).join('; ')}`);
+	}
+	if (renameResult.rebalanced) summaryLines.push(`• Diplomacy rebalanced`);
+	summaryLines.push(
+		`\n_Verified player roles/nicks update on the next morning sync or when members re-verify._`,
+	);
+
+	return {
+		ok: true,
+		mode: 'multi_alliance',
+		directoryCount: payload.directoryCount,
+		trackedTags: payload.trackedTagCount,
+		scrapedAlliances: payload.scrapedAlliances,
+		skippedTags: payload.skippedTags,
+		failedTags: payload.failedTags,
+		tagRenames: payload.tagRenames,
+		remapped: renameResult.remapped,
+		remapErrors: renameResult.errors,
+		rebalanced: renameResult.rebalanced,
+		diffHasChanges: allianceRosterDiffHasChanges(diff),
+		summary: summaryLines.join('\n'),
+	};
+}
+
+async function runResyncChunk(
+	env: Env,
+	config: GuildConfig,
+	payload: AllianceResyncSessionPayload,
+	opts: {
+		actorId?: string;
+		source?: 'cron' | 'admin' | 'system';
+		postAudit?: boolean;
+		onProgress?: (message: string) => Promise<void>;
+		sessionToken?: string;
+	},
+): Promise<AllianceResyncResult> {
+	const total = payload.entries.length;
+	const chunk = payload.entries.slice(
+		payload.offset,
+		payload.offset + ALLIANCE_RESYNC_INTERACTION_CHUNK,
+	);
+	if (chunk.length === 0) {
+		return finalizeMultiResync(env, config, payload, {
+			...opts,
+			forceDiscord: payload.forceDiscord,
+		});
+	}
+
+	const batch = await scrapeMultiAllianceEntries(env, config, chunk, {
+		fetchedAt: payload.fetchedAt,
+		progressOffset: payload.offset,
+		progressTotal: total,
+		onProgress: opts.onProgress,
+	});
+
+	payload.offset += chunk.length;
+	payload.scrapedAlliances += batch.scrapedAlliances;
+	payload.failedTags.push(...batch.failedTags);
+	payload.tagRenames.push(...batch.tagRenames);
+	payload.keepAllianceIds.push(...batch.keepAllianceIds);
+
+	const remaining = total - payload.offset;
+	if (remaining > 0) {
+		const token =
+			opts.sessionToken ??
+			(
+				await createAllianceResyncSession(env.STFC_DB, {
+					guildId: config.guild_id,
+					actorId: opts.actorId,
+					payload,
+				})
+			).token;
+		if (opts.sessionToken) {
+			await updateAllianceResyncSessionPayload(env.STFC_DB, token, payload);
+		}
+		const nextN = Math.min(remaining, ALLIANCE_RESYNC_INTERACTION_CHUNK);
+		return {
+			ok: true,
+			mode: 'multi_alliance_continue',
+			sessionToken: token,
+			components: buildAllianceResyncContinueComponents(token),
+			summary:
+				`⏸ **Alliance resync** progress — Cloudflare stops background work ~**30s** after each reply, so scrapes are chunked.\n\n` +
+				`• Done: **${payload.offset}/${total}** alliance pages\n` +
+				`• Ok: **${payload.scrapedAlliances}** · fail: **${payload.failedTags.length}**` +
+				(payload.tagRenames.length
+					? ` · renames so far: **${payload.tagRenames.length}**`
+					: '') +
+				`\n\nPress **Continue resync** for the next **${nextN}** (then remaps run on the last chunk).`,
+		};
+	}
+
+	if (opts.sessionToken) {
+		await deleteAllianceResyncSession(env.STFC_DB, opts.sessionToken);
+	}
+	return finalizeMultiResync(env, config, payload, {
+		...opts,
+		forceDiscord: payload.forceDiscord,
+	});
+}
+
 /**
- * Scrape tracked alliance rosters now (same as morning), remap tag renames, rebalance diplomacy.
- * Does not run the full verified-player daily sync loop.
+ * Interactive `/alliance resync` — chunked for waitUntil limits.
+ * Full one-shot scrape remains available via `runAllianceResyncFull` (HTTP/cron helpers).
  */
 export async function runAllianceResync(
 	env: Env,
@@ -149,11 +436,11 @@ export async function runAllianceResync(
 	opts?: {
 		actorId?: string;
 		source?: 'cron' | 'admin' | 'system';
-		/** Post the day-over-day roster audit embed (default true for admin). */
 		postAudit?: boolean;
 		onProgress?: (message: string) => Promise<void>;
-		/** Apply Discord remaps/rebalance even in deploy mode testing. */
 		forceDiscord?: boolean;
+		/** When true, scrape all alliances in one shot (cron / diagnostic). Default false for slash. */
+		fullSync?: boolean;
 	},
 ): Promise<AllianceResyncResult> {
 	const source = opts?.source ?? 'admin';
@@ -201,154 +488,134 @@ export async function runAllianceResync(
 		};
 	}
 
-	// syncMultiAllianceTrackedRosters owns non-blocking progress during scrapes.
-	const multi = await syncMultiAllianceTrackedRosters(env, config, {
-		onProgress: opts?.onProgress,
-	});
-	if (!multi.ok) {
-		await progress.flush();
-		return { ok: false, error: `Multi roster sync failed: ${multi.reason}` };
-	}
-
-	say(
-		`⏳ Alliance resync: scrapes done (**${multi.scrapedAlliances}** ok` +
-			(multi.failedTags.length ? `, ${multi.failedTags.length} failed` : '') +
-			(multi.tagRenames.length ? `, ${multi.tagRenames.length} rename(s)` : '') +
-			`)…`,
-	);
-
-	let current = (await getGuildConfig(env.STFC_DB, config.guild_id)) ?? config;
-	const renameResult = await applyTagRenamesFromSync(env, current, multi.tagRenames, {
-		actorId: opts?.actorId,
-		source,
-		rebalance: true,
-		onProgress: opts?.onProgress,
-		forceDiscord,
-	});
-	current = renameResult.config;
-
-	// If no renames but buckets overflowed (e.g. new diplomacy channels), still rebalance.
-	const allowDiscord =
-		forceDiscord || !isDeployTesting(current);
-	if (
-		!renameResult.rebalanced &&
-		!renameResult.skippedTesting &&
-		diplomacyChannelsEnabled(current) &&
-		env.DISCORD_BOT_TOKEN &&
-		allowDiscord
-	) {
-		say('⏳ Alliance resync: checking diplomacy buckets…');
-		const rb = await runDiplomacyAutoRebalance(
-			env,
-			env.DISCORD_BOT_TOKEN,
-			current,
-			current.guild_id,
-			{
-				reason: 'manual resync',
-				source,
-				actorId: opts?.actorId,
-			},
-		);
-		if (rb.config) current = rb.config;
-		renameResult.rebalanced = rb.ran;
-	}
-
-	await progress.flush();
-
-	const changeReport = formatAllianceRosterChangeReport(multi.diff, {
-		allianceTag: 'multi',
-		mode: 'multi',
-		alliancesScraped: multi.scrapedAlliances,
-	});
-	let extra = '';
-	if (multi.failedTags.length) {
-		extra += `\n⚠ Failed: ${multi.failedTags.slice(0, 15).join(', ')}`;
-	}
-	if (multi.skippedTags.length) {
-		extra += `\n⏭ Skipped: ${multi.skippedTags.slice(0, 15).join(', ')}`;
-	}
-	if (multi.tagRenames.length) {
-		extra += `\n🏷 Tag renames: ${multi.tagRenames
-			.map((r) => `\`${r.fromTag}\`→\`${r.toTag}\``)
-			.join(', ')}`;
-		extra += `\n· Remapped diplomacy/DB: **${renameResult.remapped}**`;
-		if (renameResult.skippedTesting) {
-			extra += ` _(skipped — testing mode)_`;
+	if (opts?.fullSync) {
+		const multi = await syncMultiAllianceTrackedRosters(env, config, {
+			onProgress: opts?.onProgress,
+		});
+		if (!multi.ok) {
+			return { ok: false, error: `Multi roster sync failed: ${multi.reason}` };
 		}
-		if (renameResult.errors.length) {
-			extra += `\n· Remap errors: ${renameResult.errors.slice(0, 5).join('; ')}`;
-		}
-	}
-	if (renameResult.rebalanced) {
-		extra += `\n· Diplomacy auto-rebalance ran`;
-	}
-
-	if (postAudit) {
-		await postAuditLog(env, current, {
-			title: changeReport.title,
-			description:
-				changeReport.description +
-				`\n_Directory **${multi.directoryCount}** · tracked **${multi.trackedTags}** · manual resync_` +
-				extra,
+		const payload: AllianceResyncSessionPayload = {
+			forceDiscord,
+			fetchedAt: new Date().toISOString(),
+			directoryCount: multi.directoryCount,
+			trackedTagCount: multi.trackedTags,
+			skippedTags: multi.skippedTags,
+			entries: [],
+			offset: 0,
+			scrapedAlliances: multi.scrapedAlliances,
+			failedTags: multi.failedTags,
+			tagRenames: multi.tagRenames,
+			keepAllianceIds: [],
+			previous: [],
+		};
+		// Full sync already pruned + updated tracked tags; only remaps/audit left.
+		let current = (await getGuildConfig(env.STFC_DB, config.guild_id)) ?? config;
+		const renameResult = await applyTagRenamesFromSync(env, current, multi.tagRenames, {
 			actorId: opts?.actorId,
 			source,
-			color: allianceRosterDiffHasChanges(multi.diff) || multi.tagRenames.length
-				? AuditColor.warn
-				: AuditColor.info,
+			rebalance: true,
+			onProgress: opts?.onProgress,
+			forceDiscord,
 		});
-	}
-
-	const summaryLines = [
-		`✅ **Alliance resync** complete`,
-		`• Scraped: **${multi.scrapedAlliances}** alliance page(s)`,
-		`• Directory: ${multi.directoryCount} · tracked tags: ${multi.trackedTags}`,
-	];
-	if (multi.failedTags.length) {
-		summaryLines.push(`• Failed: ${multi.failedTags.slice(0, 10).join(', ')}`);
-	}
-	if (multi.skippedTags.length) {
-		summaryLines.push(`• Skipped: ${multi.skippedTags.slice(0, 10).join(', ')}`);
-	}
-	if (multi.tagRenames.length) {
-		summaryLines.push(
-			`• Tag renames: ${multi.tagRenames.map((r) => `\`${r.fromTag}\`→\`${r.toTag}\``).join(', ')}`,
-		);
-		summaryLines.push(
-			`• Remapped: **${renameResult.remapped}**` +
-				(renameResult.skippedTesting
-					? ' _(testing — Discord remap skipped; use `apply_discord:true`)_'
-					: forceDiscord && isDeployTesting(config)
-						? ' _(testing override `apply_discord:true`)_'
+		current = renameResult.config;
+		const changeReport = formatAllianceRosterChangeReport(multi.diff, {
+			allianceTag: 'multi',
+			mode: 'multi',
+			alliancesScraped: multi.scrapedAlliances,
+		});
+		if (postAudit) {
+			await postAuditLog(env, current, {
+				title: changeReport.title,
+				description:
+					changeReport.description +
+					`\n_Directory **${multi.directoryCount}** · tracked **${multi.trackedTags}** · full resync_` +
+					(multi.tagRenames.length
+						? `\n🏷 ${multi.tagRenames.map((r) => `\`${r.fromTag}\`→\`${r.toTag}\``).join(', ')}`
 						: ''),
-		);
-	} else {
-		summaryLines.push(`• Tag renames: none detected`);
+				actorId: opts?.actorId,
+				source,
+				color: allianceRosterDiffHasChanges(multi.diff) || multi.tagRenames.length
+					? AuditColor.warn
+					: AuditColor.info,
+			});
+		}
+		return {
+			ok: true,
+			mode: 'multi_alliance',
+			directoryCount: multi.directoryCount,
+			trackedTags: multi.trackedTags,
+			scrapedAlliances: multi.scrapedAlliances,
+			skippedTags: multi.skippedTags,
+			failedTags: multi.failedTags,
+			tagRenames: multi.tagRenames,
+			remapped: renameResult.remapped,
+			remapErrors: renameResult.errors,
+			rebalanced: renameResult.rebalanced,
+			diffHasChanges: allianceRosterDiffHasChanges(multi.diff),
+			summary:
+				`✅ **Alliance resync** complete (full)\n` +
+				`• Scraped: **${multi.scrapedAlliances}**\n` +
+				`• Tag renames: ${multi.tagRenames.length ? multi.tagRenames.map((r) => `\`${r.fromTag}\`→\`${r.toTag}\``).join(', ') : 'none'}\n` +
+				`• Remapped: **${renameResult.remapped}**`,
+		};
 	}
-	if (renameResult.errors.length) {
-		summaryLines.push(`• Remap issues: ${renameResult.errors.slice(0, 3).join('; ')}`);
-	}
-	if (renameResult.rebalanced) {
-		summaryLines.push(`• Diplomacy rebalanced`);
-	}
-	summaryLines.push(
-		`\n_Verified player roles/nicks update on the next morning sync or when members re-verify._`,
-	);
 
-	return {
-		ok: true,
-		mode: 'multi_alliance',
-		directoryCount: multi.directoryCount,
-		trackedTags: multi.trackedTags,
-		scrapedAlliances: multi.scrapedAlliances,
-		skippedTags: multi.skippedTags,
-		failedTags: multi.failedTags,
-		tagRenames: multi.tagRenames,
-		remapped: renameResult.remapped,
-		remapErrors: renameResult.errors,
-		rebalanced: renameResult.rebalanced,
-		diffHasChanges: allianceRosterDiffHasChanges(multi.diff),
-		summary: summaryLines.join('\n'),
+	const planned = await planMultiAllianceScrape(env, config, { onProgress: opts?.onProgress });
+	if (!planned.ok) {
+		return { ok: false, error: `Multi roster plan failed: ${planned.reason}` };
+	}
+
+	const payload: AllianceResyncSessionPayload = {
+		forceDiscord,
+		fetchedAt: planned.plan.fetchedAt,
+		directoryCount: planned.plan.directoryCount,
+		trackedTagCount: planned.plan.trackedTagCount,
+		skippedTags: planned.plan.skippedTags,
+		entries: planned.plan.entries,
+		offset: 0,
+		scrapedAlliances: 0,
+		failedTags: [],
+		tagRenames: [],
+		keepAllianceIds: [],
+		previous: planned.plan.previous,
 	};
+
+	say(
+		`⏳ Alliance resync: directory **${payload.directoryCount}** · **${payload.entries.length}** page(s) to scrape ` +
+			`in chunks of **${ALLIANCE_RESYNC_INTERACTION_CHUNK}** (CF ~30s waitUntil)…`,
+	);
+	await progress.flush();
+
+	return runResyncChunk(env, config, payload, {
+		actorId: opts?.actorId,
+		source,
+		postAudit,
+		onProgress: opts?.onProgress,
+	});
+}
+
+/** Continue button handler for chunked resync. */
+export async function continueAllianceResync(
+	env: Env,
+	config: GuildConfig,
+	sessionToken: string,
+	opts?: {
+		actorId?: string;
+		onProgress?: (message: string) => Promise<void>;
+	},
+): Promise<AllianceResyncResult> {
+	const session = await getAllianceResyncSession(env.STFC_DB, sessionToken);
+	if (!session || session.guild_id !== config.guild_id) {
+		return { ok: false, error: 'Resync session expired — run `/alliance resync` again.' };
+	}
+	return runResyncChunk(env, config, session.payload, {
+		actorId: opts?.actorId ?? session.actor_id ?? undefined,
+		source: 'admin',
+		postAudit: true,
+		onProgress: opts?.onProgress,
+		sessionToken,
+	});
 }
 
 /** Narrow helper for cron: apply renames already detected by syncMultiAllianceTrackedRosters. */

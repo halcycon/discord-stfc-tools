@@ -3927,6 +3927,10 @@ async function dispatchDiscordInteraction(
 			const { handleActivityConfirmComponent } = await import('./activity-adjust');
 			return handleActivityConfirmComponent(env, interaction);
 		}
+		if (customId?.startsWith('aresync:')) {
+			const { handleAllianceResyncComponent } = await import('./alliance-handlers');
+			return handleAllianceResyncComponent(env, ctx, interaction);
+		}
 		if (customId?.startsWith('alink:')) {
 			const { handleAllianceLinkComponent } = await import('./alliance-handlers');
 			return handleAllianceLinkComponent(env, ctx, interaction);

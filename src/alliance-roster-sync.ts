@@ -39,6 +39,13 @@ export const MULTI_ALLIANCE_SCRAPE_MAX = 40;
 /** Delay between alliance page fetches (ms). */
 export const MULTI_ALLIANCE_SCRAPE_DELAY_MS = 1200;
 
+/**
+ * Max alliances scraped per `/alliance resync` click.
+ * After Discord’s deferred reply, Cloudflare `waitUntil` only extends ~30s wall time —
+ * a full 40-alliance scrape cannot finish in one interaction.
+ */
+export const ALLIANCE_RESYNC_INTERACTION_CHUNK = 5;
+
 function sleep(ms: number): Promise<void> {
 	return new Promise((r) => setTimeout(r, ms));
 }
@@ -278,43 +285,58 @@ export type MultiAllianceRosterSyncOptions = {
 	onProgress?: (message: string) => Promise<void>;
 };
 
+export type RosterDiffSnapshot = {
+	playerId: number;
+	playerName: string;
+	allianceRank: string;
+	opsLevel: number;
+	allianceTag: string;
+};
+
+export type PlannedMultiAllianceScrape = {
+	fetchedAt: string;
+	directoryCount: number;
+	trackedTagCount: number;
+	skippedTags: string[];
+	entries: ServerAllianceDirectoryEntry[];
+	previous: RosterDiffSnapshot[];
+};
+
 /**
- * Multi-alliance morning job:
- * 1) Fetch /servers/{n} directory
- * 2) Track tags = verified player tags ∪ diplomacy map tags
- * 3) Scrape those alliance pages (batched)
- * 4) Diff vs previous combined roster
+ * Resolve directory + which alliance pages to scrape (no HTML alliance pages yet).
  */
-export async function syncMultiAllianceTrackedRosters(
+export async function planMultiAllianceScrape(
 	env: Env,
 	config: GuildConfig,
-	opts?: MultiAllianceRosterSyncOptions,
-): Promise<MultiAllianceRosterSyncResult> {
+	opts?: { onProgress?: (message: string) => Promise<void> },
+): Promise<
+	| { ok: true; plan: PlannedMultiAllianceScrape }
+	| { ok: false; reason: string }
+> {
 	if (!isMultiAllianceGuild(config)) {
 		return { ok: false, reason: 'not_multi_alliance' };
 	}
 
-	// Never await Discord webhook edits in the scrape loop — rate limits ~12+ edits
-	// used to stall the entire morning/resync job.
 	const progress = createProgressReporter(opts?.onProgress);
 	const report = (message: string) => progress.report(message);
 
 	const verified = await listActiveVerifiedPlayers(env.STFC_DB, config.guild_id);
 	const trackedTags = collectTrackedAllianceTags(config, verified);
 	if (trackedTags.size === 0) {
+		await progress.flush();
 		return { ok: false, reason: 'no_tracked_tags' };
 	}
 
 	const previousRows = await listAllianceRosterMembers(env.STFC_DB, config.guild_id);
-	const previous = previousRows.map((m) => ({
+	const previous: RosterDiffSnapshot[] = previousRows.map((m) => ({
 		playerId: m.player_id,
-		playerName: m.player_name,
-		allianceRank: m.alliance_rank,
-		opsLevel: m.ops_level,
-		allianceTag: m.alliance_tag,
+		playerName: m.player_name ?? '',
+		allianceRank: m.alliance_rank ?? '',
+		opsLevel: m.ops_level ?? 0,
+		allianceTag: m.alliance_tag ?? '',
 	}));
 
-	report(`⏳ Alliance resync: loading server directory (${trackedTags.size} tracked tag(s))…`);
+	report(`⏳ Alliance sync: loading server directory (${trackedTags.size} tracked tag(s))…`);
 	const directory = await scrapeServerAlliances(config.stfc_server, config.stfc_region);
 	if (directory.length === 0) {
 		await progress.flush();
@@ -344,9 +366,7 @@ export async function syncMultiAllianceTrackedRosters(
 
 	const priorMeta = await listAllianceRosterMeta(env.STFC_DB, config.guild_id);
 	const metaByTag = new Map<string, (typeof priorMeta)[0]>();
-	const metaById = new Map<string, (typeof priorMeta)[0]>();
 	for (const m of priorMeta) {
-		metaById.set(m.alliance_id, m);
 		if (m.alliance_tag?.trim()) metaByTag.set(m.alliance_tag.trim().toUpperCase(), m);
 	}
 
@@ -356,7 +376,6 @@ export async function syncMultiAllianceTrackedRosters(
 	for (const tag of trackedTags) {
 		let entry = byTag.get(tag);
 		if (!entry) {
-			// Tag may have renamed: resolve prior alliance id → current directory row.
 			const meta = metaByTag.get(tag);
 			if (meta) entry = byId.get(meta.alliance_id);
 		}
@@ -370,25 +389,62 @@ export async function syncMultiAllianceTrackedRosters(
 		}
 	}
 
-	const batch = toScrape.slice(0, MULTI_ALLIANCE_SCRAPE_MAX);
+	const entries = toScrape.slice(0, MULTI_ALLIANCE_SCRAPE_MAX);
 	const overflow = toScrape.slice(MULTI_ALLIANCE_SCRAPE_MAX).map((e) => e.allianceTag);
 	skippedTags.push(...overflow);
+
+	await progress.flush();
+	return {
+		ok: true,
+		plan: {
+			fetchedAt,
+			directoryCount: directory.length,
+			trackedTagCount: trackedTags.size,
+			skippedTags,
+			entries,
+			previous,
+		},
+	};
+}
+
+/**
+ * Scrape a slice of alliance pages into D1 (used by morning cron + chunked resync).
+ */
+export async function scrapeMultiAllianceEntries(
+	env: Env,
+	config: GuildConfig,
+	entries: ServerAllianceDirectoryEntry[],
+	opts: {
+		fetchedAt: string;
+		/** Absolute index offset for progress labels (0-based into full plan). */
+		progressOffset?: number;
+		progressTotal?: number;
+		onProgress?: (message: string) => Promise<void>;
+	},
+): Promise<{
+	scrapedAlliances: number;
+	failedTags: string[];
+	tagRenames: AllianceTagRename[];
+	keepAllianceIds: string[];
+}> {
+	const progress = createProgressReporter(opts.onProgress);
+	const report = (message: string) => progress.report(message);
+	const progressOffset = opts.progressOffset ?? 0;
+	const progressTotal = opts.progressTotal ?? entries.length;
+
+	const priorMeta = await listAllianceRosterMeta(env.STFC_DB, config.guild_id);
+	const metaById = new Map(priorMeta.map((m) => [m.alliance_id, m]));
 
 	const failedTags: string[] = [];
 	const keepAllianceIds: string[] = [];
 	const tagRenames: AllianceTagRename[] = [];
 	let scrapedAlliances = 0;
 
-	report(
-		`⏳ Alliance resync: directory **${directory.length}** · scraping **${batch.length}** alliance page(s)` +
-			(overflow.length ? ` (${overflow.length} over batch cap skipped)` : '') +
-			`…`,
-	);
-
-	for (let i = 0; i < batch.length; i++) {
-		const entry = batch[i]!;
+	for (let i = 0; i < entries.length; i++) {
+		const entry = entries[i]!;
+		const abs = progressOffset + i + 1;
 		report(
-			`⏳ Alliance resync: scrape **${i + 1}/${batch.length}** \`[${entry.allianceTag}]\`` +
+			`⏳ Alliance sync: scrape **${abs}/${progressTotal}** \`[${entry.allianceTag}]\`` +
 				` (ok ${scrapedAlliances}, fail ${failedTags.length})…` +
 				`\n_Fetching stfc.pro (≤25s timeout)…_`,
 		);
@@ -402,13 +458,12 @@ export async function syncMultiAllianceTrackedRosters(
 		const ms = Date.now() - started;
 		if (!scrape || scrape.players.length === 0) {
 			failedTags.push(entry.allianceTag);
-			// Keep prior cache for this alliance so we don't wipe day-over-day history on a blip.
 			keepAllianceIds.push(entry.allianceId);
 			console.warn(
 				`Alliance scrape failed guild=${config.guild_id} tag=${entry.allianceTag} id=${entry.allianceId} (${ms}ms)`,
 			);
 			report(
-				`⏳ Alliance resync: scrape **${i + 1}/${batch.length}** \`[${entry.allianceTag}]\` ❌` +
+				`⏳ Alliance sync: scrape **${abs}/${progressTotal}** \`[${entry.allianceTag}]\` ❌` +
 					` (${ms}ms; ok ${scrapedAlliances}, fail ${failedTags.length})…`,
 			);
 			continue;
@@ -428,29 +483,66 @@ export async function syncMultiAllianceTrackedRosters(
 			allianceId,
 			allianceTag: tag,
 			allianceName: scrape.allianceName || entry.allianceName || null,
-			fetchedAt,
+			fetchedAt: opts.fetchedAt,
 			scope: 'alliance',
 			members,
 		});
 		keepAllianceIds.push(allianceId);
 		scrapedAlliances++;
 		report(
-			`⏳ Alliance resync: scrape **${i + 1}/${batch.length}** \`[${tag}]\` ✅` +
+			`⏳ Alliance sync: scrape **${abs}/${progressTotal}** \`[${tag}]\` ✅` +
 				` ${scrape.players.length} players (${ms}ms; ok ${scrapedAlliances}, fail ${failedTags.length})…`,
 		);
 	}
 
-	if (scrapedAlliances === 0) {
-		await progress.flush();
+	await progress.flush();
+	return { scrapedAlliances, failedTags, tagRenames, keepAllianceIds };
+}
+
+/**
+ * Multi-alliance morning job:
+ * 1) Fetch /servers/{n} directory
+ * 2) Track tags = verified player tags ∪ diplomacy map tags
+ * 3) Scrape those alliance pages (batched)
+ * 4) Diff vs previous combined roster
+ *
+ * Cron has ~15 min wall time — runs the full scrape in one invocation.
+ * Slash `/alliance resync` must chunk (see ALLIANCE_RESYNC_INTERACTION_CHUNK).
+ */
+export async function syncMultiAllianceTrackedRosters(
+	env: Env,
+	config: GuildConfig,
+	opts?: MultiAllianceRosterSyncOptions,
+): Promise<MultiAllianceRosterSyncResult> {
+	const planned = await planMultiAllianceScrape(env, config, opts);
+	if (!planned.ok) {
+		return { ok: false, reason: planned.reason };
+	}
+	const { plan } = planned;
+
+	const progress = createProgressReporter(opts?.onProgress);
+	progress.report(
+		`⏳ Alliance sync: directory **${plan.directoryCount}** · scraping **${plan.entries.length}** alliance page(s)` +
+			(plan.skippedTags.length ? ` (${plan.skippedTags.length} skipped)` : '') +
+			`…`,
+	);
+	await progress.flush();
+
+	const batch = await scrapeMultiAllianceEntries(env, config, plan.entries, {
+		fetchedAt: plan.fetchedAt,
+		progressOffset: 0,
+		progressTotal: plan.entries.length,
+		onProgress: opts?.onProgress,
+	});
+
+	if (batch.scrapedAlliances === 0) {
 		return { ok: false, reason: 'all_alliance_scrapes_failed' };
 	}
 
-	// Drop caches for alliances we no longer track (or didn't attempt this run).
-	await pruneAllianceRostersOutside(env.STFC_DB, config.guild_id, keepAllianceIds);
+	await pruneAllianceRostersOutside(env.STFC_DB, config.guild_id, batch.keepAllianceIds);
 
-	// Persist tracked-tag remaps even if Discord diplomacy remap runs later / fails.
-	if (tagRenames.length) {
-		const renameMap = new Map(tagRenames.map((r) => [r.fromTag, r.toTag]));
+	if (batch.tagRenames.length) {
+		const renameMap = new Map(batch.tagRenames.map((r) => [r.fromTag, r.toTag]));
 		const nextTracked = [
 			...new Set(
 				(config.tracked_alliance_tags ?? []).map((t) => {
@@ -474,23 +566,21 @@ export async function syncMultiAllianceTrackedRosters(
 		opsLevel: m.ops_level,
 		allianceTag: m.alliance_tag,
 	}));
-	const diff = diffAllianceRosters(previous, current);
+	const diff = diffAllianceRosters(plan.previous, current);
 
 	console.log(
-		`Multi alliance roster sync guild ${config.guild_id}: dir=${directory.length} tracked=${trackedTags.size} scraped=${scrapedAlliances} failed=${failedTags.length} skipped=${skippedTags.length}`,
+		`Multi alliance roster sync guild ${config.guild_id}: dir=${plan.directoryCount} tracked=${plan.trackedTagCount} scraped=${batch.scrapedAlliances} failed=${batch.failedTags.length} skipped=${plan.skippedTags.length}`,
 	);
-
-	await progress.flush();
 
 	return {
 		ok: true,
 		diff,
-		directoryCount: directory.length,
-		trackedTags: trackedTags.size,
-		scrapedAlliances,
-		skippedTags,
-		failedTags,
-		tagRenames,
+		directoryCount: plan.directoryCount,
+		trackedTags: plan.trackedTagCount,
+		scrapedAlliances: batch.scrapedAlliances,
+		skippedTags: plan.skippedTags,
+		failedTags: batch.failedTags,
+		tagRenames: batch.tagRenames,
 	};
 }
 
