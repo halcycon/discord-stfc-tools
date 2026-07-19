@@ -495,6 +495,7 @@ These are easy to conflate. They are **not** the same list:
 ```
 /alliance track tag:ABCD                    # scrape now into D1 + keep in morning sync (+ diplomacy if enabled)
 /alliance track tag:NEWT from_tag:OLDT      # renamed alliance: scrape new tag + remap diplomacy/track from old tag
+/alliance track tag:NEWT apply_discord:true # also rename Discord channel + refresh member nicks/roles (chunked)
 /alliance resync                            # chunked re-scrape (Continue); remaps on last chunk when live
 /alliance resync apply_discord:true         # same, but apply Discord diplomacy remaps even in testing
 /alliance suggest tag:ABCD                  # match unverified Discord nicks → roster

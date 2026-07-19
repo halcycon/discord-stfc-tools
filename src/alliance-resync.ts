@@ -111,28 +111,42 @@ export async function applyTagRenamesFromSync(
 	errors: string[];
 	rebalanced: boolean;
 	skippedTesting: boolean;
+	playersSynced: number;
+	playersRemaining: number;
 }> {
 	let current = config;
 	const errors: string[] = [];
 	let remapped = 0;
+	let playersSynced = 0;
+	let playersRemaining = 0;
 	const token = env.DISCORD_BOT_TOKEN;
 	const progress = createProgressReporter(opts?.onProgress);
 	const report = (message: string) => progress.report(message);
 	if (tagRenames.length === 0) {
-		return { config: current, remapped: 0, errors, rebalanced: false, skippedTesting: false };
+		return {
+			config: current,
+			remapped: 0,
+			errors,
+			rebalanced: false,
+			skippedTesting: false,
+			playersSynced: 0,
+			playersRemaining: 0,
+		};
 	}
 
 	const dbOnly = isDeployTesting(config) && !opts?.forceDiscord;
 	if (dbOnly) {
 		report(
-			`⏳ Alliance resync: **${tagRenames.length}** tag rename(s) — updating D1 maps; Discord channel rename skipped (testing).\n` +
-				`_Override: \`/alliance resync apply_discord:true\`_`,
+			`⏳ Alliance resync: **${tagRenames.length}** tag rename(s) — updating D1 maps; Discord channel/nicks skipped (testing).\n` +
+				`_Override: \`/alliance resync apply_discord:true\` (or \`/alliance track tag:NEW apply_discord:true\`)_`,
 		);
 	} else if (isDeployTesting(config) && opts?.forceDiscord) {
 		report(
 			`⏳ Alliance resync: **${tagRenames.length}** tag rename(s) — applying Discord remaps (**testing** override)…`,
 		);
 	}
+
+	const { syncVerifiedPlayersForAllianceTag } = await import('./player-tag-resync');
 
 	for (let i = 0; i < tagRenames.length; i++) {
 		const ren = tagRenames[i]!;
@@ -173,6 +187,14 @@ export async function applyTagRenamesFromSync(
 		if (result.ok) {
 			remapped++;
 			current = (await getGuildConfig(env.STFC_DB, current.guild_id)) ?? latest;
+			const nickSync = await syncVerifiedPlayersForAllianceTag(env, current, ren.toTag, {
+				allianceId: ren.allianceId,
+				forceDiscord: opts?.forceDiscord,
+				onProgress: opts?.onProgress,
+			});
+			playersSynced += nickSync.synced;
+			playersRemaining += nickSync.remaining;
+			errors.push(...nickSync.errors.map((e) => `[${ren.toTag} nicks] ${e}`));
 		} else if (result.error) {
 			errors.push(`[${ren.fromTag}→${ren.toTag}] ${result.error}`);
 		}
@@ -180,7 +202,15 @@ export async function applyTagRenamesFromSync(
 
 	if (dbOnly) {
 		await progress.flush();
-		return { config: current, remapped, errors, rebalanced: false, skippedTesting: true };
+		return {
+			config: current,
+			remapped,
+			errors,
+			rebalanced: false,
+			skippedTesting: true,
+			playersSynced: 0,
+			playersRemaining: 0,
+		};
 	}
 
 	let rebalanced = false;
@@ -197,7 +227,15 @@ export async function applyTagRenamesFromSync(
 	}
 
 	await progress.flush();
-	return { config: current, remapped, errors, rebalanced, skippedTesting: false };
+	return {
+		config: current,
+		remapped,
+		errors,
+		rebalanced,
+		skippedTesting: false,
+		playersSynced,
+		playersRemaining,
+	};
 }
 
 async function finalizeMultiResync(
@@ -376,6 +414,14 @@ async function finalizeMultiResync(
 						? ' _(testing override `apply_discord:true`)_'
 						: ''),
 		);
+		if (renameResult.playersSynced > 0 || renameResult.playersRemaining > 0) {
+			summaryLines.push(
+				`• Player nick/role sync: **${renameResult.playersSynced}**` +
+					(renameResult.playersRemaining
+						? ` (**${renameResult.playersRemaining}** left — \`/alliance track tag:… apply_discord:true\` again)`
+						: ''),
+			);
+		}
 	} else {
 		summaryLines.push(`• Tag renames: none detected`);
 	}
@@ -386,9 +432,15 @@ async function finalizeMultiResync(
 		summaryLines.push(`• Vanish issues: ${vanishResult.errors.slice(0, 3).join('; ')}`);
 	}
 	if (renameResult.rebalanced) summaryLines.push(`• Diplomacy rebalanced`);
-	summaryLines.push(
-		`\n_Verified player roles/nicks update on the next morning sync or when members re-verify._`,
-	);
+	if (!renameResult.playersSynced && !payload.forceDiscord && isDeployTesting(config)) {
+		summaryLines.push(
+			`\n_Discord nicks unchanged in testing — \`/alliance track tag:TAG apply_discord:true\` or morning sync._`,
+		);
+	} else if (renameResult.playersRemaining > 0) {
+		summaryLines.push(
+			`\n_Re-run track with \`apply_discord:true\` for remaining nicks, or wait for morning sync._`,
+		);
+	}
 
 	return {
 		ok: true,
@@ -635,6 +687,12 @@ export async function runAllianceResync(
 				`• Scraped: **${multi.scrapedAlliances}**\n` +
 				`• Tag renames: ${multi.tagRenames.length ? multi.tagRenames.map((r) => `\`${r.fromTag}\`→\`${r.toTag}\``).join(', ') : 'none'}\n` +
 				`• Remapped: **${renameResult.remapped}**` +
+				(renameResult.playersSynced
+					? `\n• Player nick/role sync: **${renameResult.playersSynced}**` +
+						(renameResult.playersRemaining
+							? ` (${renameResult.playersRemaining} left)`
+							: '')
+					: '') +
 				(multi.vanished.length
 					? `\n• Vanished: ${multi.vanished.map((v) => v.tag).join(', ')}`
 					: '') +

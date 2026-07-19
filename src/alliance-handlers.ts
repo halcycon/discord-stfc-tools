@@ -281,6 +281,11 @@ export async function handleAllianceCommand(
 						allianceId: allianceId ?? null,
 						fromTag: fromTag ?? null,
 						applyDiscord,
+						onProgress: async (message) => {
+							await editInteractionResponse(appId, interaction.token, message, true, {
+								config,
+							});
+						},
 					});
 					if (!result.ok) {
 						await editInteractionResponse(appId, interaction.token, `❌ ${result.error}`, true, {
@@ -323,6 +328,13 @@ export async function handleAllianceCommand(
 								? `• Deferred Admiral roles applied: **${result.admiralsRolesApplied}**` +
 									(result.admiralsRolesFailed
 										? ` (**${result.admiralsRolesFailed}** failed)`
+										: '') +
+									`\n`
+								: '') +
+							(result.playersSynced > 0 || result.playersRemaining > 0
+								? `• Discord nick/role sync: **${result.playersSynced}** updated` +
+									(result.playersRemaining
+										? ` (**${result.playersRemaining}** left — run again with \`apply_discord:true\`)`
 										: '') +
 									`\n`
 								: '') +

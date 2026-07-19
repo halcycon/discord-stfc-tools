@@ -28,6 +28,7 @@ import {
 	applyMemberRoles,
 } from './verification-access';
 import { isDeployTesting } from './deploy-mode';
+import { createProgressReporter } from './progress-reporter';
 import type { GuildConfig } from './types';
 
 export { parseTrackedAllianceTags } from './tracked-alliance-tags';
@@ -45,6 +46,8 @@ export type TrackAllianceResult =
 			diplomacyChannelId: string | null;
 			admiralsRolesApplied: number;
 			admiralsRolesFailed: number;
+			playersSynced: number;
+			playersRemaining: number;
 	  }
 	| { ok: false; error: string };
 
@@ -63,11 +66,15 @@ export async function trackAndScrapeAlliance(
 		fromTag?: string | null;
 		/** Rename/move Discord diplomacy channel even when deploy_mode is testing. */
 		applyDiscord?: boolean;
+		onProgress?: (message: string) => Promise<void>;
 	},
 ): Promise<TrackAllianceResult> {
 	if (!isMultiAllianceGuild(config)) {
 		return { ok: false, error: 'Only available in **multi_alliance** mode.' };
 	}
+
+	const progress = createProgressReporter(opts.onProgress);
+	const say = (message: string) => progress.report(message);
 
 	const tagIn = opts.tag?.trim().toUpperCase() || null;
 	let allianceId = opts.allianceId?.trim() || null;
@@ -135,6 +142,7 @@ export async function trackAndScrapeAlliance(
 		return { ok: false, error: 'Could not resolve alliance id/tag.' };
 	}
 
+	say(`⏳ Scraping stfc.pro alliance \`[${resolvedTag}]\` (\`${allianceId}\`)…`);
 	const scrape = await scrapeAllianceById(allianceId, config.stfc_server, config.stfc_region);
 	if (!scrape || scrape.players.length === 0) {
 		return {
@@ -224,12 +232,14 @@ export async function trackAndScrapeAlliance(
 	const token = env.DISCORD_BOT_TOKEN;
 	const applyDiscord = opts.applyDiscord === true || !isDeployTesting(config);
 	if (renameFrom) {
+		say(`⏳ Remapping \`[${renameFrom}]\`→\`[${tag}]\`…`);
 		await rememberAllianceTagAlias(env.STFC_DB, config.guild_id, id, renameFrom);
 		await rememberAllianceTagAlias(env.STFC_DB, config.guild_id, id, tag);
 		if (token && applyDiscord) {
+			// No full diplomacy rebalance — that exceeds CF waitUntil (~30s).
 			await applyAllianceTagRename(env, token, config, config.guild_id, renameFrom, tag, {
 				source: 'admin',
-				rebalance: true,
+				rebalance: false,
 				allianceId: id,
 			});
 			const refreshed = await getGuildConfig(env.STFC_DB, config.guild_id);
@@ -244,17 +254,19 @@ export async function trackAndScrapeAlliance(
 		}
 	}
 	if (token && applyDiscord) {
-		// Refresh Discord channel name/placement for the (possibly already remapped) tag.
+		say(`⏳ Refreshing Discord diplomacy channel \`[${tag}]\`…`);
+		// Name/placement only — never full-server rebalance on track.
 		diplomacyChannelId = await applyDiplomacyForAlliance(
 			env,
 			token,
 			config,
 			config.guild_id,
 			tag,
+			{ rebalance: false, sortAlphabetically: false, applyPermissions: false },
 		);
 
-		const verified = await listActiveVerifiedPlayers(env.STFC_DB, config.guild_id);
-		const admirals = verified.filter(
+		const verifiedForAdm = await listActiveVerifiedPlayers(env.STFC_DB, config.guild_id);
+		const admirals = verifiedForAdm.filter(
 			(p) =>
 				(p.alliance_tag ?? '').trim().toUpperCase() === tag &&
 				normalizeAllianceRank(p.alliance_rank) === 'Admiral' &&
@@ -262,6 +274,7 @@ export async function trackAndScrapeAlliance(
 					p.verification_status === 'verified' ||
 					p.verification_status === 'guest'),
 		);
+		if (admirals.length) say(`⏳ Applying Admiral roles (${admirals.length})…`);
 		for (const p of admirals) {
 			if (p.verification_status === 'guest') continue; // lounge until agreement
 			try {
@@ -307,6 +320,23 @@ export async function trackAndScrapeAlliance(
 	const verified = await listActiveVerifiedPlayers(env.STFC_DB, config.guild_id);
 	const allTracked = [...collectTrackedAllianceTags(config, verified)].sort();
 
+	let playersSynced = 0;
+	let playersRemaining = 0;
+	if (applyDiscord) {
+		say(`⏳ Syncing verified player nicks/roles for \`[${tag}]\`…`);
+		await progress.flush();
+		const { syncVerifiedPlayersForAllianceTag } = await import('./player-tag-resync');
+		const nickSync = await syncVerifiedPlayersForAllianceTag(env, config, tag, {
+			allianceId: id,
+			forceDiscord: true,
+			onProgress: opts.onProgress,
+			limit: 8, // leave headroom after scrape + channel work under waitUntil
+		});
+		playersSynced = nickSync.synced;
+		playersRemaining = nickSync.remaining;
+	}
+
+	await progress.flush();
 	return {
 		ok: true,
 		allianceId: id,
@@ -319,6 +349,8 @@ export async function trackAndScrapeAlliance(
 		diplomacyChannelId,
 		admiralsRolesApplied,
 		admiralsRolesFailed,
+		playersSynced,
+		playersRemaining,
 	};
 }
 

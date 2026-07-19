@@ -801,6 +801,13 @@ export async function applyDiplomacyForAlliance(
 	config: GuildConfig,
 	guildId: string,
 	allianceTag: string,
+	opts?: {
+		/** Default true. Track/refresh should pass false — full rebalance blows CF waitUntil. */
+		rebalance?: boolean;
+		/** Default true. Bulk/track refresh can skip per-channel category sort. */
+		sortAlphabetically?: boolean;
+		applyPermissions?: boolean;
+	},
 ): Promise<string | null> {
 	if (config.mode !== 'multi_alliance' || !diplomacyChannelsEnabled(config) || !allianceTag) {
 		return null;
@@ -808,7 +815,11 @@ export async function applyDiplomacyForAlliance(
 	if (shouldDeferUntrackedDiplomacy(config, allianceTag)) {
 		return null;
 	}
-	const result = await ensureDiplomacyChannel(token, config, guildId, allianceTag);
+	const allowRebalance = opts?.rebalance !== false;
+	const result = await ensureDiplomacyChannel(token, config, guildId, allianceTag, {
+		applyPermissions: opts?.applyPermissions,
+		sortAlphabetically: opts?.sortAlphabetically,
+	});
 	if (!result.ok) {
 		console.error('Diplomacy channel setup failed:', result.error);
 		return null;
@@ -821,7 +832,7 @@ export async function applyDiplomacyForAlliance(
 		});
 		config.diplomacy_channel_map = nextMap;
 	}
-	if (diplomacyNeedsRebalance(config)) {
+	if (allowRebalance && diplomacyNeedsRebalance(config)) {
 		const rb = await runDiplomacyAutoRebalance(env, token, config, guildId, {
 			reason: `new/updated diplomacy channel [${result.tag}]`,
 			source: 'system',
