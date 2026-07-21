@@ -8,7 +8,7 @@ Release log for the STFC Discord bot (Cloudflare Worker). Versions use **MAJOR.M
 | **MINOR** | New user-facing capability (new slash area, cron product, admin workflow) |
 | **INCREMENTAL** | Fixes, polish, docs, refactors, small command option tweaks |
 
-**Current version:** **1.17.3**
+**Current version:** **1.17.4**
 
 **Sources of truth**
 
@@ -27,6 +27,10 @@ Bump all three together when cutting a release. Prefer a short entry under the n
 Versions below **1.0.0** are retrospective labels for the Aug 2025 utility era. **1.0.0** marks the alliance-management product that was prepared for public use. Later **1.x** minors track feature areas shipped in Jul 2026 (git history + migrations `001`–`027`).
 
 ---
+
+## 1.17.4 — SQLite-backed Durable Object migrations (2026-07-21)
+
+Generator uses `new_sqlite_classes` for `DiscordGateway` / `StfcSession` so fresh Workers Free (and new-account) deploys succeed. Documents that already-applied legacy `new_classes` migrations must not be rewritten in place. CPU limits remain gated by `WORKERS_PLAN` (not a separate `CPU_MS` knob).
 
 ## 1.17.3 — Exchange: remove Need role on complete (2026-07-19)
 
