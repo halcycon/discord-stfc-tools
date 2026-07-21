@@ -1347,9 +1347,46 @@ export async function listActiveVerifiedPlayers(db: D1Database, guildId: string)
 	const { results } = await db
 		.prepare(
 			`SELECT * FROM verified_players
+			 WHERE guild_id = ? AND verification_status IN ('verified', 'active', 'guest')
+			 ORDER BY id ASC`,
+		)
+		.bind(guildId)
+		.all();
+	return (results ?? []).map(mapVerifiedPlayer);
+}
+
+/** Count active/verified/guest rows (for daily sync progress). */
+export async function countActiveVerifiedPlayers(db: D1Database, guildId: string): Promise<number> {
+	const row = await db
+		.prepare(
+			`SELECT COUNT(*) AS c FROM verified_players
 			 WHERE guild_id = ? AND verification_status IN ('verified', 'active', 'guest')`,
 		)
 		.bind(guildId)
+		.first<{ c: number }>();
+	return Number(row?.c ?? 0);
+}
+
+/**
+ * Stable cursor page for resumable daily sync (`ORDER BY id`, after last processed id).
+ */
+export async function listActiveVerifiedPlayersAfterId(
+	db: D1Database,
+	guildId: string,
+	afterId: number,
+	limit: number,
+): Promise<VerifiedPlayer[]> {
+	const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
+	const { results } = await db
+		.prepare(
+			`SELECT * FROM verified_players
+			 WHERE guild_id = ?
+			   AND verification_status IN ('verified', 'active', 'guest')
+			   AND id > ?
+			 ORDER BY id ASC
+			 LIMIT ?`,
+		)
+		.bind(guildId, afterId, safeLimit)
 		.all();
 	return (results ?? []).map(mapVerifiedPlayer);
 }
@@ -3504,4 +3541,123 @@ export async function updateAllianceResyncSessionPayload(
 
 export async function deleteAllianceResyncSession(db: D1Database, token: string): Promise<void> {
 	await db.prepare(`DELETE FROM alliance_resync_sessions WHERE token = ?`).bind(token).run();
+}
+
+// --- Daily sync jobs (chunked morning scrape + player sync) ---
+
+export type DailySyncJobPhase = 'scrape' | 'players' | 'finalize';
+
+export type DailySyncJobRow = {
+	guild_id: string;
+	started_at: string;
+	phase: DailySyncJobPhase;
+	payload: string;
+	updated_at: string;
+	expires_at: string;
+};
+
+export async function upsertDailySyncJob(
+	db: D1Database,
+	job: {
+		guild_id: string;
+		started_at: string;
+		phase: DailySyncJobPhase;
+		payload: string;
+		expires_at: string;
+	},
+): Promise<void> {
+	const now = new Date().toISOString();
+	await db
+		.prepare(
+			`INSERT INTO daily_sync_jobs (guild_id, started_at, phase, payload, updated_at, expires_at)
+			 VALUES (?, ?, ?, ?, ?, ?)
+			 ON CONFLICT(guild_id) DO UPDATE SET
+			   started_at = excluded.started_at,
+			   phase = excluded.phase,
+			   payload = excluded.payload,
+			   updated_at = excluded.updated_at,
+			   expires_at = excluded.expires_at`,
+		)
+		.bind(job.guild_id, job.started_at, job.phase, job.payload, now, job.expires_at)
+		.run();
+}
+
+export async function updateDailySyncJob(
+	db: D1Database,
+	guildId: string,
+	patch: { phase: DailySyncJobPhase; payload: string; expires_at?: string },
+): Promise<void> {
+	const now = new Date().toISOString();
+	if (patch.expires_at) {
+		await db
+			.prepare(
+				`UPDATE daily_sync_jobs
+				 SET phase = ?, payload = ?, updated_at = ?, expires_at = ?
+				 WHERE guild_id = ?`,
+			)
+			.bind(patch.phase, patch.payload, now, patch.expires_at, guildId)
+			.run();
+	} else {
+		await db
+			.prepare(
+				`UPDATE daily_sync_jobs
+				 SET phase = ?, payload = ?, updated_at = ?
+				 WHERE guild_id = ?`,
+			)
+			.bind(patch.phase, patch.payload, now, guildId)
+			.run();
+	}
+}
+
+export async function getDailySyncJob(
+	db: D1Database,
+	guildId: string,
+): Promise<DailySyncJobRow | null> {
+	const row = await db
+		.prepare(
+			`SELECT guild_id, started_at, phase, payload, updated_at, expires_at
+			 FROM daily_sync_jobs WHERE guild_id = ?`,
+		)
+		.bind(guildId)
+		.first();
+	if (!row) return null;
+	return {
+		guild_id: String(row.guild_id),
+		started_at: String(row.started_at),
+		phase: row.phase as DailySyncJobPhase,
+		payload: String(row.payload),
+		updated_at: String(row.updated_at),
+		expires_at: String(row.expires_at),
+	};
+}
+
+export async function listDailySyncJobs(db: D1Database): Promise<DailySyncJobRow[]> {
+	const { results } = await db
+		.prepare(
+			`SELECT guild_id, started_at, phase, payload, updated_at, expires_at
+			 FROM daily_sync_jobs
+			 ORDER BY started_at ASC`,
+		)
+		.all();
+	return (results ?? []).map((row) => ({
+		guild_id: String(row.guild_id),
+		started_at: String(row.started_at),
+		phase: row.phase as DailySyncJobPhase,
+		payload: String(row.payload),
+		updated_at: String(row.updated_at),
+		expires_at: String(row.expires_at),
+	}));
+}
+
+export async function deleteDailySyncJob(db: D1Database, guildId: string): Promise<void> {
+	await db.prepare(`DELETE FROM daily_sync_jobs WHERE guild_id = ?`).bind(guildId).run();
+}
+
+export async function deleteExpiredDailySyncJobs(db: D1Database, nowIso?: string): Promise<number> {
+	const now = nowIso ?? new Date().toISOString();
+	const result = await db
+		.prepare(`DELETE FROM daily_sync_jobs WHERE expires_at < ?`)
+		.bind(now)
+		.run();
+	return result.meta.changes ?? 0;
 }

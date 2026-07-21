@@ -436,7 +436,7 @@ Shown on `/server status`.
 
 ## 4d. Daily alliance roster
 
-Each morning (`~06:00 UTC`, cron `0 6 * * *`) the bot refreshes alliance member lists from stfc.pro HTML pages, posts a day-over-day report to the **audit** channel, then syncs verified Discord players from that cache (with live player-page fallbacks when needed).
+Each morning (`~06:00 UTC`, cron `0 6 * * *`) the bot refreshes alliance member lists from stfc.pro HTML pages, posts a day-over-day report to the **audit** channel, then syncs verified Discord players from that cache (with live player-page fallbacks when needed). On large multi-alliance servers this may span several Worker invocations (~12 min each); you may see a **Daily sync progress** audit while it continues, then **Daily player sync complete** when finished. Incomplete jobs resume automatically every 5 minutes.
 
 ### Single-alliance
 
@@ -821,7 +821,7 @@ Same spirit as personal-channel rebalance. Progress posts on the slash command a
 
 **Why resync matters mid-day:** if players sync with the **new** tag before remap, diplomacy may auto-create a second channel for the new tag while the old map key still exists. Run `/alliance resync` promptly after a rename; remap keeps the original room and unmaps the duplicate (you can delete the extra Discord channel).
 
-**Timeouts (not a Discord 30s command limit):** Discord needs an ack within **3s** (we defer), then allows interaction edits/follow-ups for **15 minutes**. After we reply, Cloudflare only keeps `waitUntil` work alive ~**30s** — that is why slash resync is chunked (Continue). Morning cron is a separate scheduled invocation (~**15 min** wall) and still scrapes all tracked pages in one job. stfc.pro page fetches abort at **25s** so one hung page cannot consume a whole chunk.
+**Timeouts (not a Discord 30s command limit):** Discord needs an ack within **3s** (we defer), then allows interaction edits/follow-ups for **15 minutes**. After we reply, Cloudflare only keeps `waitUntil` work alive ~**30s** — that is why slash resync is chunked (Continue). Morning cron is a separate scheduled invocation (~**15 min** wall per chunk) and resumes across chunks via D1 `daily_sync_jobs` + the every-5-minute cron. stfc.pro page fetches abort at **25s** so one hung page cannot consume a whole chunk.
 
 **Scrapes are by alliance id**, not tag string. Resync resolves each tracked tag → id (live directory, **previous** directory, tag alias history, roster meta/members), then fetches `/alliances/{id}`. Rename updates D1 diplomacy/track keys even in **testing** (Discord channel rename/move still needs live mode or `apply_discord:true`). If the id is gone from the directory **and** the page fails twice → **vanished** (untrack, unmap, archive). Stuck old tags from before 1.17.2: `/alliance track tag:NEW from_tag:OLD` once.
 

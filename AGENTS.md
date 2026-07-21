@@ -54,7 +54,7 @@ Worker (src/index.ts) — wakes DO on fetch + cron
 **Cron schedules:**
 - `*/5 * * * *` — wake Gateway + member poll fallback
 - `0 */6 * * *` — re-check guest players (prefer alliance roster cache, else HTML)
-- `0 6 * * *` — alliance roster scrape + day-over-day report + daily player sync
+- `0 6 * * *` — alliance roster scrape + day-over-day report + daily player sync (**chunked**; resumes on `*/5` if wall time exhausted)
 - `30 * * * *` — demotion recheck queue (YOLO missing-player delay)
 
 ### Alliance roster sync
@@ -199,6 +199,7 @@ src/
   systemData.ts            # Bundled systems (generated — do not hand-edit)
   tableUtils.ts            # CSV tables
   cron.ts                  # Scheduled jobs
+  daily-player-sync.ts     # Chunked morning roster scrape + verified player sync
   version.ts               # BOT_VERSION (MAJOR.MINOR.INCREMENTAL)
 
 migrations/
@@ -222,6 +223,7 @@ migrations/
   042_diplomacy_soft_limit.sql            # persisted diplomacy soft_limit (default 45)
   043_alliance_resync_sessions.sql       # chunked /alliance resync Continue sessions
   044_alliance_tag_aliases.sql           # tag→alliance id history for renames
+  045_daily_sync_jobs.sql                # resumable morning scrape + player sync
 
 archive/officers/          # REMOVED officer feature (scripts, SQL, assets, docs)
 
@@ -444,7 +446,7 @@ No guest-role gating; no personal channel requirement (unless optionally enabled
 
 ### Phase 4 — Daily player sync — **done (roster-first)**
 
-**Cron:** `0 6 * * *` (`runDailyPlayerSync` in `src/cron.ts`).
+**Cron:** `0 6 * * *` (`runDailyPlayerSync` in `src/daily-player-sync.ts`, scheduled via `src/cron.ts`). Large guilds may span multiple Worker invocations (~12 min budget each); incomplete work resumes on `*/5` (and one optional self-continue after the morning kickoff).
 
 **Single-alliance:**
 1. Scrape alliance HTML → replace `alliance_roster_*` → post day-over-day audit report.
@@ -619,7 +621,7 @@ Use a service layer (e.g. `src/guild-config-service.ts`) — do not embed raw SQ
 |----------|---------|
 | `*/5 * * * *` | Wake Gateway + member poll fallback |
 | `0 */6 * * *` | Guest re-check (roster-first, else HTML) |
-| `0 6 * * *` | Alliance roster scrape + change report + daily player sync |
+| `0 6 * * *` | Alliance roster scrape + change report + daily player sync (chunked; continues on `*/5`) |
 | `30 * * * *` | Demotion recheck queue (YOLO missing-player delay) |
 
 ---

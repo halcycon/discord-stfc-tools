@@ -516,7 +516,7 @@ Configured in `generate-config.js` → `wrangler.json`:
 |----------|---------|
 | `*/5 * * * *` | Wake Gateway; member poll fallback |
 | `0 */6 * * *` | Re-check guest players (alliance roster cache first, else live lookup) |
-| `0 6 * * *` | Alliance roster sync + day-over-day audit report + daily player sync |
+| `0 6 * * *` | Alliance roster sync + day-over-day audit report + daily player sync (chunked; resumes every 5 min if needed) |
 | `30 * * * *` | Leave-detection recheck queue (auto policy missing-player delay) |
 
 **Single-alliance morning job:** one HTML fetch of `https://stfc.pro/alliances/{stfc_alliance_id}` (full roster embedded in the page). Diff vs previous D1 snapshot → post to audit channel → sync verified players from cache. See `docs/ADMIN_GUIDE.md` § Daily alliance roster and `AGENTS.md` § Alliance roster sync.

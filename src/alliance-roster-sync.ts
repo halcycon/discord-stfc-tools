@@ -648,42 +648,24 @@ export async function scrapeMultiAllianceEntries(
 	return { scrapedAlliances, failedTags, vanished, tagRenames, keepAllianceIds };
 }
 
+export type MultiAllianceScrapeBatchAccum = {
+	scrapedAlliances: number;
+	failedTags: string[];
+	vanished: AllianceVanished[];
+	tagRenames: AllianceTagRename[];
+	keepAllianceIds: string[];
+};
+
 /**
- * Multi-alliance morning job:
- * 1) Fetch /servers/{n} directory
- * 2) Track tags = verified player tags ∪ diplomacy map tags
- * 3) Scrape those alliance pages (batched)
- * 4) Diff vs previous combined roster
- *
- * Cron has ~15 min wall time — runs the full scrape in one invocation.
- * Slash `/alliance resync` must chunk (see ALLIANCE_RESYNC_INTERACTION_CHUNK).
+ * After all planned alliance pages are scraped (possibly across chunks): prune,
+ * apply tracked-tag renames, and day-over-day diff.
  */
-export async function syncMultiAllianceTrackedRosters(
+export async function finalizePlannedMultiAllianceScrape(
 	env: Env,
 	config: GuildConfig,
-	opts?: MultiAllianceRosterSyncOptions,
+	plan: PlannedMultiAllianceScrape,
+	batch: MultiAllianceScrapeBatchAccum,
 ): Promise<MultiAllianceRosterSyncResult> {
-	const planned = await planMultiAllianceScrape(env, config, opts);
-	if (!planned.ok) {
-		return { ok: false, reason: planned.reason };
-	}
-	const { plan } = planned;
-
-	const progress = createProgressReporter(opts?.onProgress);
-	progress.report(
-		`⏳ Alliance sync: directory **${plan.directoryCount}** · scraping **${plan.entries.length}** alliance page(s)` +
-			(plan.skippedTags.length ? ` (${plan.skippedTags.length} skipped)` : '') +
-			`…`,
-	);
-	await progress.flush();
-
-	const batch = await scrapeMultiAllianceEntries(env, config, plan.entries, {
-		fetchedAt: plan.fetchedAt,
-		progressOffset: 0,
-		progressTotal: plan.entries.length,
-		onProgress: opts?.onProgress,
-	});
-
 	const tagRenames: AllianceTagRename[] = [];
 	for (const r of plan.plannedRenames) pushUniqueRename(tagRenames, r);
 	for (const r of batch.tagRenames) pushUniqueRename(tagRenames, r);
@@ -739,6 +721,46 @@ export async function syncMultiAllianceTrackedRosters(
 		tagRenames,
 		vanished: batch.vanished,
 	};
+}
+
+/**
+ * Multi-alliance morning job (one-shot helper for HTTP/diagnostics):
+ * 1) Fetch /servers/{n} directory
+ * 2) Track tags = verified player tags ∪ diplomacy map tags
+ * 3) Scrape those alliance pages
+ * 4) Diff vs previous combined roster
+ *
+ * Morning cron prefers chunked `plan` + `scrapeMultiAllianceEntries` +
+ * `finalizePlannedMultiAllianceScrape` via `daily-player-sync.ts`.
+ * Slash `/alliance resync` must chunk (see ALLIANCE_RESYNC_INTERACTION_CHUNK).
+ */
+export async function syncMultiAllianceTrackedRosters(
+	env: Env,
+	config: GuildConfig,
+	opts?: MultiAllianceRosterSyncOptions,
+): Promise<MultiAllianceRosterSyncResult> {
+	const planned = await planMultiAllianceScrape(env, config, opts);
+	if (!planned.ok) {
+		return { ok: false, reason: planned.reason };
+	}
+	const { plan } = planned;
+
+	const progress = createProgressReporter(opts?.onProgress);
+	progress.report(
+		`⏳ Alliance sync: directory **${plan.directoryCount}** · scraping **${plan.entries.length}** alliance page(s)` +
+			(plan.skippedTags.length ? ` (${plan.skippedTags.length} skipped)` : '') +
+			`…`,
+	);
+	await progress.flush();
+
+	const batch = await scrapeMultiAllianceEntries(env, config, plan.entries, {
+		fetchedAt: plan.fetchedAt,
+		progressOffset: 0,
+		progressTotal: plan.entries.length,
+		onProgress: opts?.onProgress,
+	});
+
+	return finalizePlannedMultiAllianceScrape(env, config, plan, batch);
 }
 
 /** Clear roster cache + alliance id when leaving single-alliance mode. */

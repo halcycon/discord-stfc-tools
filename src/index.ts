@@ -49,6 +49,11 @@ export default {
 			return handleAgreementBackfillContinue(request, env, ctx);
 		}
 
+		if (url.pathname === '/internal/daily-sync-continue' && request.method === 'POST') {
+			const { handleDailySyncContinue } = await import('./daily-player-sync');
+			return handleDailySyncContinue(request, env, ctx);
+		}
+
 		if (url.pathname === '/lookup' && request.method === 'POST') {
 			const body = await request.json() as { message: string };
 			return Response.json({ result: handleCoordinateLookup(body.message) });
@@ -399,6 +404,6 @@ Scheduled jobs:
 	},
 
 	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-		ctx.waitUntil(handleScheduledEvent(env, controller.cron));
+		ctx.waitUntil(handleScheduledEvent(env, controller.cron, ctx));
 	},
 } satisfies ExportedHandler<Env>;
