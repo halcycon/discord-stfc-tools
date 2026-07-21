@@ -1,5 +1,6 @@
 import {
 	interactionResponse,
+	updateMessageResponse,
 	createGuildCategory,
 } from './discord-api';
 import { requireGuildAdmin, isGuildAdministrator } from './discord-admin';
@@ -329,22 +330,28 @@ export async function handleExchangeComponent(
 		);
 	}
 
+	// DM offer/follow-up buttons: update the message so the request is visibly dismissed.
 	const help = customId.match(/^exch:help:(\d+)$/);
 	if (help) {
-		return interactionResponse(await handleHelpClaim(env, Number(help[1]), userId), true);
+		return updateMessageResponse(await handleHelpClaim(env, Number(help[1]), userId), {
+			components: [],
+		});
 	}
 
 	if (/^exch:ignore:(\d+)$/.test(customId)) {
-		return interactionResponse('👍 Ignored — others can still claim.', true);
+		return updateMessageResponse('👍 Ignored — others can still claim.', { components: [] });
 	}
 
 	const done = customId.match(/^exch:done:(\d+)$/);
 	if (done) {
-		return interactionResponse(await handleRequestCompleted(env, Number(done[1]), userId), true);
+		return updateMessageResponse(await handleRequestCompleted(env, Number(done[1]), userId), {
+			components: [],
+		});
 	}
 
 	const again = customId.match(/^exch:again:(\d+)$/);
 	if (again) {
+		// Keep Completed / Ask again — recipient may still finish or re-ping later.
 		return interactionResponse(await handleAskAgain(env, Number(again[1]), userId), true);
 	}
 
