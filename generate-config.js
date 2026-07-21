@@ -54,14 +54,17 @@ function generateWranglerConfig() {
         }
       ]
     },
+    // SQLite-backed DO namespaces (required on Workers Free; preferred for all new
+    // installs). Do not rewrite these tags on accounts that already applied v1/v2
+    // as legacy new_classes — Cloudflare cannot convert an existing KV-backed class.
     "migrations": [
       {
         "tag": "v1",
-        "new_classes": ["DiscordGateway"]
+        "new_sqlite_classes": ["DiscordGateway"]
       },
       {
         "tag": "v2",
-        "new_classes": ["StfcSession"]
+        "new_sqlite_classes": ["StfcSession"]
       }
     ]
   };

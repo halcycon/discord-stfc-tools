@@ -142,7 +142,9 @@ npm run db:migrate-local
 npm run deploy
 ```
 
-First deploy registers **Durable Object** migrations (`DiscordGateway`, `StfcSession`). This is automatic via `wrangler.json` / `generate-config.js`.
+First deploy registers **Durable Object** migrations (`DiscordGateway`, `StfcSession`) as **SQLite-backed** classes (`new_sqlite_classes`). This is automatic via `wrangler.json` / `generate-config.js`. Workers Free only supports SQLite-backed Durable Objects; new accounts generally cannot create legacy KV-backed namespaces (`new_classes`).
+
+If you already deployed this Worker with `new_classes` for `v1`/`v2`, leave those applied migrations alone — Cloudflare cannot convert an existing KV-backed class to SQLite by editing past migration tags. Only greenfield / Free installs need the SQLite migration form in the generator.
 
 Note your Worker URL from the deploy output (e.g. `https://stfc-tools.your-name.workers.dev`). Update `WORKER_URL` in `.env`, then `npm run push-env && npm run deploy` again.
 
