@@ -69,6 +69,15 @@ function generateWranglerConfig() {
     ]
   };
 
+  // Optional CPU limit (Paid Workers only)
+  const cpuMs = Number(process.env.CPU_MS);
+  
+  if (!Number.isNaN(cpuMs) && cpuMs > 0) {
+    configTemplate.limits = {
+      cpu_ms: cpuMs
+    };
+  }
+
   if (process.env.WORKER_URL) {
     configTemplate.vars.WORKER_URL = process.env.WORKER_URL;
   }
